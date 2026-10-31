@@ -198,18 +198,18 @@
               </label>
               <p class="help">遠く外すほどライフが大きく減ります（1回で最大 1000）。ライフが 0 になったら終了です。</p>
               <label class="switch-row hardcore-row">
-                <span><b>🔥 エクストラモード</b><small>数メートルのずれも見逃さない・地元の人向け</small></span>
+                <span><b>🔥 エクストラモード</b><small>数メートルのずれも見逃さない・上級者向け</small></span>
                 <input type="checkbox" id="opt-hardcore" class="switch">
               </label>
               <div class="hardcore-help" id="hardcore-help">
-                <p>ライフの量とは別に、<b>ずれの判定</b>を厳しくします。ふつうは 25m 以内なら減りませんが、エクストラモードでは<b>数メートルのずれでもライフが減ります</b>。
-                近いほど減る量は少なく、遠いほど大きく減ります。広い範囲でも、地元を当てるくらいの厳しさで判定します（ふつうより減る量が少なくなることはありません）。</p>
+                <p>ライフの量とは別に、<b>ずれの判定</b>を厳しくします。ふつうは 25m 以内なら減りませんが、エクストラモードでは<b>5m 以上ずれるとライフが減ります</b>（5m 未満は 0、5m で −2）。
+                近いほど減る量は少なく、遠いほど大きく減ります。広い範囲でも、街角まで当てるくらいの厳しさで判定します（ふつうより減る量が少なくなることはありません）。</p>
                 <table>
-                  <tr><th>ずれ</th><td>5 m</td><td>100 m</td><td>500 m</td><td>1 km</td><td>5 km</td></tr>
-                  <tr><th>ふつう（広島県）</th><td>0</td><td>−8</td><td>−40</td><td>−78</td><td>−335</td></tr>
-                  <tr><th>エクストラ</th><td>−2</td><td>−49</td><td>−221</td><td>−393</td><td>−918</td></tr>
+                  <tr><th>ずれ</th><td>5 m 未満</td><td>5 m</td><td>100 m</td><td>500 m</td><td>1 km</td><td>5 km</td></tr>
+                  <tr><th>ふつう（広島県）</th><td>0</td><td>0</td><td>−8</td><td>−40</td><td>−78</td><td>−335</td></tr>
+                  <tr><th>エクストラ</th><td>0</td><td>−2</td><td>−49</td><td>−221</td><td>−393</td><td>−918</td></tr>
                 </table>
-                <p>道の角や建物の位置までわかる、自分の地元で挑戦するのがおすすめです。ランキングはエクストラモードだけで別に集計します。</p>
+                <p>道の角や建物の位置までよく知っている場所で挑戦するのがおすすめです。ランキングはエクストラモードだけで別に集計します。</p>
               </div>
             </div>
           </div>
@@ -268,8 +268,8 @@
     <aside id="panel">
       <section id="editor-panel">
         <button id="btn-cancel-area-top" class="btn-back" title="マップ選択へ戻る" aria-label="マップ選択へ戻る"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <p class="eyebrow">CREATE</p>
-        <h2>範囲を作る</h2>
+        <p class="eyebrow" id="editor-eyebrow">CREATE</p>
+        <h2 id="editor-title">範囲を作る</h2>
 
         <div class="seg" id="tool-tabs">
           <button data-tool="circle" class="tab active">
@@ -476,45 +476,6 @@
     </div>
 
     <div id="message" hidden></div>
-
-    <!-- 自作の範囲の情報を編集するダイアログ -->
-    <div id="area-dialog" hidden>
-      <div class="dialog-backdrop"></div>
-      <div class="dialog area-dialog" role="dialog" aria-modal="true" aria-labelledby="area-dialog-title">
-        <h3 id="area-dialog-title">マップの情報を編集</h3>
-        <div class="field">
-          <label for="edit-name">名前</label>
-          <input type="text" id="edit-name" maxlength="30">
-        </div>
-        <div class="field">
-          <label for="edit-category">カテゴリ</label>
-          <select id="edit-category"></select>
-        </div>
-        <div class="field">
-          <label for="edit-desc">メモ（カードに表示）</label>
-          <input type="text" id="edit-desc" maxlength="40" placeholder="例: 実家のまわり / 坂が多い">
-        </div>
-        <div class="field">
-          <label>色</label>
-          <div class="swatches" id="edit-color"></div>
-        </div>
-        <div class="field">
-          <label>カバー画像（なくてもOK）</label>
-          <div class="cover-picker">
-            <div class="cover-preview" id="edit-cover-preview"><span>画像なし</span></div>
-            <div class="cover-actions">
-              <button id="btn-edit-cover" class="btn-ghost small-btn">画像を選ぶ</button>
-              <button id="btn-edit-cover-remove" class="link-btn" hidden>画像を外す</button>
-            </div>
-            <input type="file" id="edit-cover-file" accept="image/*" hidden>
-          </div>
-        </div>
-        <div class="dialog-actions">
-          <button id="edit-cancel" class="btn-ghost">キャンセル</button>
-          <button id="edit-save" class="dialog-ok">保存する</button>
-        </div>
-      </div>
-    </div>
 
     <!-- スコアを記録するダイアログ -->
     <div id="score-dialog" hidden>

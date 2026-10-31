@@ -1168,15 +1168,6 @@ html.no-anim *, html.no-anim *::before, html.no-anim *::after {
 }
 .card-edit:hover { color: #fff; border-color: #fff; }
 
-#area-dialog { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; }
-.area-dialog { text-align: left; max-height: calc(100vh - 32px); overflow-y: auto; }
-.area-dialog h3 { text-align: center; }
-.area-dialog .field input[type=text], .area-dialog .field select { width: 100%; padding: 10px 12px; border-radius: 10px; background: var(--bg-2); color: var(--text); border: 1px solid var(--line); font: inherit; }
-@media (prefers-reduced-motion: no-preference) {
-  #area-dialog:not([hidden]) .dialog-backdrop { animation: fadeIn .2s both; }
-  #area-dialog:not([hidden]) .dialog { animation: popIn .28s cubic-bezier(.2,1.2,.4,1) both; }
-}
-
 /* ================================================================ 激ムズモード */
 .hardcore-row { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(229,57,47,.08); border: 1px solid rgba(229,57,47,.35); cursor: pointer; }
 .hardcore-row span { display: flex; flex-direction: column; }

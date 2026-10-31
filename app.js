@@ -476,11 +476,11 @@ function mapCard(area) {
     card.appendChild(del);
     const edit = document.createElement("button");
     edit.className = "card-edit";
-    edit.title = "名前・メモ・色・カバー画像を編集";
+    edit.title = "範囲の形・名前・メモ・色・カバー画像を編集";
     edit.textContent = "✎";
     edit.addEventListener("click", (e) => {
       e.stopPropagation();
-      openAreaDialog(area.id);
+      openEditor(area.id);
     });
     card.appendChild(edit);
   }
@@ -1203,14 +1203,14 @@ function selectedLife() {
 // 外した度合いに応じて減るライフ。得点の裏返しなので、近ければ少し・遠ければ最大 1000
 const HARDCORE_DECAY = 2000;
 
-// エクストラモード: 範囲の広さに関係なく 2km を目安に減らし、数メートルのずれでも少し減る。
+// エクストラモード: 5m 未満は減らさず、5m からは最低でも 2 減る。範囲の広さに関係なく 2km を目安に減らし、数メートルのずれでも少し減る。
 // 狭い範囲ではふつうの方が厳しいこともあるので、ふつうより減る量が少なくならないようにする
 function damageFor(score, distance, hardcore) {
   const normal = 1000 - score;
   if (!hardcore) return normal;
   if (distance == null) return 1000; // 時間切れ
-  if (distance < 1) return 0;
-  const strict = Math.max(1, Math.round(1000 * (1 - Math.exp(-distance / HARDCORE_DECAY))));
+  if (distance < 5) return normal;
+  const strict = Math.max(2, Math.round(1000 * (1 - Math.exp(-distance / HARDCORE_DECAY))));
   return Math.max(normal, strict);
 }
 
@@ -1232,8 +1232,8 @@ function renderHudLife() {
 // ---------------------------------------------------------------- 自作の範囲の見た目（メモ・色・カバー画像）
 
 const AREA_COLORS = ["#2fb36b", "#3b82f6", "#a855f7", "#f97316", "#ec4899", "#14b8a6", "#f5c542", "#e5392f"];
-// "area" はエディタ、"edit" は編集ダイアログの入力中の値
-const areaForms = { area: { color: AREA_COLORS[0], cover: null }, edit: { color: AREA_COLORS[0], cover: null, id: null } };
+// 範囲エディタで入力中の色とカバー画像
+const areaForms = { area: { color: AREA_COLORS[0], cover: null } };
 
 function renderAreaForm(prefix) {
   const form = areaForms[prefix];
@@ -1295,78 +1295,51 @@ function bindAreaForm(prefix) {
   });
 }
 
-// マップ選択のカードの ✎ から、名前・メモ・色・カバー画像を変える
-function openAreaDialog(id) {
-  const area = loadJSON(STORE_AREAS, []).find((a) => a.id === id);
-  if (!area) return;
-  areaForms.edit = { id, color: area.color || AREA_COLORS[0], cover: area.cover || null };
-  $("edit-name").value = area.name;
-  $("edit-category").value = area.category || "custom";
-  $("edit-desc").value = area.description || "";
-  renderAreaForm("edit");
-  $("area-dialog").hidden = false;
-  $("edit-name").focus();
-}
-
-function closeAreaDialog() {
-  $("area-dialog").hidden = true;
-}
-
-function saveAreaDialog() {
-  const form = areaForms.edit;
-  const areas = loadJSON(STORE_AREAS, []);
-  const area = areas.find((a) => a.id === form.id);
-  if (!area) return closeAreaDialog();
-  const category = $("edit-category").value;
-  area.name = $("edit-name").value.trim() || area.name;
-  area.category = category === "custom" ? null : category;
-  area.description = $("edit-desc").value.trim() || undefined;
-  area.color = form.color;
-  area.cover = form.cover || undefined;
-  try {
-    localStorage.setItem(STORE_AREAS, JSON.stringify(areas));
-  } catch {
-    return showMessage("保存できませんでした。ブラウザの保存容量がいっぱいかもしれません。カバー画像を外すか、使っていない範囲を削除してください。");
-  }
-  closeAreaDialog();
-  renderSelect();
-}
-
-function bindAreaDialog() {
-  bindAreaForm("area");
-  bindAreaForm("edit");
-  $("edit-category").innerHTML = $("area-category").innerHTML;
-  $("edit-save").addEventListener("click", saveAreaDialog);
-  $("edit-cancel").addEventListener("click", closeAreaDialog);
-  $("area-dialog").querySelector(".dialog-backdrop").addEventListener("click", closeAreaDialog);
-  window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !$("area-dialog").hidden) {
-      e.stopPropagation();
-      closeAreaDialog();
-    }
-  }, true);
-}
-
 // ---------------------------------------------------------------- 範囲エディタ
 
 const EDIT_COLOR = "#f2a541";
 const EDIT_ERROR_COLOR = "#ff5a4e";
 
-function openEditor() {
+// editId を渡すと、保存してある自作の範囲を読み込んで編集する（形も見た目も変えられる）
+function openEditor(editId) {
   if (!ensureMap()) return;
   closeSettings();
-  state.editor = { tool: "circle", circles: [], polygon: null, added: [], selected: null };
+  const editing = typeof editId === "string" ? loadJSON(STORE_AREAS, []).find((a) => a.id === editId) : null;
+  state.editor = { tool: "circle", circles: [], polygon: null, added: [], selected: null, editingId: editing ? editing.id : null };
   setScreen("editor");
-  $("area-name").value = "";
-  $("area-category").value = state.category && !["all", "custom"].includes(state.category) ? state.category : "custom";
+  $("editor-eyebrow").textContent = editing ? "EDIT" : "CREATE";
+  $("editor-title").textContent = editing ? "範囲を編集" : "範囲を作る";
+  $("btn-save-area").textContent = editing ? "変更を保存する" : "保存する";
+  $("area-name").value = editing ? editing.name : "";
+  $("area-category").value = editing
+    ? editing.category || "custom"
+    : state.category && !["all", "custom"].includes(state.category) ? state.category : "custom";
   // 色は、まだ使っていない色から順に選んでおく（カードが見分けやすいように）
   const used = new Set(loadJSON(STORE_AREAS, []).map((a) => a.color));
-  areaForms.area = { color: AREA_COLORS.find((c) => !used.has(c)) || AREA_COLORS[0], cover: null };
-  $("area-desc").value = "";
+  areaForms.area = editing
+    ? { color: editing.color || AREA_COLORS[0], cover: editing.cover || null }
+    : { color: AREA_COLORS.find((c) => !used.has(c)) || AREA_COLORS[0], cover: null };
+  $("area-desc").value = editing ? editing.description || "" : "";
   renderAreaForm("area");
   clearOverlay();
   state.map.setOptions({ draggableCursor: "crosshair" });
-  setTool("circle");
+  setTool(editing && editing.type === "polygons" ? "polygon" : "circle");
+  if (editing) loadEditorShapes(editing);
+}
+
+// 保存してある範囲の図形を、エディタで動かせる図形として置き直す
+function loadEditorShapes(area) {
+  const ed = state.editor;
+  const circles = areaCircles(area);
+  if (circles) {
+    circles.forEach((c) => addEditorCircle(new google.maps.LatLng(c.center.lat, c.center.lng), c.radius));
+  } else {
+    const path = ensureEditorPolygon().getPath();
+    area.rings[0].forEach(([lat, lng]) => path.push(new google.maps.LatLng(lat, lng)));
+    ed.selected = ed.polygon;
+  }
+  state.map.fitBounds(areaBounds(area), 40);
+  updateEditorStatus();
 }
 
 function clearEditorShapes() {
@@ -1412,16 +1385,34 @@ function editorClick(latLng) {
   const ed = state.editor;
   if (Date.now() < (ed.suppressClickUntil || 0)) return;
   if (ed.tool === "circle") {
-    const circle = new google.maps.Circle({ ...editorShapeOptions(), center: latLng, radius: Number($("radius").value) });
-    circle.addListener("click", () => selectShape(circle));
-    ["center_changed", "radius_changed"].forEach((ev) => circle.addListener(ev, updateEditorStatus));
-    bindShapeHover(circle);
-    ed.circles.push(circle);
-    selectShape(circle);
+    addEditorCircle(latLng, Number($("radius").value));
   } else {
     addPolygonPoint(latLng);
   }
   updateEditorStatus();
+}
+
+function addEditorCircle(center, radius) {
+  const circle = new google.maps.Circle({ ...editorShapeOptions(), center, radius });
+  circle.addListener("click", () => selectShape(circle));
+  ["center_changed", "radius_changed"].forEach((ev) => circle.addListener(ev, updateEditorStatus));
+  bindShapeHover(circle);
+  state.editor.circles.push(circle);
+  selectShape(circle);
+}
+
+function ensureEditorPolygon() {
+  const ed = state.editor;
+  if (ed.polygon) return ed.polygon;
+  ed.polygon = new google.maps.Polygon(editorShapeOptions());
+  ed.polygon.setPath(new google.maps.MVCArray());
+  ed.polygon.addListener("click", (e) => { if (e.vertex == null && e.edge == null) editorClick(e.latLng); });
+  // 図形ごと動かしたあとも、広さや場所の表示を更新する
+  ed.polygon.addListener("dragend", updateEditorStatus);
+  const path = ed.polygon.getPath();
+  ["insert_at", "set_at", "remove_at"].forEach((ev) => path.addListener(ev, updateEditorStatus));
+  bindShapeHover(ed.polygon);
+  return ed.polygon;
 }
 
 // 平面とみなして計算するための座標（経度は緯度に応じて縮める）
@@ -1432,16 +1423,7 @@ function toXY(latLng, refLat) {
 // 新しい頂点を「周の長さが一番伸びない辺」に差し込む。クリック順に関係なく、形が交差しにくくなる
 function addPolygonPoint(latLng) {
   const ed = state.editor;
-  if (!ed.polygon) {
-    ed.polygon = new google.maps.Polygon(editorShapeOptions());
-    ed.polygon.setPath(new google.maps.MVCArray());
-    ed.polygon.addListener("click", (e) => { if (e.vertex == null && e.edge == null) editorClick(e.latLng); });
-    // 図形ごと動かしたあとも、広さや場所の表示を更新する
-    ed.polygon.addListener("dragend", updateEditorStatus);
-    const path = ed.polygon.getPath();
-    ["insert_at", "set_at", "remove_at"].forEach((ev) => path.addListener(ev, updateEditorStatus));
-    bindShapeHover(ed.polygon);
-  }
+  ensureEditorPolygon();
   ed.selected = ed.polygon;
   const path = ed.polygon.getPath();
   const pts = path.getArray();
@@ -1559,12 +1541,18 @@ function saveEditor() {
   }
   const category = $("area-category").value;
   area = {
-    ...area, id: `custom-${Date.now()}`, name, custom: true, category: category === "custom" ? null : category,
+    ...area, id: ed.editingId || `custom-${Date.now()}`, name, custom: true, category: category === "custom" ? null : category,
     description: $("area-desc").value.trim() || undefined,
     color: areaForms.area.color,
     cover: areaForms.area.cover || undefined,
   };
-  saveJSON(STORE_AREAS, [...loadJSON(STORE_AREAS, []), area]);
+  const others = loadJSON(STORE_AREAS, []);
+  const saved = ed.editingId ? others.map((a) => (a.id === area.id ? area : a)) : [...others, area];
+  try {
+    localStorage.setItem(STORE_AREAS, JSON.stringify(saved));
+  } catch {
+    return showMessage("保存できませんでした。ブラウザの保存容量がいっぱいかもしれません。カバー画像を外すか、使っていない範囲を削除してください。");
+  }
   closeEditor();
   openSettings(area.id);
 }
@@ -1969,7 +1957,7 @@ const REACTIONS = [
     "目の前！ここ毎日通ってます？🏠", "鳥肌立ちました…🐔", "その読み、プロの犯行です🕵️",
   ] },
   { max: 300, lines: [
-    "すごい！地元の方ですか！？", "近っ！この辺よく来ます？👀", "さすが！ほとんど目の前です🎯",
+    "すごい！この辺りに詳しいんですか！？", "近っ！この辺よく来ます？👀", "さすが！ほとんど目の前です🎯",
     "声をかければ届く距離！📣", "ほぼ正解！角ひとつ分のずれ🏢", "この精度、ただ者じゃない…😎",
     "あの看板、見逃さなかったですね🔎",
   ] },
@@ -2007,23 +1995,23 @@ const TIMEOUT_LINES = [
 
 // エクストラモード用: 数メートル単位で見る、厳しめのひとこと
 const EXTRA_REACTIONS = [
-  { max: 3, lines: [
-    "…合格。これくらいは当然です🔥", "ふん、やるじゃないですか", "これが本物の地元民…認めましょう👑",
+  { max: 4.999, lines: [
+    "…合格。これくらいは当然です🔥", "ふん、やるじゃないですか", "これが本物の実力…認めましょう👑",
     "完璧。次も同じことができますか？", "文句なし。でも油断は禁物です", "ようやく EXTRA の入り口に立てましたね",
   ] },
   { max: 10, lines: [
     "数メートルずれてます。EXTRA では甘えです", "惜しい？いいえ、ずれはずれです", "その数メートルが命取りです⚠️",
-    "地元民なら、ここは外さないはず", "目の前でした。でも目の前では足りません", "あと一歩。その一歩が遠いんです",
+    "この街を知っているなら、ここは外さないはず", "目の前でした。でも目の前では足りません", "あと一歩。その一歩が遠いんです",
     "ギリギリ及第点…とは言いません",
   ] },
   { max: 30, lines: [
-    "家一軒ぶんずれてます🏠", "その距離、地元民とは呼べません", "本当にこの道、通ったことあります？",
+    "家一軒ぶんずれてます🏠", "その距離、詳しいとは呼べません", "本当にこの道、通ったことあります？",
     "建物を見間違えましたね", "道路の反対側…かもしれません", "ライフは正直です。しっかり減りました",
     "近いけど、EXTRA では遠いです",
   ] },
   { max: 100, lines: [
     "100m 近くずれてます。論外です", "ひと区画まるごと違います", "目印、ちゃんと見ました？👀",
-    "その感覚、一度リセットしましょう", "これで地元民を名乗るのは早いです", "交差点ひとつ分の見落としです",
+    "その感覚、一度リセットしましょう", "これで詳しいと名乗るのは早いです", "交差点ひとつ分の見落としです",
     "ライフが悲鳴をあげています😱",
   ] },
   { max: 300, lines: [
@@ -2032,13 +2020,13 @@ const EXTRA_REACTIONS = [
     "ずれ方が雑すぎます",
   ] },
   { max: 1000, lines: [
-    "話になりません", "1km 近く外して、地元民…？", "これは EXTRA の戦い方じゃありません",
+    "話になりません", "1km 近く外して、詳しい…？", "これは EXTRA の戦い方じゃありません",
     "ライフがみるみる減っていきます🩸", "ふつうモードに戻りますか？", "どこを見て判断したんですか…",
     "そこ、駅ひとつ分ずれてます🚉",
   ] },
   { max: 5000, lines: [
     "まったく別のエリアです", "その自信はどこから来たんですか", "EXTRA を選んだこと、後悔してません？",
-    "これは厳しい…ライフが溶けていきます🫠", "完全に迷子です", "地元の範囲から出てませんか？",
+    "これは厳しい…ライフが溶けていきます🫠", "完全に迷子です", "もう範囲の外まで行ってませんか？",
     "もはや観光客の感覚です🧳",
   ] },
   { max: Infinity, lines: [
@@ -2049,7 +2037,7 @@ const EXTRA_REACTIONS = [
 ];
 
 const EXTRA_TIMEOUT_LINES = [
-  "時間切れ。EXTRA では迷った時点で負けです⏰", "何もしないのが一番の失敗です", "考えすぎ。地元民なら即答のはず",
+  "時間切れ。EXTRA では迷った時点で負けです⏰", "何もしないのが一番の失敗です", "考えすぎ。わかる人なら即答のはず",
   "タイムアップ。ライフは容赦なく減ります", "沈黙は答えになりません",
 ];
 
@@ -2289,7 +2277,9 @@ function bindDockOpen() {
     if (hover || dragging) dock.classList.add("open");
     else dock.classList.remove("open");
   };
-  dock.addEventListener("mouseenter", () => { hover = true; update(); });
+  // ストリートビューを掴んで向きを変えたままマップの上に来たときは広げない（ボタンを押していないときだけ）
+  dock.addEventListener("mouseenter", (e) => { hover = e.buttons === 0; update(); });
+  dock.addEventListener("mousemove", (e) => { if (!hover && e.buttons === 0) { hover = true; update(); } });
   dock.addEventListener("mouseleave", () => { hover = false; update(); });
   dock.addEventListener("pointerdown", () => { dragging = true; update(); });
   window.addEventListener("pointerup", () => { if (dragging) { dragging = false; update(); } });
@@ -2447,7 +2437,7 @@ function bindStaticUi() {
   $("btn-cancel-area-top").addEventListener("click", closeEditor);
   $("area-category").innerHTML = CATEGORIES.filter((c) => c.id !== "all")
     .map((c) => `<option value="${c.id}">${c.id === "custom" ? "自作のみ" : c.name}</option>`).join("");
-  bindAreaDialog();
+  bindAreaForm("area");
   bindShapeList();
 }
 
