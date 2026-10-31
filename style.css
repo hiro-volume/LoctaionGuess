@@ -1486,3 +1486,7 @@ html.no-anim .fr-emoji { animation: none; }
 /* 最終結果のカードは上から並べる（真ん中寄せだと、縦にあふれたとき上端が切れて見えなくなる） */
 .screen-final #result { justify-content: flex-start; }
 .screen-final #result > * { flex-shrink: 0; }
+
+/* エクストラモードのひとことは、赤い炎色のふきだしに */
+#result-text .rs-reaction .reaction.extra { color: #fff; background: linear-gradient(135deg, #d92a1f, #ff6a00); box-shadow: 0 8px 24px rgba(255,70,30,.45); }
+#result-text .rs-reaction .reaction.extra::after { border-top-color: #e8401a; }

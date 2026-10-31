@@ -2005,10 +2005,60 @@ const TIMEOUT_LINES = [
   "タイムアップ！迷ったらまずピンを置こう📍", "時計を見るのを忘れずに…🕰️",
 ];
 
+// エクストラモード用: 数メートル単位で見る、厳しめのひとこと
+const EXTRA_REACTIONS = [
+  { max: 3, lines: [
+    "…合格。これくらいは当然です🔥", "ふん、やるじゃないですか", "これが本物の地元民…認めましょう👑",
+    "完璧。次も同じことができますか？", "文句なし。でも油断は禁物です", "ようやく EXTRA の入り口に立てましたね",
+  ] },
+  { max: 10, lines: [
+    "数メートルずれてます。EXTRA では甘えです", "惜しい？いいえ、ずれはずれです", "その数メートルが命取りです⚠️",
+    "地元民なら、ここは外さないはず", "目の前でした。でも目の前では足りません", "あと一歩。その一歩が遠いんです",
+    "ギリギリ及第点…とは言いません",
+  ] },
+  { max: 30, lines: [
+    "家一軒ぶんずれてます🏠", "その距離、地元民とは呼べません", "本当にこの道、通ったことあります？",
+    "建物を見間違えましたね", "道路の反対側…かもしれません", "ライフは正直です。しっかり減りました",
+    "近いけど、EXTRA では遠いです",
+  ] },
+  { max: 100, lines: [
+    "100m 近くずれてます。論外です", "ひと区画まるごと違います", "目印、ちゃんと見ました？👀",
+    "その感覚、一度リセットしましょう", "これで地元民を名乗るのは早いです", "交差点ひとつ分の見落としです",
+    "ライフが悲鳴をあげています😱",
+  ] },
+  { max: 300, lines: [
+    "完全に別の場所です", "地図、逆さに持ってません？🙃", "この程度のずれ、EXTRA では致命傷です",
+    "勘で置きましたね？バレてます", "そこは隣の町内です", "町の地図、もう一度覚え直しましょう📖",
+    "ずれ方が雑すぎます",
+  ] },
+  { max: 1000, lines: [
+    "話になりません", "1km 近く外して、地元民…？", "これは EXTRA の戦い方じゃありません",
+    "ライフがみるみる減っていきます🩸", "ふつうモードに戻りますか？", "どこを見て判断したんですか…",
+    "そこ、駅ひとつ分ずれてます🚉",
+  ] },
+  { max: 5000, lines: [
+    "まったく別のエリアです", "その自信はどこから来たんですか", "EXTRA を選んだこと、後悔してません？",
+    "これは厳しい…ライフが溶けていきます🫠", "完全に迷子です", "地元の範囲から出てませんか？",
+    "もはや観光客の感覚です🧳",
+  ] },
+  { max: Infinity, lines: [
+    "論外。EXTRA を舐めないでください🔥", "どこに置いたのか、本気でわかりません", "ここまで外す人は初めて見ました",
+    "ふつうモードからやり直しましょう", "ライフ、ほぼ全部持っていかれました💀", "地図を見ずに置きましたね？",
+    "これは…ノーコメントで",
+  ] },
+];
+
+const EXTRA_TIMEOUT_LINES = [
+  "時間切れ。EXTRA では迷った時点で負けです⏰", "何もしないのが一番の失敗です", "考えすぎ。地元民なら即答のはず",
+  "タイムアップ。ライフは容赦なく減ります", "沈黙は答えになりません",
+];
+
 let lastReaction = "";
 
-function reactionFor(distance) {
-  const lines = distance == null ? TIMEOUT_LINES : REACTIONS.find((r) => distance <= r.max).lines;
+function reactionFor(distance, extra = false) {
+  const tiers = extra ? EXTRA_REACTIONS : REACTIONS;
+  const timeout = extra ? EXTRA_TIMEOUT_LINES : TIMEOUT_LINES;
+  const lines = distance == null ? timeout : tiers.find((r) => distance <= r.max).lines;
   // 同じひとことが続かないようにする
   const pool = lines.filter((l) => l !== lastReaction);
   lastReaction = pool[Math.floor(Math.random() * pool.length)];
@@ -2056,7 +2106,7 @@ function submitGuess(timedOut = false) {
        <div class="rs-cap">1,000 点のうち</div>`;
   const roundText = g.mode === "life" ? `ラウンド ${g.index + 1}` : `ラウンド ${g.index + 1} / ${g.rounds}`;
   $("result-text").innerHTML = `
-    <div class="rs-reaction"><span class="reaction">${reactionFor(missed ? null : distance)}</span></div>
+    <div class="rs-reaction"><span class="reaction${g.hardcore ? " extra" : ""}">${reactionFor(missed ? null : distance, g.hardcore)}</span></div>
     <div class="rs-meta"><b>${roundText}</b>${LEGEND}${mapsLink(g.answer)}</div>
     <div class="rs-side rs-left">
       <div class="rs-big rs-dist">${missed ? "時間切れ" : formatDistance(distance)}</div>

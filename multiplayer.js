@@ -802,7 +802,7 @@ function showMultiResult(msg) {
   const rows = [...msg.results].sort((a, b) => b.score - a.score || a.ms - b.ms);
   const missed = !mine || !mine.guess;
   $("result-text").innerHTML = `
-    ${mine ? `<div class="rs-reaction"><span class="reaction">${reactionFor(missed ? null : mine.distance)}</span></div>` : ""}
+    ${mine ? `<div class="rs-reaction"><span class="reaction${g.hardcore ? " extra" : ""}">${reactionFor(missed ? null : mine.distance, g.hardcore)}</span></div>` : ""}
     <div class="rs-meta"><b>ラウンド ${msg.index + 1} / ${g.rounds}</b>${mapsLink(answer)}</div>
     <div class="rs-side rs-left">
       <div class="rs-big rs-dist">${missed ? "時間切れ" : formatDistance(mine.distance)}</div>
