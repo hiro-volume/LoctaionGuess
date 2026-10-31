@@ -1627,7 +1627,8 @@ function clearGameMarkers() {
 const GUESS_COLOR = "#e5392f";
 const ANSWER_COLOR = "#2fae6e";
 
-function pinIcon(color, kind) {
+// scale: ポンと出るアニメーションで、少しずつ大きさを変えるときに使う
+function pinIcon(color, kind, scale = 1) {
   // 正解は旗、自分のピンは丸印
   const glyph = kind === "answer"
     ? '<path d="M14 9v17" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><path d="M15 9.5h9l-2.6 3.6 2.6 3.6h-9z" fill="#fff"/>'
@@ -1637,9 +1638,17 @@ function pinIcon(color, kind) {
     ${glyph}</svg>`;
   return {
     url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
-    scaledSize: new google.maps.Size(36, 48),
-    anchor: new google.maps.Point(18, 46),
+    scaledSize: new google.maps.Size(36 * scale, 48 * scale),
+    anchor: new google.maps.Point(18 * scale, 46 * scale),
   };
+}
+
+// その場で「ポン」と出す: 小さく出て、少し大きくなってから元の大きさに戻る（約0.25秒）
+function popPin(marker, color, kind) {
+  const steps = [0.35, 0.7, 1.05, 1.2, 1.12, 1.0];
+  steps.forEach((s, i) => setTimeout(() => {
+    if (marker.getMap()) marker.setIcon(pinIcon(color, kind, s));
+  }, i * 40));
 }
 
 let MapLabel = null;
@@ -1855,15 +1864,17 @@ function showPanorama(panoId, { move, pan, zoom }) {
 function placeGuess(latLng) {
   const g = state.game;
   g.guess = { lat: latLng.lat(), lng: latLng.lng() };
-  // 刺し直すたびに作り直して、毎回ピンが落ちてくるように見せる
+  // 刺し直すたびに作り直して、毎回その場にポンと出す
   if (g.guessMarker) g.guessMarker.setMap(null);
   g.guessMarker = new google.maps.Marker({
-    map: state.map, position: g.guess, icon: pinIcon(GUESS_COLOR, "guess"), title: "あなたのピン", zIndex: 2,
+    map: state.map, position: g.guess, icon: pinIcon(GUESS_COLOR, "guess", state.prefs.anim ? 0.35 : 1), title: "あなたのピン", zIndex: 2,
     // ピンの絵が上に重なっていても、クリックは地図に届けて刺し直せるようにする
     clickable: false,
-    animation: state.prefs.anim ? google.maps.Animation.DROP : null,
   });
-  if (state.prefs.anim) showPinRipple(g.guess);
+  if (state.prefs.anim) {
+    popPin(g.guessMarker, GUESS_COLOR, "guess");
+    showPinRipple(g.guess);
+  }
   $("btn-guess").disabled = false;
   $("btn-guess").textContent = "決定する";
   if (g.multi) sendMyView();
