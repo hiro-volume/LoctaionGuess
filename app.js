@@ -110,6 +110,7 @@ function areaCircles(area) {
 }
 
 function areaBounds(area) {
+  if (area.type === "world") return { south: -56, north: 72, west: -180, east: 180 };
   const b = { south: 90, north: -90, west: 180, east: -180 };
   const circles = areaCircles(area);
   if (circles) {
@@ -143,12 +144,35 @@ function pointInRing(lat, lng, ring) {
 }
 
 function areaContains(area, lat, lng) {
+  // 全世界: 見つかった場所ならどこでもよい
+  if (area.type === "world") return true;
   const circles = areaCircles(area);
   if (circles) return circles.some((c) => distanceMeters(c.center, { lat, lng }) <= c.radius);
-  return area.rings.some((ring) => pointInRing(lat, lng, ring));
+  if (area.rings.some((ring) => pointInRing(lat, lng, ring))) return true;
+  // 国の範囲は簡略化した国境なので、海沿いの町がはみ出すことがある。その国の中なら入れる
+  return !!area.iso && countryNear(lat, lng) === area.iso;
+}
+
+// 全世界: ストリートビューのある国を（広い国ほど選ばれやすく）選んでから、その国の中の点を選ぶ
+let coverageCountries = null;
+function randomWorldPoint() {
+  if (!coverageCountries) {
+    const ids = new Set(window.LG_WORLD_COVERAGE || []);
+    coverageCountries = WORLD.filter((c) => ids.has(c.id)).map((c) => {
+      const area = { type: "polygons", rings: c.rings.map((r) => r.map(([lng, lat]) => [lat, lng])) };
+      const b = areaBounds(area);
+      const size = (b.north - b.south) * (b.east - b.west) * Math.cos((((b.north + b.south) / 2) * Math.PI) / 180);
+      return { area, weight: Math.sqrt(Math.max(size, 0.1)) };
+    });
+  }
+  const total = coverageCountries.reduce((s, c) => s + c.weight, 0);
+  let r = Math.random() * total;
+  const pick = coverageCountries.find((c) => (r -= c.weight) <= 0) || coverageCountries[0];
+  return randomPointIn(pick.area);
 }
 
 function randomPointIn(area) {
+  if (area.type === "world") return randomWorldPoint();
   const b = areaBounds(area);
   for (let i = 0; i < 5000; i++) {
     const lat = b.south + Math.random() * (b.north - b.south);
@@ -192,10 +216,11 @@ function scoreFor(distance, area) {
 // ---------------------------------------------------------------- 出題地点の検索（無料の Metadata API）
 
 async function findLocation(area, usedPanos) {
-  const radius = Math.round(Math.min(1000, Math.max(50, areaSizeMeters(area) / 100)));
-  for (let i = 0; i < MAX_LOCATION_TRIES; i++) {
-    const p = randomPointIn(area);
-    if (!p) break;
+  const wide = area.type === "world" || !!area.iso;
+  const radius = Math.round(Math.min(wide ? 20000 : 1000, Math.max(50, areaSizeMeters(area) / 100)));
+  const tries = wide ? 200 : MAX_LOCATION_TRIES;
+  const batch = wide ? 6 : 3;
+  const ask = async (p) => {
     const url = "https://maps.googleapis.com/maps/api/streetview/metadata" +
       `?location=${p.lat},${p.lng}&radius=${radius}&source=outdoor&key=${encodeURIComponent(CONFIG.apiKey)}`;
     const res = await fetch(url).then((r) => r.json());
@@ -203,12 +228,18 @@ async function findLocation(area, usedPanos) {
     if (res.status === "REQUEST_DENIED") {
       throw new Error(`APIキーが拒否されました: ${res.error_message || ""}\nStreet View Static API が有効か、キーの制限を確認してください。`);
     }
-    if (res.status !== "OK") continue;
+    if (res.status !== "OK") return null;
     // Google 公式の撮影だけを使う（個人投稿の写真は除外）
-    if (!String(res.copyright || "").includes("Google")) continue;
-    if (usedPanos.has(res.pano_id)) continue;
-    if (!areaContains(area, res.location.lat, res.location.lng)) continue;
+    if (!String(res.copyright || "").includes("Google")) return null;
+    if (usedPanos.has(res.pano_id)) return null;
+    if (!areaContains(area, res.location.lat, res.location.lng)) return null;
     return { panoId: res.pano_id, lat: res.location.lat, lng: res.location.lng, date: res.date };
+  };
+  for (let i = 0; i < tries; i += batch) {
+    const points = Array.from({ length: batch }, () => randomPointIn(area)).filter(Boolean);
+    if (!points.length) break;
+    const found = (await Promise.all(points.map(ask))).find(Boolean);
+    if (found) return found;
   }
   throw new Error("この範囲ではストリートビューが見つかりませんでした。範囲を広げるか、道路のある場所を選んでください。");
 }
@@ -222,6 +253,11 @@ function clearOverlay() {
 
 function drawArea(area, fit = true) {
   clearOverlay();
+  // 全世界は囲む線を引かず、世界地図を広く見せる
+  if (area.type === "world") {
+    if (fit) { state.map.setCenter({ lat: 20, lng: 0 }); state.map.setZoom(1); }
+    return;
+  }
   const style = {
     map: state.map, strokeColor: "#f2a541", strokeOpacity: 0.9, strokeWeight: 2,
     fillColor: "#f2a541", fillOpacity: 0.08, clickable: false,
@@ -363,7 +399,14 @@ function renderSelect() {
 
   const grid = $("map-grid");
   grid.innerHTML = "";
-  const list = areasInCategory(cat);
+  const list = areasInCategory(cat).filter((a) => a.type !== "world");
+  const world = cat === "all" && PRESETS.find((a) => a.type === "world");
+  if (world) {
+    const hero = mapCard(world);
+    hero.classList.add("hero");
+    hero.querySelector(".map-card-info").insertAdjacentHTML("afterbegin", '<span class="hero-eyebrow">🌏 いちばん大きなマップ</span>');
+    grid.appendChild(hero);
+  }
   list.forEach((area, i) => {
     const card = mapCard(area);
     card.style.setProperty("--i", i);
@@ -454,6 +497,7 @@ function recordBadge(area) {
 
 // カードに出す「広さ・ひとこと」
 function areaSummary(area) {
+  if (area.type === "world") return `${(window.LG_WORLD_COVERAGE || []).length} か国以上 ・ ${area.description}`;
   const m = areaSizeMeters(area) / Math.SQRT2;
   const size = m < 1000 ? `約 ${Math.round(m / 10) * 10} m 四方` : `約 ${Math.round(m / 1000)} km 四方`;
   if (area.description) return `${size} ・ ${area.description}`;

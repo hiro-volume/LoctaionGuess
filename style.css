@@ -1332,3 +1332,42 @@ html.no-anim *, html.no-anim *::before, html.no-anim *::after {
 @media (max-width: 720px) {
   .info-extra { font-size: 11px; padding: 4px 6px; letter-spacing: .06em; }
 }
+
+/* ================================================================ ラウンド結果: 終了ボタンは「次へ」から離して右端に */
+.screen-result #btn-end {
+  position: absolute; right: 20px; top: 50%; translate: 0 -50%; width: auto;
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; text-decoration: none; color: var(--muted);
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.18);
+}
+.screen-result #btn-end:hover { color: #ff8a80; border-color: rgba(255,90,78,.6); background: rgba(255,90,78,.1); }
+.screen-result #btn-end:not([hidden]) ~ .rs-key { display: block; }
+@media (max-width: 720px) {
+  .screen-result #btn-end { top: 8px; right: 8px; translate: none; padding: 5px 9px; font-size: 11px; }
+}
+
+/* ================================================================ 全世界（マップ選択の一番上に大きく） */
+.map-card.hero { grid-column: 1 / -1; aspect-ratio: auto; height: 300px; border-color: rgba(120,170,255,.45); }
+.map-card.hero .map-card-img {
+  background-color: #02040b; background-size: auto 150%; background-position: 92% 45%; background-repeat: no-repeat;
+}
+.map-card.hero .map-card-img::before {
+  content: ""; position: absolute; inset: 0;
+  background:
+    radial-gradient(1px 1px at 12% 20%, #fff, transparent), radial-gradient(1px 1px at 30% 70%, #cfe0ff, transparent),
+    radial-gradient(1.5px 1.5px at 45% 35%, #fff, transparent), radial-gradient(1px 1px at 22% 85%, #fff, transparent),
+    radial-gradient(1px 1px at 55% 12%, #fff, transparent), radial-gradient(1.5px 1.5px at 8% 55%, #dfe8ff, transparent),
+    linear-gradient(90deg, rgba(2,4,11,.95) 0%, rgba(2,4,11,.6) 45%, rgba(2,4,11,0) 70%);
+}
+.map-card.hero::after { background: linear-gradient(180deg, rgba(11,17,32,0) 50%, rgba(11,17,32,.7) 100%); }
+.map-card.hero .map-card-info { left: 32px; right: 40%; bottom: 28px; gap: 6px; }
+.map-card.hero .map-card-info b { font-size: 52px; letter-spacing: .08em; background: linear-gradient(180deg, #fff, #a9c7ff); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 4px 18px rgba(80,140,255,.55)); }
+.map-card.hero .map-card-info > span { font-size: 14px; white-space: normal; }
+.hero-eyebrow { font-size: 12px !important; font-weight: 800; letter-spacing: .14em; color: #9fc2ff !important; }
+.map-card.hero:hover, .map-card.hero:focus-visible { border-color: rgba(140,190,255,.9); box-shadow: 0 16px 40px rgba(0,0,0,.5), 0 0 0 3px rgba(110,160,255,.3), 0 0 50px rgba(80,140,255,.25); }
+@media (max-width: 720px) {
+  .map-card.hero { height: 220px; }
+  .map-card.hero .map-card-info { left: 18px; right: 18px; bottom: 18px; }
+  .map-card.hero .map-card-info b { font-size: 36px; }
+  .map-card.hero .map-card-img { background-position: 130% 40%; }
+}

@@ -352,7 +352,7 @@
           <button id="btn-zoom-out" class="ctrl" title="ズームアウト" aria-label="ズームアウト">－</button>
         </div>
         <button id="btn-back-start" class="ctrl round" title="出発地点に戻る" aria-label="出発地点に戻る" hidden><svg viewBox="0 0 24 24" width="20" height="20"><path d="M9 14L4 9l5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10a6 6 0 0 1 0 12h-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
-        <button id="btn-game-settings" class="ctrl round" title="設定（Esc）" aria-label="設定"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z" fill="currentColor"/></svg></button>
+        <button id="btn-game-settings" class="ctrl round" title="設定（Esc）" aria-label="設定"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><g fill="currentColor"><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(0 12 12)"/><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(45 12 12)"/><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(90 12 12)"/><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(135 12 12)"/><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(180 12 12)"/><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(225 12 12)"/><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(270 12 12)"/><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(315 12 12)"/></g><circle cx="12" cy="12" r="5.4" fill="none" stroke="currentColor" stroke-width="3.4"/></svg></button>
       </div>
       <!-- 上の方位ベルト: 中央の印が今向いている方角 -->
       <div id="heading-tape" aria-label="方位">
@@ -469,7 +469,8 @@
       <div class="result-buttons">
         <button id="btn-replay" class="primary" hidden>↻ もう一度遊ぶ</button>
         <button id="btn-next" class="primary">次へ</button>
-        <button id="btn-end" class="secondary">ここで終わる</button>
+        <button id="btn-end" class="secondary" title="ここでゲームを終了して、結果を見る">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>ゲームを終了</button>
         <small class="rs-key" id="rs-key">続けるには <kbd>Space</kbd> を押してください</small>
       </div>
     </div>
