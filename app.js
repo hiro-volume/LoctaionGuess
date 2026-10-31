@@ -2095,7 +2095,8 @@ function boot() {
 }
 
 window.gm_authFailure = () => {
-  showMessage("APIキーの認証に失敗しました。キーが正しいか、Maps JavaScript API が有効か、キーの制限（HTTPリファラー）に http://localhost:8000/* が入っているかを確認してください。");
+  // いま開いているアドレスを出して、キーの制限に何を追加すればよいかわかるようにする
+  showMessage(`APIキーの認証に失敗しました。キーが正しいか、Maps JavaScript API が有効か、キーの「ウェブサイトの制限」に ${location.origin}/* が入っているかを確認してください（変更の反映には数分かかることがあります）。`, true);
 };
 
 boot();
