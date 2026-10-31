@@ -364,9 +364,13 @@
       <div id="editor-hint" class="editor-hint"></div>
       <div id="loading" hidden>場所を探しています…</div>
       <div id="mp-wait" hidden>
-        <div class="spinner"></div>
         <b id="mp-wait-title"></b>
+        <p class="mp-wait-hint">名前を押すと、その人の画面を見られます</p>
         <div id="mp-wait-list" class="mp-wait-list"></div>
+      </div>
+      <div id="spectate-bar" hidden>
+        <span>👀 <b id="spectate-name"></b> の画面 <small id="spectate-state"></small></span>
+        <button id="btn-spectate-stop" class="secondary">自分の画面に戻る</button>
       </div>
 
       <div id="game-settings" hidden>

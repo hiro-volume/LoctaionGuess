@@ -108,6 +108,8 @@ function hostOnMessage(id, msg) {
     broadcastLobby();
   } else if (msg.type === "guess") {
     recordGuess(id, msg);
+  } else if (msg.type === "view") {
+    hostReceiveView(id, msg.view);
   } else if (msg.type === "usage") {
     // 参加者のブラウザが読み込んだ分も、同じ APIキーの消費としてホストのグラフに足す
     const kinds = ["streetView", "mapLoads", "metadata", "staticMaps"];
@@ -201,7 +203,14 @@ function guestOnMessage(msg) {
       beginMultiRound(msg);
       break;
     case "progress":
+      mp.done = msg.done;
       renderWaiting(msg.done);
+      break;
+    case "view":
+      receiveView(msg.id, msg.view);
+      break;
+    case "views":
+      (msg.views || []).forEach(([id, view]) => receiveView(id, view));
       break;
     case "result":
       showMultiResult(msg);
@@ -484,6 +493,9 @@ function beginMultiRound(msg) {
   g.answer = { panoId: msg.panoId };
   g.usedPanos.add(msg.panoId);
   g.submitted = false;
+  stopSpectate(false);
+  state.mp.views = new Map();
+  state.mp.done = [];
   $("loading").hidden = true;
   $("result").hidden = true;
   $("mp-wait").hidden = true;
@@ -506,6 +518,7 @@ function beginMultiRound(msg) {
   updateHeadingTape(state.pano.getPov().heading);
   g.roundStartedAt = Date.now();
   startTimer();
+  sendMyView();
 }
 
 // submitGuess の代わり: 自分の回答をホストに送って、全員がそろうのを待つ
@@ -531,6 +544,10 @@ function recordGuess(id, msg) {
   const guess = msg.guess && Number.isFinite(msg.guess.lat) && Number.isFinite(msg.guess.lng)
     ? { lat: msg.guess.lat, lng: msg.guess.lng } : null;
   mp.guesses.set(id, { guess, ms: Number(msg.ms) || 0 });
+  if (id !== "host") {
+    const conn = mp.conns.get(id);
+    if (conn && conn.open) conn.send({ type: "views", views: [...mp.views].filter(([vid]) => vid !== id) });
+  }
   const done = [...mp.guesses.keys()];
   broadcast({ type: "progress", done });
   if (g.submitted) renderWaiting(done);
@@ -567,10 +584,156 @@ function renderWaiting(done) {
   const g = state.game;
   if (!mp || !g || !g.submitted || app.className !== "screen-game") return;
   const set = new Set(done);
+  mp.done = [...set];
   $("mp-wait").hidden = false;
   $("mp-wait-title").textContent = `他のプレイヤーを待っています（${set.size} / ${mp.players.length}）`;
-  $("mp-wait-list").innerHTML = mp.players.map((p) => `
-    <span class="${set.has(p.id) ? "done" : ""}" style="--c:${p.color}">${set.has(p.id) ? "✓" : "…"} ${escapeHtml(p.name || "?")}</span>`).join("");
+  $("mp-wait-list").innerHTML = mp.players.map((p) => {
+    const me = p.id === mp.me;
+    const cls = ["pl-chip", set.has(p.id) ? "done" : "", me ? "me" : "", state.spectating === p.id ? "watching" : ""].join(" ");
+    return `<button class="${cls}" data-id="${escapeHtml(p.id)}" style="--c:${p.color}" ${me ? "disabled" : ""}>
+      <i></i>${set.has(p.id) ? "✓" : "…"} ${escapeHtml(p.name || "?")}${me ? "（あなた）" : ""}</button>`;
+  }).join("");
+  $("mp-wait-list").querySelectorAll(".pl-chip:not(.me)").forEach((b) => b.addEventListener("click", () => startSpectate(b.dataset.id)));
+  if (state.spectating) renderSpectateBar();
+}
+
+// ---------------------------------------------------------------- 観戦（回答したあと、他の人の画面を見る）
+// 各プレイヤーは自分の画面（パノラマの場所・向き・地図・ピン）をホストに送り、
+// ホストは「もう回答した人」にだけ配る。まだ回答中の人には、他人のピンは見えない。
+
+let viewTimer = null;
+
+function currentView() {
+  const g = state.game;
+  if (!g || !state.pano || !state.map) return null;
+  const pov = state.pano.getPov();
+  const c = state.map.getCenter();
+  return {
+    index: g.index,
+    pano: state.pano.getPano(),
+    heading: pov.heading, pitch: pov.pitch, zoom: state.pano.getZoom(),
+    guess: g.guess || null,
+    mapCenter: c ? { lat: c.lat(), lng: c.lng() } : null,
+    mapZoom: state.map.getZoom(),
+  };
+}
+
+// 自分の画面が変わったら、少し間引いて（0.25秒に1回まで）送る
+function sendMyView() {
+  const mp = state.mp;
+  const g = state.game;
+  if (!mp || !g || !g.multi || state.spectating || app.className !== "screen-game" || viewTimer) return;
+  viewTimer = setTimeout(() => {
+    viewTimer = null;
+    if (state.spectating) return;
+    const view = currentView();
+    if (!view) return;
+    if (mp.role === "host") hostReceiveView("host", view);
+    else guestSend({ type: "view", view });
+  }, 250);
+}
+
+function cleanView(v) {
+  const num = (x) => (Number.isFinite(x) ? x : 0);
+  const pt = (p) => (p && Number.isFinite(p.lat) && Number.isFinite(p.lng) ? { lat: p.lat, lng: p.lng } : null);
+  if (!v || typeof v.pano !== "string") return null;
+  return {
+    index: num(v.index), pano: v.pano.slice(0, 200), heading: num(v.heading), pitch: num(v.pitch), zoom: num(v.zoom),
+    guess: pt(v.guess), mapCenter: pt(v.mapCenter), mapZoom: num(v.mapZoom),
+  };
+}
+
+function hostReceiveView(id, raw) {
+  const mp = state.mp;
+  const g = state.game;
+  const view = cleanView(raw);
+  if (!mp || !view || !g || view.index !== g.index || !mp.views) return;
+  mp.views.set(id, view);
+  // もう回答した人にだけ配る
+  mp.conns.forEach((conn, cid) => {
+    if (conn.open && cid !== id && mp.guesses && mp.guesses.has(cid)) conn.send({ type: "view", id, view });
+  });
+  if (id !== "host") receiveView(id, view, true);
+}
+
+function receiveView(id, raw, already) {
+  const mp = state.mp;
+  const view = already ? raw : cleanView(raw);
+  if (!mp || !view) return;
+  if (!mp.views) mp.views = new Map();
+  mp.views.set(id, view);
+  if (state.spectating === id) applySpectateView(view);
+}
+
+function startSpectate(id) {
+  const mp = state.mp;
+  const g = state.game;
+  if (!mp || !g || !g.submitted || id === mp.me) return;
+  if (state.spectating === id) return stopSpectate(true);
+  if (!state.spectating) {
+    // 戻るときのために、自分の画面を覚えておく
+    const pov = state.pano.getPov();
+    state.mySpot = { pano: state.pano.getPano(), heading: pov.heading, pitch: pov.pitch, zoom: state.pano.getZoom() };
+  }
+  state.spectating = id;
+  renderSpectateBar();
+  renderWaiting(mp.done || []);
+  const view = mp.views && mp.views.get(id);
+  if (view) applySpectateView(view);
+  else $("spectate-state").textContent = "（画面の情報を待っています…）";
+}
+
+function applySpectateView(view) {
+  const p = state.mp.players.find((x) => x.id === state.spectating);
+  if (!p || !state.pano) return;
+  if (state.pano.getPano() !== view.pano) state.pano.setPano(view.pano);
+  state.pano.setPov({ heading: view.heading, pitch: view.pitch });
+  state.pano.setZoom(view.zoom);
+  if (view.mapCenter) {
+    state.map.setCenter(view.mapCenter);
+    if (view.mapZoom) state.map.setZoom(view.mapZoom);
+  }
+  // 相手のピン（まだ刺していなければ消す）
+  if (view.guess) {
+    if (!state.spectateMarker) {
+      state.spectateMarker = new google.maps.Marker({ map: state.map, clickable: false, zIndex: 3 });
+    }
+    state.spectateMarker.setIcon(pinIcon(p.color, "guess"));
+    state.spectateMarker.setPosition(view.guess);
+    state.spectateMarker.setMap(state.map);
+  } else if (state.spectateMarker) {
+    state.spectateMarker.setMap(null);
+  }
+  renderSpectateBar();
+}
+
+function renderSpectateBar() {
+  const mp = state.mp;
+  const p = mp && mp.players.find((x) => x.id === state.spectating);
+  if (!p) return stopSpectate(true);
+  const done = (mp.done || []).includes(p.id);
+  $("spectate-bar").hidden = false;
+  $("spectate-bar").style.setProperty("--c", p.color);
+  $("spectate-name").textContent = p.name || "?";
+  $("spectate-state").textContent = done ? "（回答済み）" : "（考え中…）";
+}
+
+function stopSpectate(restore) {
+  const spot = state.mySpot;
+  state.spectating = null;
+  state.mySpot = null;
+  $("spectate-bar").hidden = true;
+  if (state.spectateMarker) {
+    state.spectateMarker.setMap(null);
+    state.spectateMarker = null;
+  }
+  if (restore && spot && state.pano) {
+    state.pano.setPano(spot.pano);
+    state.pano.setPov({ heading: spot.heading, pitch: spot.pitch });
+    state.pano.setZoom(spot.zoom);
+    if (state.game && state.game.guess) state.map.panTo(state.game.guess);
+  }
+  if (state.mp && state.game && state.game.submitted && app.className === "screen-game") renderWaiting(state.mp.done || []);
 }
 
 function showMultiResult(msg) {
@@ -578,6 +741,7 @@ function showMultiResult(msg) {
   const g = state.game;
   if (!g || !g.multi) return;
   stopTimer();
+  stopSpectate(false);
   $("mp-wait").hidden = true;
   clearGameMarkers();
   g.lastResult = msg;
@@ -722,6 +886,7 @@ function bindMultiplayerUi() {
     navigator.share({ title: "LoctaionGuess", text: `ルームコード ${state.mp.code} で一緒に遊ぼう！`, url: inviteLink(state.mp.code) }).catch(() => {});
   });
   $("btn-lobby-go").addEventListener("click", hostGoSelect);
+  $("btn-spectate-stop").addEventListener("click", () => stopSpectate(true));
   // ページを閉じるときは部屋も閉じる
   window.addEventListener("beforeunload", () => leaveRoom());
 }

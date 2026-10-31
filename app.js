@@ -1691,17 +1691,22 @@ function showPanorama(panoId, { move, pan, zoom }) {
       const pov = state.pano.getPov();
       const g = state.game;
       const lock = state.lockPov;
-      if (g && !g.pan && lock && (Math.abs(pov.heading - lock.heading) > 0.01 || Math.abs(pov.pitch - lock.pitch) > 0.01)) {
+      if (g && !g.pan && lock && !state.spectating && (Math.abs(pov.heading - lock.heading) > 0.01 || Math.abs(pov.pitch - lock.pitch) > 0.01)) {
         state.pano.setPov(lock);
         return;
       }
       // 向いている方角に合わせてコンパスを回す
       $("compass-rose").style.transform = `rotate(${-pov.heading}deg)`;
       updateHeadingTape(pov.heading);
+      if (g && g.multi) sendMyView();
     });
     state.pano.addListener("zoom_changed", () => {
       const g = state.game;
-      if (g && !g.zoom && state.pano.getZoom() !== 0) state.pano.setZoom(0);
+      if (g && !g.zoom && !state.spectating && state.pano.getZoom() !== 0) state.pano.setZoom(0);
+      if (g && g.multi) sendMyView();
+    });
+    state.pano.addListener("pano_changed", () => {
+      if (state.game && state.game.multi) sendMyView();
     });
   } else {
     state.pano.setOptions(opts);
@@ -1714,15 +1719,25 @@ function showPanorama(panoId, { move, pan, zoom }) {
 function placeGuess(latLng) {
   const g = state.game;
   g.guess = { lat: latLng.lat(), lng: latLng.lng() };
-  if (!g.guessMarker) {
-    g.guessMarker = new google.maps.Marker({
-      map: state.map, position: g.guess, icon: pinIcon(GUESS_COLOR, "guess"), title: "あなたのピン", zIndex: 2,
-    });
-  } else {
-    g.guessMarker.setPosition(g.guess);
-  }
+  // 刺し直すたびに作り直して、毎回ピンが落ちてくるように見せる
+  if (g.guessMarker) g.guessMarker.setMap(null);
+  g.guessMarker = new google.maps.Marker({
+    map: state.map, position: g.guess, icon: pinIcon(GUESS_COLOR, "guess"), title: "あなたのピン", zIndex: 2,
+    // ピンの絵が上に重なっていても、クリックは地図に届けて刺し直せるようにする
+    clickable: false,
+    animation: state.prefs.anim ? google.maps.Animation.DROP : null,
+  });
+  if (state.prefs.anim) showPinRipple(g.guess);
   $("btn-guess").disabled = false;
   $("btn-guess").textContent = "決定する";
+  if (g.multi) sendMyView();
+}
+
+// ピンを刺した場所に、波紋が広がる
+function showPinRipple(pos) {
+  const ripple = new MapLabel(pos, "", "pin-ripple");
+  ripple.setMap(state.map);
+  setTimeout(() => ripple.setMap(null), 800);
 }
 
 // timedOut: 制限時間切れで自動的に呼ばれたとき
@@ -1910,9 +1925,31 @@ function ensureMap() {
   });
   state.map.addListener("click", (e) => {
     if (state.editor) return editorClick(e.latLng);
-    if (app.className === "screen-game" && state.game) placeGuess(e.latLng);
+    if (app.className === "screen-game" && state.game && !state.game.submitted) placeGuess(e.latLng);
   });
+  state.map.addListener("idle", () => { if (state.game && state.game.multi) sendMyView(); });
+  bindDockOpen();
   return true;
+}
+
+// 回答マップは、マウスを乗せている間・ドラッグしている間は広げたままにする。
+// （:hover だけだと、ドラッグ中にマウスが枠の外へ出た瞬間に縮んでしまうため）
+function bindDockOpen() {
+  const dock = $("map-dock");
+  let hover = false;
+  let dragging = false;
+  let timer = null;
+  const update = () => {
+    clearTimeout(timer);
+    if (hover || dragging) dock.classList.add("open");
+    else timer = setTimeout(() => dock.classList.remove("open"), 350);
+  };
+  dock.addEventListener("mouseenter", () => { hover = true; update(); });
+  dock.addEventListener("mouseleave", () => { hover = false; update(); });
+  dock.addEventListener("pointerdown", () => { dragging = true; update(); });
+  window.addEventListener("pointerup", () => { if (dragging) { dragging = false; update(); } });
+  state.map.addListener("dragstart", () => { dragging = true; update(); });
+  state.map.addListener("dragend", () => { dragging = false; update(); });
 }
 
 const RIPPLE_TARGETS = ".btn-hero, .btn-ghost, button.primary, button.secondary, .chip, .tab, .map-card, .btn-back, .dialog-ok";

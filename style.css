@@ -349,7 +349,7 @@ button.small { padding: 5px 10px; font-size: 13px; }
   z-index: 5;
 }
 /* 広げたときの大きさは左上のボタンで変えられる（画面からはみ出さないように制限） */
-.screen-game #map-dock:hover, .screen-game #map-dock.pinned {
+.screen-game #map-dock.open, .screen-game #map-dock.pinned {
   width: min(var(--dock-w, 600px), calc(100vw - 32px));
   height: min(var(--dock-h, 440px), calc(100vh - 160px));
 }
@@ -369,7 +369,7 @@ button.small { padding: 5px 10px; font-size: 13px; }
   padding: 5px; border-radius: 999px; background: rgba(17, 24, 40, .7); backdrop-filter: blur(4px);
   opacity: 0; pointer-events: none; transition: opacity .2s;
 }
-.screen-game #map-dock:hover #dock-tools, .screen-game #map-dock.pinned #dock-tools { opacity: 1; pointer-events: auto; }
+.screen-game #map-dock.open #dock-tools, .screen-game #map-dock.pinned #dock-tools { opacity: 1; pointer-events: auto; }
 .dock-btn {
   width: 28px; height: 28px; padding: 0; border-radius: 50%; display: grid; place-items: center;
   background: #fff; color: #111827; border: none;
@@ -385,7 +385,7 @@ button.small { padding: 5px 10px; font-size: 13px; }
   padding: 5px; border-radius: 999px; background: rgba(17, 24, 40, .7); backdrop-filter: blur(4px);
   opacity: 0; pointer-events: none; transition: opacity .2s;
 }
-.screen-game #map-dock:hover #map-zoom, .screen-game #map-dock.pinned #map-zoom { opacity: 1; pointer-events: auto; }
+.screen-game #map-dock.open #map-zoom, .screen-game #map-dock.pinned #map-zoom { opacity: 1; pointer-events: auto; }
 #map-zoom .dock-btn { font-size: 17px; font-weight: 800; line-height: 1; }
 
 /* 結果表示: 地図を全面に */
@@ -573,7 +573,7 @@ input[type=number] {
   .sheet-foot-left { max-width: none; }
   .title-foot { flex-direction: column; }
   .credit-line { text-align: left; }
-  .screen-game #map-dock:hover, .screen-game #map-dock.pinned { width: calc(100vw - 32px); height: 55vh; }
+  .screen-game #map-dock.open, .screen-game #map-dock.pinned { width: calc(100vw - 32px); height: 55vh; }
   .screen-game #btn-guess { width: calc(100vw - 32px); }
   .screen-final #result { width: calc(100vw - 32px); max-height: 50vh; }
   .screen-game #heading-tape { top: 56px; width: 220px; }
@@ -1064,15 +1064,46 @@ html.no-anim *, html.no-anim *::before, html.no-anim *::after {
 .mp-banner { margin-left: auto; padding: 8px 16px; border-radius: 999px; font-size: 13px; font-weight: 700; background: rgba(47,179,107,.14); border: 1px solid rgba(107,227,154,.4); color: var(--btn-hi); }
 
 /* ゲーム中の「他のプレイヤーを待っています」 */
+/* 回答マップ（右下）と重ならないよう、左上に置く */
 #mp-wait {
-  position: absolute; top: 100px; left: 50%; transform: translateX(-50%); z-index: 7;
-  display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 24px; border-radius: 16px;
+  position: absolute; top: 64px; left: 14px; z-index: 4; max-width: min(340px, calc(100vw - 28px));
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px; border-radius: 16px;
   background: rgba(11,17,32,.88); border: 1px solid rgba(255,255,255,.15); backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0,0,0,.45);
 }
 #mp-wait[hidden] { display: none; }
-.mp-wait-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
-.mp-wait-list span { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: rgba(255,255,255,.06); color: var(--muted); border: 1px solid transparent; }
-.mp-wait-list span.done { color: #fff; border-color: var(--c); background: color-mix(in srgb, var(--c) 30%, transparent); }
+#mp-wait-title { font-size: 14px; }
+.mp-wait-hint { margin: 0; font-size: 12px; color: var(--muted); }
+.mp-wait-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.mp-wait-list .pl-chip {
+  font: inherit; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 999px; cursor: pointer;
+  background: rgba(255,255,255,.06); color: var(--muted); border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px;
+}
+.mp-wait-list .pl-chip i { width: 9px; height: 9px; border-radius: 50%; background: var(--c); display: inline-block; }
+.mp-wait-list .pl-chip.done { color: #fff; border-color: var(--c); background: color-mix(in srgb, var(--c) 25%, transparent); }
+.mp-wait-list .pl-chip.me { cursor: default; opacity: .8; }
+.mp-wait-list .pl-chip:not(.me):hover { filter: brightness(1.25); }
+.mp-wait-list .pl-chip.watching { box-shadow: 0 0 0 2px #fff; }
+
+/* 観戦中の帯 */
+#spectate-bar {
+  position: absolute; top: 108px; left: 50%; transform: translateX(-50%); z-index: 6;
+  display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-radius: 999px;
+  background: rgba(11,17,32,.88); border: 2px solid var(--c, #fff); box-shadow: 0 8px 24px rgba(0,0,0,.45); backdrop-filter: blur(6px);
+  font-size: 14px; font-weight: 700; white-space: nowrap;
+}
+#spectate-bar[hidden] { display: none; }
+#spectate-bar small { color: var(--muted); font-weight: 500; }
+#spectate-bar button { border-radius: 999px; padding: 6px 14px; font-size: 13px; }
+
+/* ピンを刺したときの波紋 */
+.map-label.pin-ripple {
+  width: 14px; height: 14px; border-radius: 50%; border: 3px solid #e5392f;
+  animation: pinRipple .7s ease-out forwards;
+}
+@keyframes pinRipple {
+  from { opacity: .9; scale: .4; }
+  to { opacity: 0; scale: 3.2; }
+}
 
 /* ラウンド結果の表 */
 .mp-table td.pl { text-align: left !important; font-weight: 700; }
