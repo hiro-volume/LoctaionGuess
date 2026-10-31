@@ -3,3 +3,6 @@
 
 # 使用量モニターの鍵（絶対に公開しない）
 monitor/*.json
+
+# Python のキャッシュ
+__pycache__/
