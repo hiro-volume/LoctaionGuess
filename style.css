@@ -1433,9 +1433,10 @@ html.no-anim *, html.no-anim *::before, html.no-anim *::after {
 .chat-form button { padding: 0 14px; border-radius: 999px; font-size: 13px; }
 
 /* 届いたリアクション: 下から浮かび上がって、ゆらゆらしながら消える */
-#react-layer { position: fixed; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; }
+#react-layer { position: fixed; top: 0; bottom: 0; left: 64px; width: 260px; z-index: 40; pointer-events: none; overflow: hidden; }
+#react-layer * { pointer-events: none; user-select: none; }
 .float-react {
-  position: absolute; bottom: 120px; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  position: absolute; bottom: 90px; display: flex; flex-direction: column; align-items: center; gap: 4px;
   animation: reactFloat 3.2s cubic-bezier(.2,.7,.3,1) forwards;
 }
 .fr-emoji { font-size: 54px; line-height: 1; filter: drop-shadow(0 6px 14px rgba(0,0,0,.45)); animation: reactWobble 1.1s ease-in-out infinite alternate; }
@@ -1461,4 +1462,5 @@ html.no-anim .fr-emoji { animation: none; }
   .mp-chat { left: 50px; top: 0; translate: none; width: calc(100vw - 74px); height: 55vh; }
   .react-picker { grid-template-columns: repeat(4, 40px); }
   .fr-emoji { font-size: 42px; }
+  #react-layer { left: 54px; width: 140px; }
 }

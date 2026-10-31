@@ -968,13 +968,13 @@ function hostRelaySocial(player, msg) {
   else addChatMessage(out);
 }
 
-// 届いたリアクションを、画面の下からふわっと浮かべて消す
+// 届いたリアクションを、左のボタン列のすぐ右で、下からふわっと浮かべて消す（クリックは素通り）
 function showReaction(msg) {
   if (!REACTION_EMOJIS.includes(msg.emoji)) return;
   const el = document.createElement("div");
   el.className = "float-react";
-  el.style.left = `${12 + Math.random() * 76}%`;
-  el.style.setProperty("--drift", `${Math.round((Math.random() - 0.5) * 80)}px`);
+  el.style.left = `${Math.round(Math.random() * 56)}px`;
+  el.style.setProperty("--drift", `${Math.round(Math.random() * 40 - 10)}px`);
   el.innerHTML = `<span class="fr-emoji">${msg.emoji}</span><span class="fr-name" style="--pc:${escapeHtml(msg.color || "#fff")}"></span>`;
   el.querySelector(".fr-name").textContent = msg.name;
   $("react-layer").appendChild(el);
