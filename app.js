@@ -792,13 +792,14 @@ function loadScores() {
 
 // ランキングは「同じ条件で遊んだもの」どうしで比べる（ラウンド数・ライフ制の難易度ごと）
 function boardOf(g) {
-  return g.mode === "life" ? `life-${g.difficulty}-${g.maxLife}` : `rounds-${g.rounds}`;
+  return g.mode === "life" ? `life-${g.difficulty}-${g.maxLife}${g.hardcore ? "-x" : ""}` : `rounds-${g.rounds}`;
 }
 
 function boardLabel(key) {
-  const [mode, a, b] = key.split("-");
+  const [mode, a, b, x] = key.split("-");
   if (mode === "rounds") return `${a}ラウンド`;
-  return a === "custom" ? `ライフ ${Number(b).toLocaleString()}` : `ライフ・${DIFFICULTY_NAMES[a] || a}`;
+  const label = a === "custom" ? `ライフ ${Number(b).toLocaleString()}` : `ライフ・${DIFFICULTY_NAMES[a] || a}`;
+  return x ? `${label}・🔥激ムズ` : label;
 }
 
 // 並べ方: ラウンド制は点数が高い順、ライフ制は生き残ったラウンド数 → 点数の順。同点なら早い方が上
@@ -1038,6 +1039,7 @@ function saveSettings() {
     rounds: $("opt-rounds").value,
     difficulty: $("opt-difficulty").value,
     customLife: $("opt-life").value,
+    hardcore: $("opt-hardcore").checked,
     move: $("opt-move").checked,
     pan: $("opt-pan").checked,
     zoom: $("opt-zoom").checked,
@@ -1125,6 +1127,7 @@ function rulesText(g) {
     g.pan ? null : "見回しなし",
     g.zoom ? null : "ズームなし",
     g.timeLimit ? `制限時間 ${g.timeLimit}秒` : null,
+    g.hardcore ? "🔥激ムズ" : null,
   ].filter(Boolean);
   return `（${parts.join("・")}）`;
 }
@@ -1150,8 +1153,17 @@ function selectedLife() {
 }
 
 // 外した度合いに応じて減るライフ。得点の裏返しなので、近ければ少し・遠ければ最大 1000
-function damageFor(score) {
-  return 1000 - score;
+const HARDCORE_DECAY = 2000;
+
+// 激ムズ: 範囲の広さに関係なく 2km を目安に減らし、数メートルのずれでも少し減る。
+// 狭い範囲ではふつうの方が厳しいこともあるので、ふつうより減る量が少なくならないようにする
+function damageFor(score, distance, hardcore) {
+  const normal = 1000 - score;
+  if (!hardcore) return normal;
+  if (distance == null) return 1000; // 時間切れ
+  if (distance < 1) return 0;
+  const strict = Math.max(1, Math.round(1000 * (1 - Math.exp(-distance / HARDCORE_DECAY))));
+  return Math.max(normal, strict);
 }
 
 function lifeBar(life, max) {
@@ -1729,6 +1741,7 @@ async function startGame() {
     timeLimit: $("opt-timer").checked ? Number($("opt-time").value) : 0,
     mode,
     difficulty: $("opt-difficulty").value,
+    hardcore: mode === "life" && $("opt-hardcore").checked,
     maxLife,
     life: maxLife,
     rounds,
@@ -1856,6 +1869,25 @@ function placeGuess(latLng) {
   if (g.multi) sendMyView();
 }
 
+// ---------------------------------------------------------------- 距離に応じたひとこと
+
+// 近さごとのひとこと（同じ段階でも毎回少し変える）
+const REACTIONS = [
+  { max: 50, lines: ["ぴったり！？ もしかしてここに住んでます？😳", "うそでしょ…ほぼ正解！神ですか！？✨", "ドンピシャ！！地図が頭に入ってる…🤯"] },
+  { max: 300, lines: ["すごい！地元の方ですか！？", "近っ！この辺よく来ます？👀", "さすが！ほとんど目の前です🎯"] },
+  { max: 1000, lines: ["かなり近い！土地勘ありますね👏", "おしい！歩いて行ける距離です🚶", "いい読み！あと少しでした"] },
+  { max: 5000, lines: ["いい線いってる！あと一歩！", "方向はバッチリ！もう一声👍", "なかなか！自転車ならすぐの距離🚲"] },
+  { max: 20000, lines: ["だいたいこの辺…かも？🤔", "惜しい…けど、まだまだいける！", "エリアは合ってる！次は近づけよう"] },
+  { max: 100000, lines: ["うーん、ちょっと遠いかな😅", "電車でひと駅…どころじゃないかも🚃", "次はもっと手がかりを探してみよう🔍"] },
+  { max: Infinity, lines: ["どこ行っちゃったの！？🌏", "大冒険でしたね…！✈️", "逆にすごい、この遠さ😂"] },
+];
+
+function reactionFor(distance) {
+  if (distance == null) return "時間切れ…！次は急いでいこう⏰";
+  const tier = REACTIONS.find((r) => distance <= r.max);
+  return tier.lines[Math.floor(Math.random() * tier.lines.length)];
+}
+
 // ピンを刺した場所に、波紋が広がる
 function showPinRipple(pos) {
   const ripple = new MapLabel(pos, "", "pin-ripple");
@@ -1876,7 +1908,7 @@ function submitGuess(timedOut = false) {
   const score = missed ? 0 : scoreFor(distance, g.area);
   const result = { distance, score, answer: g.answer, guess: g.guess, timedOut };
   if (g.mode === "life") {
-    result.damage = Math.min(g.life, damageFor(score));
+    result.damage = Math.min(g.life, damageFor(score, distance, g.hardcore));
     g.life -= result.damage;
   }
   g.results.push(result);
@@ -1899,6 +1931,7 @@ function submitGuess(timedOut = false) {
     : timedOut ? "時間切れ（置いていたピンで提出）・正解から離れていた距離" : "正解から離れていた距離";
   $("result-text").innerHTML = `
     ${LEGEND}
+    <div class="reaction">${reactionFor(missed ? null : distance)}</div>
     <div class="big">${missed ? "時間切れ" : formatDistance(distance)}</div>
     <div class="sub">${subText}</div>
     ${lifeLine}
@@ -1942,7 +1975,7 @@ function showFinal() {
   if (g.mode === "life") {
     const reason = g.life <= 0 ? "ライフ切れ" : "途中で終了";
     header = `
-      <div class="sub">${escapeHtml(g.area.name)} ・ ライフ制 ${DIFFICULTY_NAMES[g.difficulty]}（${g.maxLife.toLocaleString()}）${move}</div>
+      <div class="sub">${escapeHtml(g.area.name)} ・ ライフ制 ${DIFFICULTY_NAMES[g.difficulty]}（${g.maxLife.toLocaleString()}）${g.hardcore ? " ・ 🔥激ムズ" : ""}${move}</div>
       <div class="big">${played} ラウンド</div>
       <div class="sub">${reason} ・ 合計 ${total.toLocaleString()} 点</div>
       <div class="life-line">${lifeBar(g.life, g.maxLife)} 残りライフ ${g.life.toLocaleString()}</div>`;
@@ -2233,6 +2266,8 @@ function boot() {
   if (s.rounds) $("opt-rounds").value = s.rounds;
   if (s.difficulty) $("opt-difficulty").value = s.difficulty;
   if (s.customLife) $("opt-life").value = s.customLife;
+  $("opt-hardcore").checked = !!s.hardcore;
+  $("opt-hardcore").addEventListener("change", saveSettings);
   $("opt-move").checked = s.move !== false;
   $("opt-pan").checked = s.pan !== false;
   $("opt-zoom").checked = s.zoom !== false;

@@ -1176,3 +1176,25 @@ html.no-anim *, html.no-anim *::before, html.no-anim *::after {
   #area-dialog:not([hidden]) .dialog-backdrop { animation: fadeIn .2s both; }
   #area-dialog:not([hidden]) .dialog { animation: popIn .28s cubic-bezier(.2,1.2,.4,1) both; }
 }
+
+/* ================================================================ 激ムズモード */
+.hardcore-row { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(229,57,47,.08); border: 1px solid rgba(229,57,47,.35); cursor: pointer; }
+.hardcore-row span { display: flex; flex-direction: column; }
+.hardcore-row small { font-size: 11px; color: var(--muted); }
+.hardcore-row .switch:checked { background: #e5392f; }
+.hardcore-help { margin-top: 8px; font-size: 12px; line-height: 1.7; color: #c9d1e2; }
+.hardcore-help p { margin: 6px 0; }
+.hardcore-help table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.hardcore-help th, .hardcore-help td { padding: 3px 4px; border-top: 1px solid var(--line); text-align: center; white-space: nowrap; }
+.hardcore-help th { text-align: left; color: var(--muted); font-weight: 600; }
+.hardcore-help tr:last-child td { color: #ff8a80; font-weight: 700; }
+
+/* 結果のひとこと */
+#result-text .reaction {
+  display: inline-block; margin-bottom: 6px; padding: 6px 14px; border-radius: 999px;
+  font-size: 15px; font-weight: 800; color: #fff;
+  background: linear-gradient(135deg, rgba(47,179,107,.35), rgba(80,120,255,.3)); border: 1px solid rgba(255,255,255,.2);
+}
+@media (prefers-reduced-motion: no-preference) {
+  #result-text .reaction { animation: popIn .45s .05s cubic-bezier(.2,1.6,.4,1) both; }
+}

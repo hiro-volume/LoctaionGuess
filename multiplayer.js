@@ -774,6 +774,7 @@ function showMultiResult(msg) {
 
   const rows = [...msg.results].sort((a, b) => b.score - a.score || a.ms - b.ms);
   $("result-text").innerHTML = `
+    ${mine ? `<div class="reaction">${reactionFor(mine.guess ? mine.distance : null)}</div>` : ""}
     <div class="sub">ラウンド ${msg.index + 1} / ${g.rounds} の結果</div>
     <table class="mp-table">${rows.map((r, i) => `
       <tr class="${r.id === mp.me ? "me" : ""}">
