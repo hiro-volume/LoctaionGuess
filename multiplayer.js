@@ -110,6 +110,10 @@ function hostOnMessage(id, msg) {
     recordGuess(id, msg);
   } else if (msg.type === "view") {
     hostReceiveView(id, msg.view);
+  } else if (msg.type === "react") {
+    hostRelaySocial(player, { type: "react", emoji: msg.emoji });
+  } else if (msg.type === "chat") {
+    hostRelaySocial(player, { type: "chat", text: msg.text });
   } else if (msg.type === "usage") {
     // 参加者のブラウザが読み込んだ分も、同じ APIキーの消費としてホストのグラフに足す
     const kinds = ["streetView", "mapLoads", "metadata", "staticMaps"];
@@ -218,6 +222,12 @@ function guestOnMessage(msg) {
     case "final":
       showMultiFinal(msg);
       break;
+    case "react":
+      showReaction(msg);
+      break;
+    case "chat":
+      addChatMessage(msg);
+      break;
     case "error":
       showLobby();
       showMessage(msg.text);
@@ -243,6 +253,7 @@ function leaveRoom() {
   }
   state.mp = null;
   if (state.game && state.game.multi) state.game = null;
+  resetSocial();
   // 招待リンクで開いた場合、URL のルームコードを消しておく（再読み込みで勝手に入り直さないように）
   if (location.search.includes("room=")) history.replaceState(null, "", location.pathname);
 }
@@ -274,6 +285,7 @@ function showLobby() {
 }
 
 function renderLobby() {
+  updateSocial();
   const mp = state.mp;
   if (!mp) return;
   const host = mp.role === "host";
@@ -903,6 +915,158 @@ async function exitMultiGame() {
 
 // ---------------------------------------------------------------- 起動
 
+// ---------------------------------------------------------------- リアクションとチャット
+
+const REACTION_EMOJIS = ["👍", "😂", "😮", "😭", "🔥", "👏", "🤔", "😱", "🎉", "❤️", "🙏", "💀"];
+const CHAT_MAX = 120;
+const CHAT_HISTORY = 100;
+let lastSocialSend = 0;
+
+// 部屋につながっている間だけ、左端のボタンを出す
+function updateSocial() {
+  const mp = state.mp;
+  $("mp-social").hidden = !mp || mp.connecting || !mp.me;
+}
+
+function resetSocial() {
+  $("mp-social").hidden = true;
+  $("chat-log").innerHTML = "";
+  $("react-layer").innerHTML = "";
+  toggleReactPicker(false);
+  toggleChat(false);
+  setUnread(0);
+}
+
+// 自分の操作: ホストなら自分で配り、参加者ならホストに送る
+function sendSocial(msg) {
+  const mp = state.mp;
+  if (!mp) return;
+  // 連打で相手の画面が埋まらないように、少し間をあける
+  const now = Date.now();
+  if (now - lastSocialSend < 350) return;
+  lastSocialSend = now;
+  if (mp.role === "host") hostRelaySocial(mp.players.find((p) => p.id === "host"), msg);
+  else guestSend(msg);
+}
+
+function hostRelaySocial(player, msg) {
+  if (!player) return;
+  const now = Date.now();
+  if (now - (player.lastSocial || 0) < 300) return; // ホスト側でも連打を間引く
+  player.lastSocial = now;
+  const base = { id: player.id, name: player.name || "名無しの旅人", color: player.color };
+  let out = null;
+  if (msg.type === "react" && REACTION_EMOJIS.includes(msg.emoji)) {
+    out = { ...base, type: "react", emoji: msg.emoji };
+  } else if (msg.type === "chat") {
+    const text = String(msg.text || "").replace(/\s+/g, " ").trim().slice(0, CHAT_MAX);
+    if (text) out = { ...base, type: "chat", text };
+  }
+  if (!out) return;
+  broadcast(out);
+  if (out.type === "react") showReaction(out);
+  else addChatMessage(out);
+}
+
+// 届いたリアクションを、画面の下からふわっと浮かべて消す
+function showReaction(msg) {
+  if (!REACTION_EMOJIS.includes(msg.emoji)) return;
+  const el = document.createElement("div");
+  el.className = "float-react";
+  el.style.left = `${12 + Math.random() * 76}%`;
+  el.style.setProperty("--drift", `${Math.round((Math.random() - 0.5) * 80)}px`);
+  el.innerHTML = `<span class="fr-emoji">${msg.emoji}</span><span class="fr-name" style="--pc:${escapeHtml(msg.color || "#fff")}"></span>`;
+  el.querySelector(".fr-name").textContent = msg.name;
+  $("react-layer").appendChild(el);
+  setTimeout(() => el.remove(), state.prefs && !state.prefs.anim ? 1800 : 3200);
+}
+
+function addChatMessage(msg) {
+  const mp = state.mp;
+  if (!mp) return;
+  const mine = msg.id === mp.me;
+  const li = document.createElement("li");
+  li.className = mine ? "me" : "";
+  li.innerHTML = `<b style="color:${escapeHtml(msg.color || "#fff")}"></b><span></span>`;
+  li.querySelector("b").textContent = msg.name;
+  li.querySelector("span").textContent = msg.text;
+  const log = $("chat-log");
+  log.appendChild(li);
+  while (log.children.length > CHAT_HISTORY) log.firstElementChild.remove();
+  log.scrollTop = log.scrollHeight;
+  if (!$("mp-chat").hidden || mine) return;
+  // 閉じているときは、ボタンに未読の数と、ひとことプレビューを出す
+  setUnread((mp.unread || 0) + 1);
+  const toast = $("chat-toast");
+  toast.innerHTML = `<b style="color:${escapeHtml(msg.color || "#fff")}"></b><span></span>`;
+  toast.querySelector("b").textContent = msg.name;
+  toast.querySelector("span").textContent = msg.text;
+  toast.hidden = false;
+  toast.classList.remove("show");
+  void toast.offsetWidth;
+  toast.classList.add("show");
+  clearTimeout(mp.toastTimer);
+  mp.toastTimer = setTimeout(() => { toast.hidden = true; }, 4000);
+}
+
+function setUnread(n) {
+  if (state.mp) state.mp.unread = n;
+  $("chat-badge").hidden = !n;
+  $("chat-badge").textContent = n > 9 ? "9+" : n;
+}
+
+function toggleReactPicker(open = $("react-picker").hidden) {
+  $("react-picker").hidden = !open;
+  $("btn-react").setAttribute("aria-expanded", String(open));
+  if (open) toggleChat(false);
+}
+
+function toggleChat(open = $("mp-chat").hidden) {
+  $("mp-chat").hidden = !open;
+  $("btn-chat").setAttribute("aria-expanded", String(open));
+  if (!open) return;
+  toggleReactPicker(false);
+  setUnread(0);
+  $("chat-toast").hidden = true;
+  $("chat-log").scrollTop = $("chat-log").scrollHeight;
+  $("chat-input").focus();
+}
+
+function bindSocial() {
+  $("react-picker").innerHTML = REACTION_EMOJIS.map((e) => `<button class="react-pick" data-emoji="${e}" aria-label="${e} を送る">${e}</button>`).join("");
+  $("react-picker").addEventListener("click", (e) => {
+    const btn = e.target.closest(".react-pick");
+    if (!btn) return;
+    sendSocial({ type: "react", emoji: btn.dataset.emoji });
+    // 押したボタンも小さく弾ませる
+    btn.classList.remove("sent");
+    void btn.offsetWidth;
+    btn.classList.add("sent");
+  });
+  $("btn-react").addEventListener("click", () => toggleReactPicker());
+  $("btn-chat").addEventListener("click", () => toggleChat());
+  $("btn-chat-close").addEventListener("click", () => toggleChat(false));
+  $("chat-toast").addEventListener("click", () => toggleChat(true));
+  $("chat-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = $("chat-input").value.trim();
+    if (!text) return;
+    sendSocial({ type: "chat", text });
+    $("chat-input").value = "";
+  });
+  $("mp-social").addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    e.stopPropagation();
+    toggleReactPicker(false);
+    toggleChat(false);
+    e.target.blur && e.target.blur();
+  });
+  // 外側をクリックしたら、リアクションの一覧は閉じる
+  document.addEventListener("pointerdown", (e) => {
+    if (!$("react-picker").hidden && !e.target.closest("#mp-social")) toggleReactPicker(false);
+  });
+}
+
 function bindMultiplayerUi() {
   $("btn-mode-single").addEventListener("click", startSingle);
   $("btn-mode-multi").addEventListener("click", hostRoom);
@@ -918,6 +1082,7 @@ function bindMultiplayerUi() {
   });
   $("btn-lobby-go").addEventListener("click", hostGoSelect);
   $("btn-spectate-stop").addEventListener("click", () => stopSpectate(true));
+  bindSocial();
   // ページを閉じるときは部屋も閉じる
   window.addEventListener("beforeunload", () => leaveRoom());
 }

@@ -2369,6 +2369,7 @@ function bindStaticUi() {
   // いちばん外側（window）で先に受け取る
   window.addEventListener("keydown", (e) => {
     if (e.key !== "Escape" || !$("dialog").hidden) return;
+    if (e.target.closest && e.target.closest("#mp-social")) return;
     closeSettings();
     // ゲーム中は Esc で設定を開閉する
     if (app.className === "screen-game") {

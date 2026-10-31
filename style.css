@@ -1374,3 +1374,91 @@ html.no-anim *, html.no-anim *::before, html.no-anim *::after {
 
 /* 全世界のカード: 難易度は名前のすぐ横に */
 .map-card.hero .map-card-title { justify-content: flex-start; align-items: center; gap: 16px; }
+
+/* ================================================================ マルチプレイ: リアクションとチャット */
+#mp-social { position: fixed; left: 12px; top: 50%; translate: 0 -50%; z-index: 30; }
+.social-btns { display: flex; flex-direction: column; gap: 10px; }
+.social-btn {
+  position: relative; width: 46px; height: 46px; padding: 0; border-radius: 50%; display: grid; place-items: center;
+  font-size: 22px; color: #fff; background: rgba(17, 24, 40, .85); border: 1px solid rgba(255,255,255,.2);
+  box-shadow: 0 4px 14px rgba(0,0,0,.4); backdrop-filter: blur(6px);
+}
+.social-btn:hover, .social-btn[aria-expanded="true"] { background: var(--btn); border-color: var(--btn-hi); transform: scale(1.06); }
+.chat-badge {
+  position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
+  display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #fff; background: #e5392f; border: 2px solid var(--bg);
+}
+
+.react-picker {
+  position: absolute; left: 58px; top: 0; display: grid; grid-template-columns: repeat(4, 44px); gap: 6px; padding: 10px;
+  border-radius: 16px; background: #111828; border: 1px solid rgba(255,255,255,.18); box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+.react-pick { width: 44px; height: 44px; padding: 0; font-size: 24px; border-radius: 12px; background: transparent; border: none; }
+.react-pick:hover { background: rgba(255,255,255,.1); transform: scale(1.15); }
+.react-pick.sent { animation: reactSent .35s ease; }
+@keyframes reactSent { 50% { transform: scale(1.35); } }
+
+.chat-toast {
+  position: absolute; left: 58px; top: 56px; max-width: 260px; padding: 8px 12px; border-radius: 12px; cursor: pointer;
+  background: rgba(17, 24, 40, .94); border: 1px solid rgba(255,255,255,.18); box-shadow: 0 6px 20px rgba(0,0,0,.45);
+  font-size: 13px; display: flex; flex-direction: column; gap: 2px;
+}
+.chat-toast span { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-toast.show { animation: fadeUp .3s ease both; }
+
+.mp-chat {
+  position: absolute; left: 58px; top: 50%; translate: 0 -50%; width: 300px; height: min(420px, 70vh);
+  display: flex; flex-direction: column; border-radius: 16px; overflow: hidden;
+  background: #0e1422; border: 1px solid rgba(255,255,255,.18); box-shadow: 0 12px 36px rgba(0,0,0,.55);
+}
+.mp-chat header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.chat-close { width: 28px; height: 28px; padding: 0; border-radius: 50%; background: transparent; border: none; color: var(--muted); font-size: 18px; }
+.chat-close:hover { color: #fff; background: rgba(255,255,255,.08); }
+.chat-log { flex: 1; overflow-y: auto; list-style: none; margin: 0; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.chat-log:empty::before { content: "まだメッセージはありません"; color: var(--muted); font-size: 12px; margin: auto; }
+.chat-log li { display: flex; flex-direction: column; gap: 2px; max-width: 85%; align-self: flex-start; }
+.chat-log li b { font-size: 11px; }
+.chat-log li span {
+  padding: 7px 11px; border-radius: 4px 14px 14px 14px; background: rgba(255,255,255,.08); font-size: 13px; line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.chat-log li.me { align-self: flex-end; align-items: flex-end; }
+.chat-log li.me span { border-radius: 14px 4px 14px 14px; background: var(--btn-lo); }
+.chat-form { display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--line); }
+.chat-form input {
+  flex: 1; min-width: 0; padding: 9px 12px; border-radius: 999px; font: inherit; font-size: 13px;
+  color: var(--text); background: var(--bg); border: 1px solid var(--line);
+}
+.chat-form input:focus { outline: none; border-color: var(--btn); }
+.chat-form button { padding: 0 14px; border-radius: 999px; font-size: 13px; }
+
+/* 届いたリアクション: 下から浮かび上がって、ゆらゆらしながら消える */
+#react-layer { position: fixed; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; }
+.float-react {
+  position: absolute; bottom: 120px; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  animation: reactFloat 3.2s cubic-bezier(.2,.7,.3,1) forwards;
+}
+.fr-emoji { font-size: 54px; line-height: 1; filter: drop-shadow(0 6px 14px rgba(0,0,0,.45)); animation: reactWobble 1.1s ease-in-out infinite alternate; }
+.fr-name {
+  padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; color: #fff; white-space: nowrap;
+  background: var(--pc); box-shadow: 0 2px 8px rgba(0,0,0,.4);
+}
+@keyframes reactFloat {
+  0% { opacity: 0; transform: translate(0, 40px) scale(.4); }
+  12% { opacity: 1; transform: translate(0, 0) scale(1.15); }
+  20% { transform: translate(0, -20px) scale(1); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--drift), -340px) scale(.9); }
+}
+@keyframes reactWobble { from { rotate: -10deg; } to { rotate: 10deg; } }
+html.no-anim .float-react { animation: reactFade 1.8s ease forwards; }
+html.no-anim .fr-emoji { animation: none; }
+@keyframes reactFade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+
+@media (max-width: 720px) {
+  #mp-social { top: auto; bottom: auto; top: 110px; translate: none; }
+  .social-btn { width: 40px; height: 40px; font-size: 19px; }
+  .mp-chat { left: 50px; top: 0; translate: none; width: calc(100vw - 74px); height: 55vh; }
+  .react-picker { grid-template-columns: repeat(4, 40px); }
+  .fr-emoji { font-size: 42px; }
+}

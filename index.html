@@ -555,6 +555,29 @@
     </div>
   </div>
 
+  <!-- マルチプレイ: リアクションとチャット（部屋にいる間だけ、左端に出す） -->
+  <div id="mp-social" hidden>
+    <div class="social-btns">
+      <button id="btn-react" class="social-btn" title="リアクションを送る" aria-label="リアクションを送る" aria-expanded="false">😀</button>
+      <button id="btn-chat" class="social-btn" title="チャット" aria-label="チャット" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>
+        <span id="chat-badge" class="chat-badge" hidden>0</span>
+      </button>
+    </div>
+    <div id="react-picker" class="react-picker" hidden></div>
+    <div id="chat-toast" class="chat-toast" hidden></div>
+    <section id="mp-chat" class="mp-chat" hidden aria-label="チャット">
+      <header><b>チャット</b><button id="btn-chat-close" class="chat-close" aria-label="チャットを閉じる">×</button></header>
+      <ol id="chat-log" class="chat-log"></ol>
+      <form id="chat-form" class="chat-form" autocomplete="off">
+        <input id="chat-input" maxlength="120" placeholder="メッセージを入力（Enter で送信）">
+        <button type="submit" class="primary">送信</button>
+      </form>
+    </section>
+  </div>
+  <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
+  <div id="react-layer" aria-hidden="true"></div>
+
   <script src="config.js"></script>
   <script src="hiroshima-boundary.js"></script>
   <script src="world-boundary.js"></script>
