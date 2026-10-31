@@ -1198,3 +1198,7 @@ html.no-anim *, html.no-anim *::before, html.no-anim *::after {
 @media (prefers-reduced-motion: no-preference) {
   #result-text .reaction { animation: popIn .45s .05s cubic-bezier(.2,1.6,.4,1) both; }
 }
+
+/* もう一度遊ぶ */
+#btn-replay { font-weight: 800; }
+.screen-final .result-buttons { display: flex; flex-direction: column; gap: 8px; }

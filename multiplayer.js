@@ -439,6 +439,13 @@ function hostStartGame() {
     timeLimit: $("opt-timer").checked ? Number($("opt-time").value) : 0,
   };
   saveSettings();
+  startMultiGame(area, settings);
+}
+
+// 全員で、同じ範囲・同じ設定のゲームを始める（最初の1回も、「もう一度」も）
+function startMultiGame(area, settings) {
+  const mp = state.mp;
+  mp.lastGame = { area, settings };
   mp.phase = "game";
   mp.totals = new Map(mp.players.map((p) => [p.id, 0]));
   broadcastLobby();
@@ -446,6 +453,14 @@ function hostStartGame() {
   broadcast({ type: "start", area, settings });
   prepareMultiGame(area, settings);
   hostNextRound();
+}
+
+// 最終結果の「もう一度遊ぶ」（ホストだけ）: 部屋にいる全員で、同じ設定のままもう一度
+function hostReplay() {
+  const mp = state.mp;
+  if (!mp || mp.role !== "host" || !mp.lastGame) return;
+  if (mp.players.length < 2) return showMessage("一緒に遊ぶ人がいません。ロビーに戻って、友達を招待してください。");
+  startMultiGame(mp.lastGame.area, mp.lastGame.settings);
 }
 
 function prepareMultiGame(area, settings) {
@@ -790,6 +805,7 @@ function showMultiResult(msg) {
   $("btn-next").textContent = host ? (msg.last ? "最終結果へ" : "次のラウンドへ") : "ホストが進めるのを待っています…";
   $("btn-next").disabled = !host;
   $("btn-end").hidden = true;
+  setResultButtons(false, false);
   $("result").hidden = false;
 }
 
@@ -853,6 +869,9 @@ function showMultiFinal(msg) {
   $("btn-next").textContent = "ロビーに戻る";
   $("btn-next").disabled = false;
   $("btn-end").hidden = true;
+  // もう一度遊ぶのはホストが決める（参加者には、始まるまで待ってもらう）
+  setResultButtons(true, mp.role === "host");
+  if (mp.role !== "host") $("result-text").insertAdjacentHTML("beforeend", '<p class="sub">ホストが「もう一度遊ぶ」を押すと、同じ設定ですぐに始まります。</p>');
   $("result").hidden = false;
 }
 

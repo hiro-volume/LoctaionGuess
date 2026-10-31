@@ -1763,6 +1763,31 @@ async function startGame() {
   await startRound();
 }
 
+// 最終結果の「もう一度遊ぶ」: 同じマップ・同じルールで、はじめから遊ぶ
+async function replayGame() {
+  const old = state.game;
+  if (!old) return;
+  if (old.multi) return hostReplay();
+  if (remainingStreetView() < (old.mode === "life" ? 1 : old.rounds)) {
+    return showMessage("今月の無料枠の上限に達しました（config.js の limits）。来月まで待つか、上限を見直してください。");
+  }
+  clearGameMarkers();
+  const keep = ["area", "move", "pan", "zoom", "timeLimit", "mode", "difficulty", "hardcore", "maxLife", "rounds"];
+  state.game = {
+    ...Object.fromEntries(keep.map((k) => [k, old[k]])),
+    life: old.maxLife, index: 0, results: [], overlays: [], usedPanos: new Set(),
+  };
+  $("result").hidden = true;
+  setScreen("game");
+  await startRound();
+}
+
+// 結果の下のボタンを、途中のラウンド用と、最終結果用で切り替える
+function setResultButtons(final, replay) {
+  $("btn-replay").hidden = !replay;
+  $("btn-next").className = final && replay ? "secondary" : "primary";
+}
+
 async function startRound() {
   const g = state.game;
   stopTimer();
@@ -1949,6 +1974,7 @@ function submitGuess(timedOut = false) {
     <div class="sub">${mapsLink(g.answer)}</div>`;
   $("btn-next").textContent = last ? "結果を見る" : "次のラウンドへ";
   $("btn-end").hidden = last;
+  setResultButtons(false, false);
   $("result").hidden = false;
   fitResults([result], { top: 70, bottom: 40, left: 60, right: 60 });
 }
@@ -2007,8 +2033,9 @@ function showFinal() {
     </table>
     <div class="play-time">プレイ時間 ${formatPlayTime(g.playMs || 0)}</div>`;
   renderSavePrompt(g);
-  $("btn-next").textContent = "ホームに戻る";
+  $("btn-next").textContent = "マップ選択に戻る";
   $("btn-end").hidden = true;
+  setResultButtons(true, true);
   $("result").hidden = false;
   state.game.finished = true;
 }
@@ -2041,6 +2068,7 @@ function initApp() {
   $("btn-dock-pin").addEventListener("click", () => changeDock((p) => ({ dockPinned: !p.dockPinned })));
   $("btn-next").addEventListener("click", () => (state.game && state.game.finished && !state.game.multi ? showHome() : nextRound()));
   $("btn-end").addEventListener("click", showFinal);
+  $("btn-replay").addEventListener("click", replayGame);
   $("btn-zoom-in").addEventListener("click", () => zoomPano(1));
   $("btn-zoom-out").addEventListener("click", () => zoomPano(-1));
   $("btn-game-settings").addEventListener("click", openGameSettings);
