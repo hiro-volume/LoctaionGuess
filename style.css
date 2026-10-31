@@ -1371,3 +1371,6 @@ html.no-anim *, html.no-anim *::before, html.no-anim *::after {
   .map-card.hero .map-card-info b { font-size: 36px; }
   .map-card.hero .map-card-img { background-position: 130% 40%; }
 }
+
+/* 全世界のカード: 難易度は名前のすぐ横に */
+.map-card.hero .map-card-title { justify-content: flex-start; align-items: center; gap: 16px; }

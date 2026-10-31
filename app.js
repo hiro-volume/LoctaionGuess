@@ -325,7 +325,11 @@ function showMessage(text, persistent = false) {
 
 const CATEGORIES = window.LG_CATEGORIES;
 
+// マップの難しさ（カードに出す。ライフの量の「多め・ふつう・少なめ」とは別）
+const AREA_DIFFICULTY_NAMES = { easy: "かんたん", normal: "普通", hard: "難しい" };
+
 function categoryName(id) {
+  if (id === "world") return "全世界";
   const c = CATEGORIES.find((x) => x.id === id);
   return c ? c.name : "自作";
 }
@@ -486,7 +490,7 @@ function mapCard(area) {
 // 難易度のバー（3本のうち何本光るか）
 function difficultyBadge(area) {
   if (!area.difficulty) return "";
-  return `<span class="diff diff-${area.difficulty}" title="難易度"><i></i><i></i><i></i>${DIFFICULTY_NAMES[area.difficulty]}</span>`;
+  return `<span class="diff diff-${area.difficulty}" title="難易度"><i></i><i></i><i></i>${AREA_DIFFICULTY_NAMES[area.difficulty]}</span>`;
 }
 
 function recordBadge(area) {
