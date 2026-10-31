@@ -1049,7 +1049,7 @@ function saveSettings() {
 // ---------------------------------------------------------------- 方位ベルト
 
 const TAPE_PX_PER_DEG = 2;
-const TAPE_LABELS = { 0: "N", 45: "NE", 90: "E", 135: "SE", 180: "S", 225: "SW", 270: "W", 315: "NW" };
+const TAPE_LABELS = { 0: "北", 45: "北東", 90: "東", 135: "南東", 180: "南", 225: "南西", 270: "西", 315: "北西" };
 
 // -360°〜720° の目盛りを並べておき、向きに合わせて横にずらす（つなぎ目が見えないように3周分）
 function buildHeadingTape() {
@@ -1292,9 +1292,7 @@ const EDIT_ERROR_COLOR = "#ff5a4e";
 function openEditor() {
   if (!ensureMap()) return;
   closeSettings();
-  state.editor = { tool: "circle", circles: [], polygon: null, added: [], hovered: null, selected: null, trash: null };
-  state.editor.trash = new TrashButton(() => deleteShape(state.editor.selected));
-  state.editor.trash.setMap(state.map);
+  state.editor = { tool: "circle", circles: [], polygon: null, added: [], selected: null };
   setScreen("editor");
   $("area-name").value = "";
   $("area-category").value = state.category && !["all", "custom"].includes(state.category) ? state.category : "custom";
@@ -1315,9 +1313,7 @@ function clearEditorShapes() {
   ed.circles = [];
   ed.polygon = null;
   ed.added = [];
-  ed.hovered = ed.selected = null;
-  ed.dragging = false;
-  if (ed.trash) ed.trash.hide();
+  ed.selected = null;
 }
 
 function setTool(tool) {
@@ -1328,8 +1324,8 @@ function setTool(tool) {
   $("radius-row").hidden = tool !== "circle";
   $("btn-undo").title = tool === "circle" ? "最後の円を消す" : "最後の点を消す";
   const steps = tool === "circle"
-    ? ["地図をクリックして円を置く", "スライダーで大きさを決める", "円の中をドラッグで移動、縁の白い点で大きさを調整", "円をクリックすると選べる。選んだ円はゴミ箱か Delete キーで消せる"]
-    : ["地図をクリックして頂点を3つ以上置く", "点は形が崩れない位置に自動で入る", "図形の中をドラッグで移動、白い点で形を整える", "消すときは図形の上のゴミ箱か Delete キー"];
+    ? ["地図をクリックして円を置く", "スライダーで大きさを決める", "円の中をドラッグで移動、縁の白い点で大きさを調整", "消すときは下の一覧の「削除」か、円を選んで Delete キー"]
+    : ["地図をクリックして頂点を3つ以上置く", "点は形が崩れない位置に自動で入る", "図形の中をドラッグで移動、白い点で形を整える", "消すときは下の一覧の「削除」か Delete キー"];
   $("editor-help").innerHTML = steps.map((t) => `<li>${t}</li>`).join("");
   updateRadiusLabel();
   updateEditorStatus();
@@ -1478,8 +1474,8 @@ function updateEditorStatus() {
     : (pts.length >= 3 ? "白い点をドラッグして形を整えられます" : `地図をクリックして頂点を置こう（あと ${3 - pts.length} 点）`);
   $("btn-save-area").disabled = !ok;
   $("btn-undo").disabled = ed.tool === "circle" ? !ed.circles.length : !(ed.polygon && ed.polygon.getPath().getLength());
-  // 図形が動いたり大きさが変わったりしたら、ゴミ箱もついていく
-  placeTrash();
+  // 図形が動いたり大きさが変わったりしたら、一覧の表示も直す
+  renderShapeList();
 }
 
 function saveEditor() {
@@ -1510,32 +1506,49 @@ function saveEditor() {
   openSettings(area.id);
 }
 
-// ---------------------------------------------------------------- 図形の削除（ゴミ箱ボタンと Delete キー）
+// ---------------------------------------------------------------- 図形の一覧と削除（パネルの一覧と Delete キー）
+// 地図の上にボタンを重ねると、地図側がクリックを横取りして図形が増えてしまうことがあったため、
+// 削除は地図の外（左のパネル）の一覧から行う。
 
-// ゴミ箱を出す位置: 円なら一番上の縁、多角形なら一番上の頂点のあたり
-function trashAnchor(shape) {
-  if (shape instanceof google.maps.Circle) {
-    const c = shape.getCenter();
-    return new google.maps.LatLng(c.lat() + shape.getRadius() / 111320, c.lng());
-  }
-  const pts = shape.getPath().getArray();
-  if (!pts.length) return null;
-  // 図形から離れた場所に浮かないよう、一番上の頂点そのものに付ける
-  return pts.reduce((top, p) => (p.lat() > top.lat() ? p : top));
-}
-
-// ゴミ箱は「選んでいる図形」（最後に置いた・マウスを乗せた・動かした図形）に出したままにする。
-// マウスを離すと消える作りだと、ゆっくり動かしたときに押す前に消え、地図のクリック扱いになって図形が増えてしまうため
-function placeTrash() {
+function editorShapes() {
   const ed = state.editor;
-  if (!ed || !ed.trash) return;
-  const shape = ed.selected;
-  const at = shape && !ed.dragging ? trashAnchor(shape) : null;
-  if (at) ed.trash.show(at);
-  else ed.trash.hide();
+  if (!ed) return [];
+  return ed.tool === "circle" ? ed.circles : ed.polygon ? [ed.polygon] : [];
 }
 
-// 選んでいる図形を目立たせ、その図形にゴミ箱を付ける
+function renderShapeList() {
+  const ed = state.editor;
+  if (!ed) return;
+  const shapes = editorShapes();
+  $("shape-list").innerHTML = shapes.map((s, i) => {
+    const circle = s instanceof google.maps.Circle;
+    const label = circle ? `円 ${i + 1}` : "多角形";
+    const sub = circle ? `半径 ${formatDistance(s.getRadius())}` : `頂点 ${s.getPath().getLength()} 個`;
+    return `<li class="${s === ed.selected ? "sel" : ""}">
+      <button class="sl-pick" data-i="${i}" title="この図形を選ぶ"><b>${label}</b><small>${sub}</small></button>
+      <button class="sl-del" data-i="${i}" title="${label}を削除" aria-label="${label}を削除">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>削除
+      </button>
+    </li>`;
+  }).join("") || '<li class="empty">まだ図形がありません</li>';
+}
+
+// 一覧のボタン（一覧は描き直すので、親の要素でまとめて受け取る）
+function bindShapeList() {
+  $("shape-list").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-i]");
+    if (!btn) return;
+    const shape = editorShapes()[Number(btn.dataset.i)];
+    if (!shape) return;
+    if (btn.classList.contains("sl-del")) return deleteShape(shape);
+    selectShape(shape);
+    // 選んだ図形が見えるように地図を寄せる
+    if (shape instanceof google.maps.Circle) state.map.panTo(shape.getCenter());
+    else if (shape.getPath().getLength()) state.map.panTo(shape.getPath().getAt(0));
+  });
+}
+
+// 選んでいる図形を目立たせる（一覧でも、地図でも）
 function selectShape(shape) {
   const ed = state.editor;
   if (!ed) return;
@@ -1546,7 +1559,7 @@ function selectShape(shape) {
     updateRadiusLabel();
   }
   highlightSelected();
-  placeTrash();
+  renderShapeList();
 }
 
 function highlightSelected() {
@@ -1558,17 +1571,9 @@ function highlightSelected() {
 }
 
 function bindShapeHover(shape) {
-  // マウスが通っただけでは選ばない（近くの別の図形にゴミ箱が移ってしまうため）。選ぶのはクリックとドラッグ
+  // 選ぶのはクリックとドラッグ（マウスが通っただけでは選ばない）
   shape.addListener("mousedown", () => selectShape(shape));
-  // ドラッグ中は隠して、離したら新しい位置に出し直す
-  shape.addListener("dragstart", () => {
-    state.editor.dragging = true;
-    selectShape(shape);
-  });
-  shape.addListener("dragend", () => {
-    state.editor.dragging = false;
-    placeTrash();
-  });
+  shape.addListener("dragstart", () => selectShape(shape));
 }
 
 function deleteShape(shape) {
@@ -1583,59 +1588,13 @@ function deleteShape(shape) {
     return;
   }
   shape.setMap(null);
-  ed.hovered = null;
   ed.selected = ed.tool === "circle" ? ed.circles[ed.circles.length - 1] || null : null;
   highlightSelected();
-  // 消した直後のクリックが地図に届いても、図形を追加しない
-  ed.suppressClickUntil = Date.now() + 400;
   updateEditorStatus();
 }
 
-let TrashButton = null;
-
-// 地図の上に置く、押せるゴミ箱ボタン
-function defineTrashButton() {
-  TrashButton = class extends google.maps.OverlayView {
-    constructor(onClick) {
-      super();
-      this.pos = null;
-      this.div = document.createElement("button");
-      this.div.className = "shape-trash";
-      this.div.title = "この図形を削除（Delete）";
-      this.div.setAttribute("aria-label", "この図形を削除");
-      this.div.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-      this.div.hidden = true;
-      // 押した操作が下の地図や図形に伝わらないようにする
-      ["pointerdown", "mousedown", "mouseup", "dblclick"].forEach((ev) => this.div.addEventListener(ev, (e) => e.stopPropagation()));
-      this.div.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onClick();
-      });
-      google.maps.OverlayView.preventMapHitsAndGesturesFrom(this.div);
-    }
-    onAdd() { this.getPanes().overlayMouseTarget.appendChild(this.div); }
-    draw() {
-      if (!this.pos || !this.getProjection()) return;
-      const p = this.getProjection().fromLatLngToDivPixel(this.pos);
-      this.div.style.left = `${p.x}px`;
-      this.div.style.top = `${p.y}px`;
-    }
-    onRemove() { this.div.remove(); }
-    show(latLng) {
-      this.pos = latLng;
-      this.div.hidden = false;
-      this.draw();
-    }
-    hide() { this.div.hidden = true; }
-  };
-}
-
 function closeEditor() {
-  if (state.editor) {
-    clearEditorShapes();
-    if (state.editor.trash) state.editor.trash.setMap(null);
-  }
+  if (state.editor) clearEditorShapes();
   state.editor = null;
   showHome();
 }
@@ -2018,7 +1977,6 @@ function escapeHtml(s) {
 
 function initApp() {
   defineMapLabel();
-  defineTrashButton();
   buildHeadingTape();
   state.googleReady = true;
   $("btn-cancel-area").addEventListener("click", closeEditor);
@@ -2266,6 +2224,7 @@ function bindStaticUi() {
   $("area-category").innerHTML = CATEGORIES.filter((c) => c.id !== "all")
     .map((c) => `<option value="${c.id}">${c.id === "custom" ? "自作のみ" : c.name}</option>`).join("");
   bindAreaDialog();
+  bindShapeList();
 }
 
 function boot() {
@@ -2274,7 +2233,7 @@ function boot() {
   if (s.rounds) $("opt-rounds").value = s.rounds;
   if (s.difficulty) $("opt-difficulty").value = s.difficulty;
   if (s.customLife) $("opt-life").value = s.customLife;
-  $("opt-move").checked = !!s.move;
+  $("opt-move").checked = s.move !== false;
   $("opt-pan").checked = s.pan !== false;
   $("opt-zoom").checked = s.zoom !== false;
   $("opt-timer").checked = !!s.timer;

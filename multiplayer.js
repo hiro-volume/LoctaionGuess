@@ -392,6 +392,9 @@ function joinByCode() {
 // ホストが「マップ選択へ進む」を押したとき
 function hostGoSelect() {
   const mp = state.mp;
+  // みんなで遊ぶときは、移動できる設定から始める（前に一人で遊んだときの設定を引き継がない）
+  $("opt-move").checked = true;
+  saveSettings();
   mp.phase = "select";
   broadcastLobby();
   showSelect();

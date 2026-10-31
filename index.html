@@ -213,7 +213,7 @@
               <label class="ctl">
                 <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2l3 3h-2v6h6V9l3 3-3 3v-2h-6v6h2l-3 3-3-3h2v-6H5v2l-3-3 3-3v2h6V5H9z" fill="currentColor"/></svg>
                 移動
-                <input type="checkbox" id="opt-move" class="switch">
+                <input type="checkbox" id="opt-move" class="switch" checked>
               </label>
               <label class="ctl">
                 <svg viewBox="0 0 24 24" width="22" height="22"><path d="M2 12l4-4v3h12V8l4 4-4 4v-3H6v3z" fill="currentColor"/></svg>
@@ -283,6 +283,7 @@
           </div>
           <button id="btn-undo" class="btn-soft" title="取り消す">↶</button>
         </div>
+        <ul id="shape-list" class="shape-list" aria-label="置いた図形の一覧"></ul>
 
         <div class="field">
           <label for="area-name">名前</label>
@@ -402,9 +403,9 @@
               方位の表示
             </div>
             <div class="seg-pills" data-pref="compass">
-              <button data-v="classic">針</button>
-              <button data-v="modern">ベルト</button>
-              <button data-v="both">針＋ベルト</button>
+              <button data-v="classic">左下のコンパス</button>
+              <button data-v="modern">上の方位</button>
+              <button data-v="both">両方</button>
             </div>
           </div>
 
