@@ -5,7 +5,7 @@
 // 出題地点はホストが決めて配り、各自の回答をホストが集めて採点し、結果を全員に配る。
 // 参加者には正解の座標をラウンドが終わるまで送らない（パノラマの ID だけを送る）。
 
-const MP_PREFIX = "loctaionguess-room-";
+const MP_PREFIX = "locationguess-room-";
 const MP_MAX_PLAYERS = 8;
 const MP_COLORS = ["#e5392f", "#3b82f6", "#f5c542", "#a855f7", "#14b8a6", "#f97316", "#ec4899", "#84cc16"];
 const MP_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 見間違えやすい 0/O・1/I は使わない
@@ -883,7 +883,7 @@ function bindMultiplayerUi() {
   $("my-name").addEventListener("keydown", (e) => { if (e.key === "Enter") submitMyName(); });
   $("btn-copy-link").addEventListener("click", copyInviteLink);
   $("btn-share-link").addEventListener("click", () => {
-    navigator.share({ title: "LoctaionGuess", text: `ルームコード ${state.mp.code} で一緒に遊ぼう！`, url: inviteLink(state.mp.code) }).catch(() => {});
+    navigator.share({ title: "LocationGuess", text: `ルームコード ${state.mp.code} で一緒に遊ぼう！`, url: inviteLink(state.mp.code) }).catch(() => {});
   });
   $("btn-lobby-go").addEventListener("click", hostGoSelect);
   $("btn-spectate-stop").addEventListener("click", () => stopSpectate(true));

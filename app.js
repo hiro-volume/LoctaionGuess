@@ -386,9 +386,14 @@ function mapCard(area) {
   card.className = "map-card";
   card.tabIndex = 0;
   card.setAttribute("role", "button");
-  const visual = area.image
-    ? `<div class="map-card-img" style="background-image:url('${area.image.src}')"></div>`
+  const cover = area.image ? area.image.src : area.cover;
+  const visual = cover
+    ? `<div class="map-card-img" style="background-image:url('${cover}')"></div>`
     : `<div class="map-card-img custom">${customVisual(area)}</div>`;
+  if (area.custom) {
+    card.classList.add("custom-card");
+    card.style.setProperty("--ac", area.color || AREA_COLORS[0]);
+  }
   card.innerHTML = `
     ${visual}
     <span class="pill">${categoryLabel(area)}</span>
@@ -398,7 +403,7 @@ function mapCard(area) {
       ${recordBadge(area)}
     </div>`;
   card.querySelector("b").textContent = area.name;
-  if (!area.image) hydrateThumbs(card, area);
+  if (!cover) hydrateThumbs(card, area);
   const open = () => openSettings(area.id);
   card.addEventListener("click", open);
   card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
@@ -422,6 +427,15 @@ function mapCard(area) {
       renderSelect();
     });
     card.appendChild(del);
+    const edit = document.createElement("button");
+    edit.className = "card-edit";
+    edit.title = "名前・メモ・色・カバー画像を編集";
+    edit.textContent = "✎";
+    edit.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openAreaDialog(area.id);
+    });
+    card.appendChild(edit);
   }
   return card;
 }
@@ -997,10 +1011,12 @@ function openSettings(id) {
   $("sheet-cat").textContent = categoryLabel(area);
   $("sheet-desc").innerHTML = `${escapeHtml(areaSummary(area))} ${difficultyBadge(area)} ${recordBadge(area)}`;
   const hero = $("sheet-hero");
-  hero.style.backgroundImage = area.image ? `url('${area.image.src}')` : "";
-  hero.classList.toggle("custom", !area.image);
+  const cover = area.image ? area.image.src : area.cover;
+  hero.style.backgroundImage = cover ? `url('${cover}')` : "";
+  hero.classList.toggle("custom", !cover);
+  hero.style.setProperty("--ac", area.color || AREA_COLORS[0]);
   hero.querySelector(".hero-custom")?.remove();
-  if (!area.image) {
+  if (!cover) {
     hero.insertAdjacentHTML("afterbegin", `<div class="hero-custom">${customVisual(area)}</div>`);
     hydrateThumbs(hero, area);
   }
@@ -1150,6 +1166,124 @@ function renderHudLife() {
   $("info-life").textContent = g.life.toLocaleString();
 }
 
+// ---------------------------------------------------------------- 自作の範囲の見た目（メモ・色・カバー画像）
+
+const AREA_COLORS = ["#2fb36b", "#3b82f6", "#a855f7", "#f97316", "#ec4899", "#14b8a6", "#f5c542", "#e5392f"];
+// "area" はエディタ、"edit" は編集ダイアログの入力中の値
+const areaForms = { area: { color: AREA_COLORS[0], cover: null }, edit: { color: AREA_COLORS[0], cover: null, id: null } };
+
+function renderAreaForm(prefix) {
+  const form = areaForms[prefix];
+  $(`${prefix}-color`).innerHTML = AREA_COLORS.map((c) =>
+    `<button class="swatch${c === form.color ? " active" : ""}" data-c="${c}" style="--c:${c}" aria-label="色 ${c}"></button>`).join("");
+  $(`${prefix}-color`).querySelectorAll(".swatch").forEach((b) => b.addEventListener("click", () => {
+    form.color = b.dataset.c;
+    renderAreaForm(prefix);
+  }));
+  const preview = $(`${prefix}-cover-preview`);
+  preview.style.backgroundImage = form.cover ? `url('${form.cover}')` : "";
+  preview.classList.toggle("has", !!form.cover);
+  preview.style.setProperty("--c", form.color);
+  $(`btn-${prefix}-cover-remove`).hidden = !form.cover;
+}
+
+// カバー画像は、カードの形（16:10）に切り抜いて小さくしてから保存する
+function readCover(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const w = 640, h = 400;
+        const scale = Math.max(w / img.width, h / img.height);
+        const sw = w / scale, sh = h / scale;
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function bindAreaForm(prefix) {
+  $(`btn-${prefix}-cover`).addEventListener("click", () => $(`${prefix}-cover-file`).click());
+  $(`${prefix}-cover-preview`).addEventListener("click", () => $(`${prefix}-cover-file`).click());
+  $(`${prefix}-cover-file`).addEventListener("change", async () => {
+    const input = $(`${prefix}-cover-file`);
+    const file = input.files[0];
+    input.value = "";
+    if (!file) return;
+    try {
+      areaForms[prefix].cover = await readCover(file);
+      renderAreaForm(prefix);
+    } catch {
+      showMessage("画像を読み込めませんでした。別の画像を選んでください。");
+    }
+  });
+  $(`btn-${prefix}-cover-remove`).addEventListener("click", () => {
+    areaForms[prefix].cover = null;
+    renderAreaForm(prefix);
+  });
+}
+
+// マップ選択のカードの ✎ から、名前・メモ・色・カバー画像を変える
+function openAreaDialog(id) {
+  const area = loadJSON(STORE_AREAS, []).find((a) => a.id === id);
+  if (!area) return;
+  areaForms.edit = { id, color: area.color || AREA_COLORS[0], cover: area.cover || null };
+  $("edit-name").value = area.name;
+  $("edit-category").value = area.category || "custom";
+  $("edit-desc").value = area.description || "";
+  renderAreaForm("edit");
+  $("area-dialog").hidden = false;
+  $("edit-name").focus();
+}
+
+function closeAreaDialog() {
+  $("area-dialog").hidden = true;
+}
+
+function saveAreaDialog() {
+  const form = areaForms.edit;
+  const areas = loadJSON(STORE_AREAS, []);
+  const area = areas.find((a) => a.id === form.id);
+  if (!area) return closeAreaDialog();
+  const category = $("edit-category").value;
+  area.name = $("edit-name").value.trim() || area.name;
+  area.category = category === "custom" ? null : category;
+  area.description = $("edit-desc").value.trim() || undefined;
+  area.color = form.color;
+  area.cover = form.cover || undefined;
+  try {
+    localStorage.setItem(STORE_AREAS, JSON.stringify(areas));
+  } catch {
+    return showMessage("保存できませんでした。ブラウザの保存容量がいっぱいかもしれません。カバー画像を外すか、使っていない範囲を削除してください。");
+  }
+  closeAreaDialog();
+  renderSelect();
+}
+
+function bindAreaDialog() {
+  bindAreaForm("area");
+  bindAreaForm("edit");
+  $("edit-category").innerHTML = $("area-category").innerHTML;
+  $("edit-save").addEventListener("click", saveAreaDialog);
+  $("edit-cancel").addEventListener("click", closeAreaDialog);
+  $("area-dialog").querySelector(".dialog-backdrop").addEventListener("click", closeAreaDialog);
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$("area-dialog").hidden) {
+      e.stopPropagation();
+      closeAreaDialog();
+    }
+  }, true);
+}
+
 // ---------------------------------------------------------------- 範囲エディタ
 
 const EDIT_COLOR = "#f2a541";
@@ -1159,11 +1293,16 @@ function openEditor() {
   if (!ensureMap()) return;
   closeSettings();
   state.editor = { tool: "circle", circles: [], polygon: null, added: [], hovered: null, selected: null, trash: null };
-  state.editor.trash = new TrashButton(() => deleteShape(state.editor.hovered || state.editor.selected));
+  state.editor.trash = new TrashButton(() => deleteShape(state.editor.selected));
   state.editor.trash.setMap(state.map);
   setScreen("editor");
   $("area-name").value = "";
   $("area-category").value = state.category && !["all", "custom"].includes(state.category) ? state.category : "custom";
+  // 色は、まだ使っていない色から順に選んでおく（カードが見分けやすいように）
+  const used = new Set(loadJSON(STORE_AREAS, []).map((a) => a.color));
+  areaForms.area = { color: AREA_COLORS.find((c) => !used.has(c)) || AREA_COLORS[0], cover: null };
+  $("area-desc").value = "";
+  renderAreaForm("area");
   clearOverlay();
   state.map.setOptions({ draggableCursor: "crosshair" });
   setTool("circle");
@@ -1189,8 +1328,8 @@ function setTool(tool) {
   $("radius-row").hidden = tool !== "circle";
   $("btn-undo").title = tool === "circle" ? "最後の円を消す" : "最後の点を消す";
   const steps = tool === "circle"
-    ? ["地図をクリックして円を置く", "スライダーで大きさを決める", "円の中をドラッグで移動、縁の白い点で大きさを調整", "消すときは円にマウスを乗せてゴミ箱、または Delete キー"]
-    : ["地図をクリックして頂点を3つ以上置く", "点は形が崩れない位置に自動で入る", "図形の中をドラッグで移動、白い点で形を整える", "消すときは図形にマウスを乗せてゴミ箱、または Delete キー"];
+    ? ["地図をクリックして円を置く", "スライダーで大きさを決める", "円の中をドラッグで移動、縁の白い点で大きさを調整", "円をクリックすると選べる。選んだ円はゴミ箱か Delete キーで消せる"]
+    : ["地図をクリックして頂点を3つ以上置く", "点は形が崩れない位置に自動で入る", "図形の中をドラッグで移動、白い点で形を整える", "消すときは図形の上のゴミ箱か Delete キー"];
   $("editor-help").innerHTML = steps.map((t) => `<li>${t}</li>`).join("");
   updateRadiusLabel();
   updateEditorStatus();
@@ -1215,11 +1354,11 @@ function editorClick(latLng) {
   if (Date.now() < (ed.suppressClickUntil || 0)) return;
   if (ed.tool === "circle") {
     const circle = new google.maps.Circle({ ...editorShapeOptions(), center: latLng, radius: Number($("radius").value) });
-    circle.addListener("click", (e) => editorClick(e.latLng));
+    circle.addListener("click", () => selectShape(circle));
     ["center_changed", "radius_changed"].forEach((ev) => circle.addListener(ev, updateEditorStatus));
     bindShapeHover(circle);
     ed.circles.push(circle);
-    ed.selected = circle;
+    selectShape(circle);
   } else {
     addPolygonPoint(latLng);
   }
@@ -1270,6 +1409,7 @@ function undoEditor() {
     const c = ed.circles.pop();
     if (c) c.setMap(null);
     ed.selected = ed.circles[ed.circles.length - 1] || null;
+    highlightSelected();
   } else if (ed.polygon) {
     const path = ed.polygon.getPath();
     // 最後に追加した点を消す（ドラッグで動かされていたら、最後の点を消す）
@@ -1359,7 +1499,12 @@ function saveEditor() {
     area = { type: "polygons", rings: [pts.map((p) => [p.lat(), p.lng()])] };
   }
   const category = $("area-category").value;
-  area = { ...area, id: `custom-${Date.now()}`, name, custom: true, category: category === "custom" ? null : category };
+  area = {
+    ...area, id: `custom-${Date.now()}`, name, custom: true, category: category === "custom" ? null : category,
+    description: $("area-desc").value.trim() || undefined,
+    color: areaForms.area.color,
+    cover: areaForms.area.cover || undefined,
+  };
   saveJSON(STORE_AREAS, [...loadJSON(STORE_AREAS, []), area]);
   closeEditor();
   openSettings(area.id);
@@ -1390,18 +1535,35 @@ function placeTrash() {
   else ed.trash.hide();
 }
 
+// 選んでいる図形を目立たせ、その図形にゴミ箱を付ける
+function selectShape(shape) {
+  const ed = state.editor;
+  if (!ed) return;
+  ed.selected = shape;
+  // スライダーも、選んだ円の半径に合わせる
+  if (shape instanceof google.maps.Circle) {
+    $("radius").value = Math.round(shape.getRadius());
+    updateRadiusLabel();
+  }
+  highlightSelected();
+  placeTrash();
+}
+
+function highlightSelected() {
+  const ed = state.editor;
+  if (!ed || ed.tool !== "circle") return;
+  ed.circles.forEach((c) => c.setOptions(c === ed.selected
+    ? { strokeWeight: 4, strokeColor: "#ffffff", fillOpacity: 0.28, zIndex: 2 }
+    : { strokeWeight: 2, strokeColor: EDIT_COLOR, fillOpacity: 0.15, zIndex: 1 }));
+}
+
 function bindShapeHover(shape) {
-  shape.addListener("mouseover", () => {
-    state.editor.hovered = shape;
-    state.editor.selected = shape;
-    placeTrash();
-  });
-  shape.addListener("mouseout", () => { if (state.editor.hovered === shape) state.editor.hovered = null; });
+  // マウスが通っただけでは選ばない（近くの別の図形にゴミ箱が移ってしまうため）。選ぶのはクリックとドラッグ
+  shape.addListener("mousedown", () => selectShape(shape));
   // ドラッグ中は隠して、離したら新しい位置に出し直す
   shape.addListener("dragstart", () => {
     state.editor.dragging = true;
-    state.editor.selected = shape;
-    placeTrash();
+    selectShape(shape);
   });
   shape.addListener("dragend", () => {
     state.editor.dragging = false;
@@ -1421,7 +1583,9 @@ function deleteShape(shape) {
     return;
   }
   shape.setMap(null);
-  ed.hovered = ed.selected = null;
+  ed.hovered = null;
+  ed.selected = ed.tool === "circle" ? ed.circles[ed.circles.length - 1] || null : null;
+  highlightSelected();
   // 消した直後のクリックが地図に届いても、図形を追加しない
   ed.suppressClickUntil = Date.now() + 400;
   updateEditorStatus();
@@ -1861,9 +2025,10 @@ function initApp() {
   $("btn-undo").addEventListener("click", undoEditor);
   $("radius").addEventListener("input", () => {
     updateRadiusLabel();
-    // 最後に置いた円の半径を変える
-    const last = state.editor && state.editor.circles[state.editor.circles.length - 1];
-    if (last) last.setRadius(Number($("radius").value));
+    // 選んでいる円の半径を変える
+    const ed = state.editor;
+    const target = ed && ed.selected instanceof google.maps.Circle ? ed.selected : null;
+    if (target) target.setRadius(Number($("radius").value));
   });
   document.querySelectorAll("#editor-panel .tab").forEach((t) => t.addEventListener("click", () => setTool(t.dataset.tool)));
   $("btn-guess").addEventListener("click", () => submitGuess());
@@ -2093,13 +2258,14 @@ function bindStaticUi() {
     // 名前などを入力している間は、文字の削除として扱う
     if (e.target.closest && e.target.closest("input, textarea, select")) return;
     e.preventDefault();
-    deleteShape(state.editor.hovered || state.editor.selected);
+    deleteShape(state.editor.selected);
   });
   $("btn-start").addEventListener("click", startGame);
   $("btn-save-area").addEventListener("click", saveEditor);
   $("btn-cancel-area-top").addEventListener("click", closeEditor);
   $("area-category").innerHTML = CATEGORIES.filter((c) => c.id !== "all")
     .map((c) => `<option value="${c.id}">${c.id === "custom" ? "自作のみ" : c.name}</option>`).join("");
+  bindAreaDialog();
 }
 
 function boot() {

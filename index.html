@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LoctaionGuess</title>
+  <title>LocationGuess</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
@@ -22,7 +22,7 @@
           <path d="M32 9 L37 32 L32 29 L27 32 Z" fill="#ff5a4e"/>
           <path d="M32 55 L37 32 L32 35 L27 32 Z" fill="#f4efe6"/>
         </svg>
-        <h1 class="logo">Loctaion<span>Guess</span></h1>
+        <h1 class="logo">Location<span>Guess</span></h1>
         <p class="tagline">ストリートビューの景色だけを手がかりに、<br>ここがどこかを当てよう。</p>
         <button id="btn-play" class="btn-hero">ゲームを始める</button>
         <button id="btn-title-create" class="btn-ghost">自分で範囲を作る</button>
@@ -271,7 +271,7 @@
         <ol id="editor-help" class="steps"></ol>
 
         <div class="field" id="radius-row">
-          <div class="field-head"><label for="radius">半径（最後に置いた円）</label><span id="radius-label" class="value-badge"></span></div>
+          <div class="field-head"><label for="radius">半径（選んでいる円）</label><span id="radius-label" class="value-badge"></span></div>
           <input type="range" id="radius" min="300" max="50000" step="100" value="3000">
         </div>
 
@@ -291,6 +291,25 @@
         <div class="field">
           <label for="area-category">カテゴリ</label>
           <select id="area-category"></select>
+        </div>
+        <div class="field">
+          <label for="area-desc">メモ（カードに表示）</label>
+          <input type="text" id="area-desc" maxlength="40" placeholder="例: 実家のまわり / 坂が多い">
+        </div>
+        <div class="field">
+          <label>色</label>
+          <div class="swatches" id="area-color"></div>
+        </div>
+        <div class="field">
+          <label>カバー画像（なくてもOK）</label>
+          <div class="cover-picker">
+            <div class="cover-preview" id="area-cover-preview"><span>画像なし</span></div>
+            <div class="cover-actions">
+              <button id="btn-area-cover" class="btn-ghost small-btn">画像を選ぶ</button>
+              <button id="btn-area-cover-remove" class="link-btn" hidden>画像を外す</button>
+            </div>
+            <input type="file" id="area-cover-file" accept="image/*" hidden>
+          </div>
         </div>
         <div class="buttons">
           <button id="btn-cancel-area" class="secondary">キャンセル</button>
@@ -437,6 +456,45 @@
     </div>
 
     <div id="message" hidden></div>
+
+    <!-- 自作の範囲の情報を編集するダイアログ -->
+    <div id="area-dialog" hidden>
+      <div class="dialog-backdrop"></div>
+      <div class="dialog area-dialog" role="dialog" aria-modal="true" aria-labelledby="area-dialog-title">
+        <h3 id="area-dialog-title">マップの情報を編集</h3>
+        <div class="field">
+          <label for="edit-name">名前</label>
+          <input type="text" id="edit-name" maxlength="30">
+        </div>
+        <div class="field">
+          <label for="edit-category">カテゴリ</label>
+          <select id="edit-category"></select>
+        </div>
+        <div class="field">
+          <label for="edit-desc">メモ（カードに表示）</label>
+          <input type="text" id="edit-desc" maxlength="40" placeholder="例: 実家のまわり / 坂が多い">
+        </div>
+        <div class="field">
+          <label>色</label>
+          <div class="swatches" id="edit-color"></div>
+        </div>
+        <div class="field">
+          <label>カバー画像（なくてもOK）</label>
+          <div class="cover-picker">
+            <div class="cover-preview" id="edit-cover-preview"><span>画像なし</span></div>
+            <div class="cover-actions">
+              <button id="btn-edit-cover" class="btn-ghost small-btn">画像を選ぶ</button>
+              <button id="btn-edit-cover-remove" class="link-btn" hidden>画像を外す</button>
+            </div>
+            <input type="file" id="edit-cover-file" accept="image/*" hidden>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button id="edit-cancel" class="btn-ghost">キャンセル</button>
+          <button id="edit-save" class="dialog-ok">保存する</button>
+        </div>
+      </div>
+    </div>
 
     <!-- スコアを記録するダイアログ -->
     <div id="score-dialog" hidden>

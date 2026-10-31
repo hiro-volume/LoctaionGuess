@@ -1,4 +1,4 @@
-// LoctaionGuess の設定ファイル
+// LocationGuess の設定ファイル
 window.LG_CONFIG = {
   // Google Cloud で発行した APIキーをここに貼る（README.md の手順を参照）
   apiKey: "AIzaSyDbjUPdiZV47SOmo0SQeaArdr6u7vkf0Ng",

@@ -1131,3 +1131,49 @@ html.no-anim *, html.no-anim *::before, html.no-anim *::after {
   .mode-card { min-height: 260px; }
   .room-code b { font-size: 34px; }
 }
+
+/* ================================================================ 自作の範囲: メモ・色・カバー画像 */
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatch {
+  width: 28px; height: 28px; padding: 0; border-radius: 50%; background: var(--c); cursor: pointer;
+  border: 3px solid transparent; box-shadow: 0 0 0 1px rgba(255,255,255,.2);
+}
+.swatch.active { border-color: #fff; box-shadow: 0 0 0 3px var(--c); }
+.cover-picker { display: flex; align-items: center; gap: 12px; }
+.cover-preview {
+  width: 128px; aspect-ratio: 16 / 10; flex-shrink: 0; border-radius: 10px; cursor: pointer;
+  display: grid; place-items: center; background: var(--bg-2) center / cover no-repeat;
+  border: 2px dashed var(--line); color: var(--muted); font-size: 12px;
+}
+.cover-preview.has { border: 2px solid var(--c, var(--line)); }
+.cover-preview.has span { display: none; }
+.cover-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+
+/* カード: 選んだ色で縁取り・背景・線画を塗る */
+.map-card.custom-card { border-color: color-mix(in srgb, var(--ac) 55%, var(--line)); }
+.map-card.custom-card::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; z-index: 2; background: var(--ac);
+}
+.map-card.custom-card .pill { color: #fff; background: color-mix(in srgb, var(--ac) 70%, #0b1120); border-color: var(--ac); }
+.map-card.custom-card .map-card-img.custom, .sheet-hero.custom {
+  background:
+    repeating-radial-gradient(circle at 75% 35%, rgba(255,255,255,.035) 0 1px, transparent 1px 18px),
+    linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px) 0 0 / 24px 24px,
+    radial-gradient(circle at 25% 15%, color-mix(in srgb, var(--ac, #2fb36b) 45%, #101a2e), #101a2e 75%);
+}
+.map-card.custom-card .cv-shape svg *, .sheet-hero.custom .cv-shape svg * { stroke: var(--ac); fill: color-mix(in srgb, var(--ac) 25%, transparent); }
+.card-edit {
+  position: absolute; top: 10px; right: 44px; z-index: 2; width: 28px; height: 28px; padding: 0;
+  border-radius: 50%; background: rgba(11,17,32,.75); color: var(--muted); border: 1px solid var(--line); font-size: 14px; line-height: 1;
+}
+.card-edit:hover { color: #fff; border-color: #fff; }
+
+#area-dialog { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; }
+.area-dialog { text-align: left; max-height: calc(100vh - 32px); overflow-y: auto; }
+.area-dialog h3 { text-align: center; }
+.area-dialog .field input[type=text], .area-dialog .field select { width: 100%; padding: 10px 12px; border-radius: 10px; background: var(--bg-2); color: var(--text); border: 1px solid var(--line); font: inherit; }
+@media (prefers-reduced-motion: no-preference) {
+  #area-dialog:not([hidden]) .dialog-backdrop { animation: fadeIn .2s both; }
+  #area-dialog:not([hidden]) .dialog { animation: popIn .28s cubic-bezier(.2,1.2,.4,1) both; }
+}

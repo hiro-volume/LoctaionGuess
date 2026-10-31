@@ -1,4 +1,4 @@
-"""LoctaionGuess の APIキー使用量モニター（自分の PC だけで動かす）
+"""LocationGuess の APIキー使用量モニター（自分の PC だけで動かす）
 
 Google Cloud Monitoring から、Google Maps Platform の「本当の使用回数」を読み出して、
 http://127.0.0.1:8765 に表示する。ゲームのブラウザごとのカウンターと違い、
@@ -176,7 +176,7 @@ def make_handler(cache):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="LoctaionGuess の APIキー使用量モニター")
+    parser = argparse.ArgumentParser(description="LocationGuess の APIキー使用量モニター")
     parser.add_argument("--demo", action="store_true", help="認証なしで、作りものの数字を表示する")
     parser.add_argument("--port", type=int, default=PORT)
     parser.add_argument("--no-open", action="store_true", help="ブラウザを自動で開かない")
