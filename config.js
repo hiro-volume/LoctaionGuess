@@ -1,7 +1,7 @@
 // LoctaionGuess の設定ファイル
 window.LG_CONFIG = {
   // Google Cloud で発行した APIキーをここに貼る（README.md の手順を参照）
-  apiKey: "AIzaSyCn-0CAfuM_gH4_7DuNUVVeQHUAwTfqjSg",
+  apiKey: "AIzaSyDbjUPdiZV47SOmo0SQeaArdr6u7vkf0Ng",
 
   // 無料枠を超えないためのアプリ側の上限（月ごと、このブラウザでの回数）
   // Google の無料枠: Dynamic Street View 5,000回/月、Dynamic Maps 10,000回/月、Static Maps 10,000回/月
