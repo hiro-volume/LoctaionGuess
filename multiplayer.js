@@ -788,10 +788,19 @@ function showMultiResult(msg) {
   }
 
   const rows = [...msg.results].sort((a, b) => b.score - a.score || a.ms - b.ms);
+  const missed = !mine || !mine.guess;
   $("result-text").innerHTML = `
-    ${mine ? `<div class="reaction">${reactionFor(mine.guess ? mine.distance : null)}</div>` : ""}
-    <div class="sub">ラウンド ${msg.index + 1} / ${g.rounds} の結果</div>
-    <table class="mp-table">${rows.map((r, i) => `
+    ${mine ? `<div class="rs-reaction"><span class="reaction">${reactionFor(missed ? null : mine.distance)}</span></div>` : ""}
+    <div class="rs-meta"><b>ラウンド ${msg.index + 1} / ${g.rounds}</b>${mapsLink(answer)}</div>
+    <div class="rs-side rs-left">
+      <div class="rs-big rs-dist">${missed ? "時間切れ" : formatDistance(mine.distance)}</div>
+      <div class="rs-cap">${missed ? "ピンを立てる前に時間切れ" : "正解から"}</div>
+    </div>
+    <div class="rs-side rs-right">
+      <div class="rs-big rs-score">${mine ? mine.score.toLocaleString() : 0}</div>
+      <div class="rs-cap">1,000 点のうち ・ 合計 ${mine ? mine.total.toLocaleString() : 0}</div>
+    </div>
+    <table class="mp-table rs-board">${rows.map((r, i) => `
       <tr class="${r.id === mp.me ? "me" : ""}">
         <td class="num">${i + 1}</td>
         <td class="pl"><i class="dot" style="background:${r.color}"></i>${escapeHtml(r.name)}</td>
@@ -799,8 +808,7 @@ function showMultiResult(msg) {
         <td class="gain">+${r.score}</td>
         <td><b>${r.total.toLocaleString()}</b></td>
       </tr>`).join("")}
-    </table>
-    <div class="sub">${mapsLink(answer)}</div>`;
+    </table>`;
   const host = mp.role === "host";
   $("btn-next").textContent = host ? (msg.last ? "最終結果へ" : "次のラウンドへ") : "ホストが進めるのを待っています…";
   $("btn-next").disabled = !host;

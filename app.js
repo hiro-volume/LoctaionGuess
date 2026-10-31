@@ -799,7 +799,7 @@ function boardLabel(key) {
   const [mode, a, b, x] = key.split("-");
   if (mode === "rounds") return `${a}ラウンド`;
   const label = a === "custom" ? `ライフ ${Number(b).toLocaleString()}` : `ライフ・${DIFFICULTY_NAMES[a] || a}`;
-  return x ? `${label}・🎯ピンポイント` : label;
+  return x ? `${label}・🔥エクストラ` : label;
 }
 
 // 並べ方: ラウンド制は点数が高い順、ライフ制は生き残ったラウンド数 → 点数の順。同点なら早い方が上
@@ -1127,7 +1127,7 @@ function rulesText(g) {
     g.pan ? null : "見回しなし",
     g.zoom ? null : "ズームなし",
     g.timeLimit ? `制限時間 ${g.timeLimit}秒` : null,
-    g.hardcore ? "🎯ピンポイント判定" : null,
+    g.hardcore ? "🔥エクストラ" : null,
   ].filter(Boolean);
   return `（${parts.join("・")}）`;
 }
@@ -1155,7 +1155,7 @@ function selectedLife() {
 // 外した度合いに応じて減るライフ。得点の裏返しなので、近ければ少し・遠ければ最大 1000
 const HARDCORE_DECAY = 2000;
 
-// ピンポイント判定: 範囲の広さに関係なく 2km を目安に減らし、数メートルのずれでも少し減る。
+// エクストラモード: 範囲の広さに関係なく 2km を目安に減らし、数メートルのずれでも少し減る。
 // 狭い範囲ではふつうの方が厳しいこともあるので、ふつうより減る量が少なくならないようにする
 function damageFor(score, distance, hardcore) {
   const normal = 1000 - score;
@@ -1998,25 +1998,25 @@ function submitGuess(timedOut = false) {
 
   setScreen("result");
   const last = g.mode === "life" ? g.life <= 0 : g.index + 1 >= g.rounds;
-  const lifeLine = g.mode === "life"
-    ? `<div class="life-line"><span class="damage">−${result.damage}</span> ライフ
-       ${lifeBar(g.life, g.maxLife)} 残り ${g.life.toLocaleString()}${g.life <= 0 ? "（ライフ切れ）" : ""}</div>`
-    : `<div class="score-line"><b>${score}</b> / 1000 点 ${scoreBar(score, 1000)}</div>`;
-  const subText = missed
-    ? "ピンを立てる前に時間切れになりました"
-    : timedOut ? "時間切れ（置いていたピンで提出）・正解から離れていた距離" : "正解から離れていた距離";
+  const right = g.mode === "life"
+    ? `<div class="rs-big rs-damage">−${result.damage.toLocaleString()}</div>
+       <div class="rs-cap">ライフ ${lifeBar(g.life, g.maxLife)} 残り ${g.life.toLocaleString()}${g.life <= 0 ? "（ライフ切れ）" : ""}</div>`
+    : `<div class="rs-big rs-score">${score.toLocaleString()}</div>
+       <div class="rs-cap">1,000 点のうち</div>`;
+  const roundText = g.mode === "life" ? `ラウンド ${g.index + 1}` : `ラウンド ${g.index + 1} / ${g.rounds}`;
   $("result-text").innerHTML = `
-    ${LEGEND}
-    <div class="reaction">${reactionFor(missed ? null : distance)}</div>
-    <div class="big">${missed ? "時間切れ" : formatDistance(distance)}</div>
-    <div class="sub">${subText}</div>
-    ${lifeLine}
-    <div class="sub">${mapsLink(g.answer)}</div>`;
+    <div class="rs-reaction"><span class="reaction">${reactionFor(missed ? null : distance)}</span></div>
+    <div class="rs-meta"><b>${roundText}</b>${LEGEND}${mapsLink(g.answer)}</div>
+    <div class="rs-side rs-left">
+      <div class="rs-big rs-dist">${missed ? "時間切れ" : formatDistance(distance)}</div>
+      <div class="rs-cap">${missed ? "ピンを立てる前に時間切れ" : timedOut ? "正解から（時間切れで提出）" : "正解から"}</div>
+    </div>
+    <div class="rs-side rs-right">${right}</div>`;
   $("btn-next").textContent = last ? "結果を見る" : "次のラウンドへ";
   $("btn-end").hidden = last;
   setResultButtons(false, false);
   $("result").hidden = false;
-  fitResults([result], { top: 70, bottom: 40, left: 60, right: 60 });
+  fitResults([result], { top: 70, bottom: 90, left: 60, right: 60 });
 }
 
 function mapsLink(p, label = "Google マップで見る") {
@@ -2052,7 +2052,7 @@ function showFinal() {
   if (g.mode === "life") {
     const reason = g.life <= 0 ? "ライフ切れ" : "途中で終了";
     header = `
-      <div class="sub">${escapeHtml(g.area.name)} ・ ライフ制 ${DIFFICULTY_NAMES[g.difficulty]}（${g.maxLife.toLocaleString()}）${g.hardcore ? " ・ 🎯ピンポイント判定" : ""}${move}</div>
+      <div class="sub">${escapeHtml(g.area.name)} ・ ライフ制 ${DIFFICULTY_NAMES[g.difficulty]}（${g.maxLife.toLocaleString()}）${g.hardcore ? " ・ 🔥エクストラモード" : ""}${move}</div>
       <div class="big">${played} ラウンド</div>
       <div class="sub">${reason} ・ 合計 ${total.toLocaleString()} 点</div>
       <div class="life-line">${lifeBar(g.life, g.maxLife)} 残りライフ ${g.life.toLocaleString()}</div>`;
@@ -2109,6 +2109,12 @@ function initApp() {
   $("btn-next").addEventListener("click", () => (state.game && state.game.finished && !state.game.multi ? showHome() : nextRound()));
   $("btn-end").addEventListener("click", showFinal);
   $("btn-replay").addEventListener("click", replayGame);
+  // ラウンド結果では Space キーでも次へ進める
+  window.addEventListener("keydown", (e) => {
+    if (e.code !== "Space" || app.className !== "screen-result" || $("result").hidden) return;
+    if (e.target.closest("input, textarea, select, button")) return;
+    if (!$("btn-next").disabled) { e.preventDefault(); $("btn-next").click(); }
+  });
   $("btn-zoom-in").addEventListener("click", () => zoomPano(1));
   $("btn-zoom-out").addEventListener("click", () => zoomPano(-1));
   $("btn-game-settings").addEventListener("click", openGameSettings);
@@ -2217,8 +2223,9 @@ function applyDock() {
   p.dockSize = Math.max(0, Math.min(DOCK_SIZES.length - 1, p.dockSize));
   const [w, h] = DOCK_SIZES[p.dockSize];
   const dock = $("map-dock");
-  dock.style.setProperty("--dock-w", `${w}px`);
-  dock.style.setProperty("--dock-h", `${h}px`);
+  // 決定ボタンも同じ幅に伸ばすので、共通の親に持たせる
+  dock.parentElement.style.setProperty("--dock-w", `${w}px`);
+  dock.parentElement.style.setProperty("--dock-h", `${h}px`);
   dock.classList.toggle("pinned", !!p.dockPinned);
   $("btn-dock-pin").classList.toggle("active", !!p.dockPinned);
   $("btn-dock-pin").setAttribute("aria-pressed", String(!!p.dockPinned));

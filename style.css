@@ -1202,3 +1202,89 @@ html.no-anim *, html.no-anim *::before, html.no-anim *::after {
 /* もう一度遊ぶ */
 #btn-replay { font-weight: 800; }
 .screen-final .result-buttons { display: flex; flex-direction: column; gap: 8px; }
+
+/* ================================================================ ラウンド結果（下のバー） */
+.screen-result { --rbar: 112px; }
+.screen-result #map-dock { inset: 0 0 var(--rbar) 0; }
+.screen-result #result {
+  height: var(--rbar); padding: 0 24px; overflow: visible;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px;
+  background: linear-gradient(180deg, #1c1640, #120f2b); border-top: 1px solid rgba(255,255,255,.12);
+}
+.screen-result #result-text { display: contents; }
+.screen-result .result-buttons { grid-column: 2; grid-row: 1; flex-direction: column; align-items: center; gap: 6px; }
+.screen-result #btn-next, .screen-result #btn-end { width: 240px; }
+.screen-result #btn-next { height: 50px; border-radius: 999px; font-size: 17px; font-weight: 800; box-shadow: 0 6px 18px rgba(47,179,107,.35); }
+.screen-result #btn-end { padding: 6px; font-size: 12px; background: transparent; border: none; color: var(--muted); text-decoration: underline; }
+.rs-key { display: none; }
+.screen-result .rs-key { display: block; font-size: 11px; color: var(--muted); }
+.screen-result #btn-end:not([hidden]) ~ .rs-key { display: none; }
+.rs-key kbd { padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,.3); font: 700 10px inherit; }
+
+.rs-side { grid-row: 1; text-align: center; }
+.rs-left { grid-column: 1; justify-self: end; }
+.rs-right { grid-column: 3; justify-self: start; }
+.rs-big { font-size: 40px; font-weight: 900; line-height: 1.1; letter-spacing: .01em; }
+.rs-dist { color: #fff; text-shadow: 0 0 16px rgba(120,160,255,.75), 0 0 2px #8fb0ff; }
+.rs-score { color: #ffd38a; text-shadow: 0 0 16px rgba(255,140,60,.7), 0 0 2px #ff9a4a; }
+.rs-damage { color: #ff8a80; text-shadow: 0 0 16px rgba(255,80,70,.6); }
+.rs-cap { margin-top: 2px; font-size: 12px; color: var(--muted); }
+.rs-cap .lifebar { width: 90px; vertical-align: middle; margin: 0 4px; }
+
+/* ひとことは、バーの上にふきだしで（地図の下端の Google ロゴにかからない高さ） */
+.rs-reaction {
+  position: absolute; left: 50%; bottom: calc(100% + 36px); translate: -50% 0;
+  pointer-events: none; z-index: 2; white-space: nowrap;
+}
+#result-text .rs-reaction .reaction {
+  position: relative; border: none; display: inline-block; padding: 9px 20px; border-radius: 999px;
+  font-size: 16px; font-weight: 800; color: #1b1440; background: #fff;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+.rs-reaction .reaction::after {
+  content: ""; position: absolute; left: 50%; top: 100%; translate: -50% -1px;
+  border: 8px solid transparent; border-top-color: #fff;
+}
+
+/* ラウンド・凡例・リンクは地図の左上に（ひとことや、Google のロゴと表記に重ならないように） */
+.screen-result .rs-meta {
+  position: absolute; left: 12px; top: calc(12px - 100vh + var(--rbar)); z-index: 2;
+  display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-radius: 999px;
+  background: rgba(17, 21, 40, .85); font-size: 12px; color: var(--muted);
+}
+.rs-meta b { color: #fff; }
+.rs-meta .legend { gap: 10px; }
+.rs-meta a { color: var(--accent); }
+
+/* マルチ: 全員の結果は地図の右上のカードに */
+.screen-result .rs-board {
+  position: absolute; right: 12px; top: calc(12px - 100vh + var(--rbar)); z-index: 2; margin: 0;
+  max-height: calc(100vh - var(--rbar) - 100px); overflow-y: auto; display: block;
+  padding: 6px 8px; border-radius: 12px; background: rgba(17, 21, 40, .9); box-shadow: 0 6px 20px rgba(0,0,0,.4);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .screen-result .rs-big { animation: popIn .5s .15s cubic-bezier(.2,1.4,.4,1) both; }
+  .screen-result .rs-reaction .reaction { animation: popIn .5s .35s cubic-bezier(.2,1.6,.4,1) both; }
+}
+
+@media (max-width: 720px) {
+  .screen-result { --rbar: 132px; }
+  .screen-result #result { padding: 0 10px; gap: 10px; }
+  .screen-result #btn-next, .screen-result #btn-end { width: min(150px, 38vw); }
+  .screen-result #btn-next { font-size: 14px; white-space: nowrap; padding: 0 8px; }
+  .rs-big { font-size: 22px; white-space: nowrap; }
+  .rs-cap .lifebar { display: none; }
+  #result-text .rs-reaction .reaction { font-size: 13px; padding: 7px 14px; white-space: normal; }
+  .rs-reaction { white-space: normal; width: calc(100vw - 40px); text-align: center; }
+  .screen-result .rs-meta .legend { display: none; }
+}
+
+/* 回答マップを広げたら、決定ボタンも同じ幅に伸ばす */
+.screen-game #btn-guess { transition: width .2s, background .2s, transform .15s; }
+.screen-game #map-dock.open ~ #btn-guess, .screen-game #map-dock.pinned ~ #btn-guess {
+  width: min(var(--dock-w, 600px), calc(100vw - 32px));
+}
+@media (max-width: 720px) {
+  .screen-game #map-dock.open ~ #btn-guess, .screen-game #map-dock.pinned ~ #btn-guess { width: calc(100vw - 32px); }
+}
