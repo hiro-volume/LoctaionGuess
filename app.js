@@ -1,0 +1,2101 @@
+"use strict";
+
+const CONFIG = window.LG_CONFIG;
+// 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
+CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
+const PRESETS = window.LG_PRESETS;
+const STORE_USAGE = "lg.usage";
+const STORE_AREAS = "lg.customAreas";
+const STORE_SETTINGS = "lg.settings";
+const STORE_HISTORY = "lg.history";
+const STORE_PREFS = "lg.prefs";
+const STORE_SCORES = "lg.scores";
+const STORE_PROFILE = "lg.profile";
+const MAX_LOCATION_TRIES = 60;
+
+const $ = (id) => document.getElementById(id);
+const app = $("app");
+
+const state = {
+  map: null,
+  pano: null,
+  areaOverlays: [],
+  selectedAreaId: "singapore",
+  mode: "rounds",
+  game: null,
+  editor: null,
+};
+
+// ---------------------------------------------------------------- 保存データ
+
+function loadJSON(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveJSON(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // 保存できなくてもゲームは続ける
+  }
+}
+
+// ---------------------------------------------------------------- 使用量カウンタ（無料枠ガード）
+
+function monthKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getUsage() {
+  const all = loadJSON(STORE_USAGE, {});
+  return { streetView: 0, mapLoads: 0, metadata: 0, staticMaps: 0, ...all[monthKey()] };
+}
+
+function addUsage(kind, n = 1) {
+  const all = loadJSON(STORE_USAGE, {});
+  const key = monthKey();
+  const u = all[key] || { streetView: 0, mapLoads: 0, metadata: 0 };
+  u[kind] = (u[kind] || 0) + n;
+  all[key] = u;
+  saveJSON(STORE_USAGE, all);
+  renderUsage();
+}
+
+function remainingStreetView() {
+  return CONFIG.limits.streetViewPerMonth - getUsage().streetView;
+}
+
+function renderUsage() {
+  const u = getUsage();
+  const rows = [
+    ["ストリートビュー", u.streetView, CONFIG.limits.streetViewPerMonth],
+    ["地図の読み込み", u.mapLoads, CONFIG.limits.mapLoadsPerMonth],
+    ["範囲の地図画像", u.staticMaps || 0, CONFIG.limits.staticMapsPerMonth],
+  ];
+  const games = Math.max(0, Math.floor(remainingStreetView() / 5));
+  $("usage").innerHTML =
+    `<div class="usage-title">今月の無料枠（このブラウザ）</div>` +
+    rows.map(([label, used, limit]) => {
+      const pct = Math.min(100, (used / limit) * 100);
+      return `<div class="usage-row"><span>${label}</span><span>${used.toLocaleString()} / ${limit.toLocaleString()}</span></div>
+        <div class="bar ${pct > 90 ? "warn" : ""}"><div style="width:${pct}%"></div></div>`;
+    }).join("") +
+    `<div class="help">あと約 ${games} ゲーム（5ラウンド換算）</div>`;
+  $("usage-mini").textContent = `今月の無料枠: あと約 ${games} ゲーム`;
+}
+
+// ---------------------------------------------------------------- 範囲（エリア）の計算
+
+function allAreas() {
+  return [...PRESETS, ...loadJSON(STORE_AREAS, [])];
+}
+
+function findArea(id) {
+  return allAreas().find((a) => a.id === id) || PRESETS[0];
+}
+
+// 円の範囲は、1つの円（"circle"）でも複数の円（"circles"）でも円のリストとして扱う
+function areaCircles(area) {
+  if (area.type === "circle") return [{ center: area.center, radius: area.radius }];
+  if (area.type === "circles") return area.circles;
+  return null;
+}
+
+function areaBounds(area) {
+  const b = { south: 90, north: -90, west: 180, east: -180 };
+  const circles = areaCircles(area);
+  if (circles) {
+    for (const { center, radius } of circles) {
+      const dLat = radius / 111320;
+      const dLng = radius / (111320 * Math.cos((center.lat * Math.PI) / 180));
+      b.south = Math.min(b.south, center.lat - dLat); b.north = Math.max(b.north, center.lat + dLat);
+      b.west = Math.min(b.west, center.lng - dLng); b.east = Math.max(b.east, center.lng + dLng);
+    }
+    return b;
+  }
+  for (const ring of area.rings) {
+    for (const [lat, lng] of ring) {
+      b.south = Math.min(b.south, lat); b.north = Math.max(b.north, lat);
+      b.west = Math.min(b.west, lng); b.east = Math.max(b.east, lng);
+    }
+  }
+  return b;
+}
+
+function pointInRing(lat, lng, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [yi, xi] = ring[i];
+    const [yj, xj] = ring[j];
+    if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function areaContains(area, lat, lng) {
+  const circles = areaCircles(area);
+  if (circles) return circles.some((c) => distanceMeters(c.center, { lat, lng }) <= c.radius);
+  return area.rings.some((ring) => pointInRing(lat, lng, ring));
+}
+
+function randomPointIn(area) {
+  const b = areaBounds(area);
+  for (let i = 0; i < 5000; i++) {
+    const lat = b.south + Math.random() * (b.north - b.south);
+    const lng = b.west + Math.random() * (b.east - b.west);
+    if (areaContains(area, lat, lng)) return { lat, lng };
+  }
+  return null;
+}
+
+// 範囲の対角線の長さ（m）。得点の基準と検索半径に使う
+function areaSizeMeters(area) {
+  const b = areaBounds(area);
+  return distanceMeters({ lat: b.south, lng: b.west }, { lat: b.north, lng: b.east });
+}
+
+// ---------------------------------------------------------------- 距離と得点
+
+function distanceMeters(a, b) {
+  const R = 6371008.8;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function formatDistance(m) {
+  if (m < 1000) return `${Math.round(m)} m`;
+  if (m < 100000) return `${(m / 1000).toFixed(2)} km`;
+  return `${Math.round(m / 1000)} km`;
+}
+
+// 1ラウンド最大1000点。範囲が広いほどゆるく、狭いほど厳しく減点する
+function scoreFor(distance, area) {
+  if (distance <= 25) return 1000;
+  const decay = areaSizeMeters(area) * 0.07;
+  return Math.round(1000 * Math.exp(-distance / decay));
+}
+
+// ---------------------------------------------------------------- 出題地点の検索（無料の Metadata API）
+
+async function findLocation(area, usedPanos) {
+  const radius = Math.round(Math.min(1000, Math.max(50, areaSizeMeters(area) / 100)));
+  for (let i = 0; i < MAX_LOCATION_TRIES; i++) {
+    const p = randomPointIn(area);
+    if (!p) break;
+    const url = "https://maps.googleapis.com/maps/api/streetview/metadata" +
+      `?location=${p.lat},${p.lng}&radius=${radius}&source=outdoor&key=${encodeURIComponent(CONFIG.apiKey)}`;
+    const res = await fetch(url).then((r) => r.json());
+    addUsage("metadata");
+    if (res.status === "REQUEST_DENIED") {
+      throw new Error(`APIキーが拒否されました: ${res.error_message || ""}\nStreet View Static API が有効か、キーの制限を確認してください。`);
+    }
+    if (res.status !== "OK") continue;
+    // Google 公式の撮影だけを使う（個人投稿の写真は除外）
+    if (!String(res.copyright || "").includes("Google")) continue;
+    if (usedPanos.has(res.pano_id)) continue;
+    if (!areaContains(area, res.location.lat, res.location.lng)) continue;
+    return { panoId: res.pano_id, lat: res.location.lat, lng: res.location.lng, date: res.date };
+  }
+  throw new Error("この範囲ではストリートビューが見つかりませんでした。範囲を広げるか、道路のある場所を選んでください。");
+}
+
+// ---------------------------------------------------------------- 地図の表示
+
+function clearOverlay() {
+  state.areaOverlays.forEach((o) => o.setMap(null));
+  state.areaOverlays = [];
+}
+
+function drawArea(area, fit = true) {
+  clearOverlay();
+  const style = {
+    map: state.map, strokeColor: "#f2a541", strokeOpacity: 0.9, strokeWeight: 2,
+    fillColor: "#f2a541", fillOpacity: 0.08, clickable: false,
+  };
+  const circles = areaCircles(area);
+  if (circles) {
+    state.areaOverlays = circles.map((c) => new google.maps.Circle({ ...style, center: c.center, radius: c.radius }));
+  } else {
+    state.areaOverlays = [new google.maps.Polygon({
+      ...style, paths: area.rings.map((ring) => ring.map(([lat, lng]) => ({ lat, lng }))),
+    })];
+  }
+  if (fit) {
+    const b = areaBounds(area);
+    state.map.fitBounds(b, 20);
+  }
+}
+
+function setScreen(name) {
+  app.className = `screen-${name}`;
+  if (name !== "game") $("game-settings").hidden = true;
+}
+
+// ブラウザ標準の confirm の代わりに使う確認ダイアログ。OK なら true で解決する
+function askConfirm({ title, text, okText = "OK", cancelText = "キャンセル", danger = false }) {
+  const dlg = $("dialog");
+  $("dialog-title").textContent = title;
+  $("dialog-text").textContent = text;
+  $("dialog-ok").textContent = okText;
+  $("dialog-cancel").textContent = cancelText;
+  $("dialog-icon").textContent = danger ? "!" : "?";
+  dlg.classList.toggle("danger", danger);
+  dlg.hidden = false;
+  $("dialog-cancel").focus();
+  return new Promise((resolve) => {
+    const close = (result) => {
+      dlg.hidden = true;
+      $("dialog-ok").removeEventListener("click", onOk);
+      $("dialog-cancel").removeEventListener("click", onCancel);
+      dlg.querySelector(".dialog-backdrop").removeEventListener("click", onCancel);
+      document.removeEventListener("keydown", onKey, true);
+      resolve(result);
+    };
+    const onOk = () => close(true);
+    const onCancel = () => close(false);
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.stopPropagation(); close(false); }
+    };
+    $("dialog-ok").addEventListener("click", onOk);
+    $("dialog-cancel").addEventListener("click", onCancel);
+    dlg.querySelector(".dialog-backdrop").addEventListener("click", onCancel);
+    document.addEventListener("keydown", onKey, true);
+  });
+}
+
+function showMessage(text, persistent = false) {
+  const el = $("message");
+  el.textContent = text;
+  el.hidden = false;
+  el.style.whiteSpace = "pre-wrap";
+  if (!persistent) setTimeout(() => { el.hidden = true; }, 7000);
+}
+
+// ---------------------------------------------------------------- タイトル画面
+
+const CATEGORIES = window.LG_CATEGORIES;
+
+function categoryName(id) {
+  const c = CATEGORIES.find((x) => x.id === id);
+  return c ? c.name : "自作";
+}
+
+// 自作の範囲でカテゴリを選んでいれば「アジア・自作」のように出す
+function categoryLabel(area) {
+  if (!area.custom) return categoryName(area.category);
+  return area.category ? `${categoryName(area.category)}・自作` : "自作";
+}
+
+function showTitle() {
+  closeSettings();
+  setScreen("title");
+  renderUsage();
+}
+
+// タイトルの背景は、プリセットの写真をゆっくり切り替えて見せる
+function buildTitleBackground() {
+  const imgs = PRESETS.filter((a) => a.image);
+  $("title-bg").innerHTML = imgs
+    .map((a, i) => `<div class="title-slide${i === 0 ? " active" : ""}" style="background-image:url('${a.image.src}')"></div>`)
+    .join("");
+  $("title-credit").textContent = "写真: " + imgs.map((a) => a.image.credit).join(" ・ ") + "（Wikimedia Commons）";
+  let i = 0;
+  setInterval(() => {
+    const slides = document.querySelectorAll(".title-slide");
+    if (slides.length < 2) return;
+    slides[i].classList.remove("active");
+    i = (i + 1) % slides.length;
+    slides[i].classList.add("active");
+  }, 6000);
+}
+
+// ---------------------------------------------------------------- マップ選択画面
+
+function showSelect() {
+  stopTimer();
+  clearGameMarkers();
+  state.editor = null;
+  $("result").hidden = true;
+  setScreen("select");
+  renderSelect();
+  decorateSelectForMulti();
+}
+
+// ゲーム終了後などに戻る「ホーム」はマップ選択画面
+const showHome = showSelect;
+
+function areasInCategory(cat) {
+  return allAreas().filter((a) => {
+    if (cat === "all") return true;
+    if (cat === "custom") return !!a.custom;
+    return a.category === cat;
+  });
+}
+
+function renderSelect() {
+  const cat = state.category || "all";
+  // 中身のあるカテゴリだけ出す（「すべて」と「自作」は常に出す）
+  $("category-chips").innerHTML = CATEGORIES
+    .map((c) => ({ ...c, count: areasInCategory(c.id).length }))
+    .filter((c) => c.count > 0 || c.id === "all" || c.id === "custom")
+    .map((c) => `<button class="chip${c.id === cat ? " active" : ""}" data-cat="${c.id}">${c.name}<span>${c.count}</span></button>`)
+    .join("");
+  document.querySelectorAll("#category-chips .chip").forEach((b) => b.addEventListener("click", () => {
+    state.category = b.dataset.cat;
+    renderSelect();
+  }));
+
+  renderProgress(cat);
+
+  const grid = $("map-grid");
+  grid.innerHTML = "";
+  const list = areasInCategory(cat);
+  list.forEach((area, i) => {
+    const card = mapCard(area);
+    card.style.setProperty("--i", i);
+    grid.appendChild(card);
+  });
+  const create = document.createElement("button");
+  create.className = "map-card create";
+  create.style.setProperty("--i", list.length);
+  create.innerHTML = `<div class="create-inner"><span class="plus">＋</span><b>新しい範囲を作る</b><small>円や多角形で、好きな場所を囲めます</small></div>`;
+  create.addEventListener("click", openEditor);
+  grid.appendChild(create);
+
+  const credits = PRESETS.filter((a) => a.image)
+    .map((a) => `<a href="${a.image.link}" target="_blank" rel="noopener">${escapeHtml(a.name)}: ${escapeHtml(a.image.credit)}</a>`);
+  $("credits").innerHTML = "写真（Wikimedia Commons）: " + credits.join(" ・ ");
+}
+
+function mapCard(area) {
+  const card = document.createElement("div");
+  card.className = "map-card";
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
+  const visual = area.image
+    ? `<div class="map-card-img" style="background-image:url('${area.image.src}')"></div>`
+    : `<div class="map-card-img custom">${customVisual(area)}</div>`;
+  card.innerHTML = `
+    ${visual}
+    <span class="pill">${categoryLabel(area)}</span>
+    <div class="map-card-info">
+      <div class="map-card-title"><b></b>${difficultyBadge(area)}</div>
+      <span>${escapeHtml(areaSummary(area))}</span>
+      ${recordBadge(area)}
+    </div>`;
+  card.querySelector("b").textContent = area.name;
+  if (!area.image) hydrateThumbs(card, area);
+  const open = () => openSettings(area.id);
+  card.addEventListener("click", open);
+  card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+  if (area.custom) {
+    const del = document.createElement("button");
+    del.className = "card-del";
+    del.title = "削除";
+    del.textContent = "×";
+    del.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const ok = await askConfirm({
+        title: "範囲を削除しますか？",
+        text: `「${area.name}」を削除します。
+この操作は取り消せません。`,
+        okText: "削除する",
+        danger: true,
+      });
+      if (!ok) return;
+      saveJSON(STORE_AREAS, loadJSON(STORE_AREAS, []).filter((a) => a.id !== area.id));
+      if (state.selectedAreaId === area.id) state.selectedAreaId = PRESETS[0].id;
+      renderSelect();
+    });
+    card.appendChild(del);
+  }
+  return card;
+}
+
+// 難易度のバー（3本のうち何本光るか）
+function difficultyBadge(area) {
+  if (!area.difficulty) return "";
+  return `<span class="diff diff-${area.difficulty}" title="難易度"><i></i><i></i><i></i>${DIFFICULTY_NAMES[area.difficulty]}</span>`;
+}
+
+function recordBadge(area) {
+  const st = loadHistory().games[area.id];
+  if (!st) return `<span class="card-record new">未プレイ</span>`;
+  return `<span class="card-record">${st.played}回プレイ ・ ベスト平均 ${st.bestAvg}点</span>`;
+}
+
+// カードに出す「広さ・ひとこと」
+function areaSummary(area) {
+  const m = areaSizeMeters(area) / Math.SQRT2;
+  const size = m < 1000 ? `約 ${Math.round(m / 10) * 10} m 四方` : `約 ${Math.round(m / 1000)} km 四方`;
+  if (area.description) return `${size} ・ ${area.description}`;
+  // 自作の範囲は、どこの範囲なのか（国・地域と形）を添える
+  return area.custom ? `${size} ・ ${areaPlaceName(area)} ・ ${areaShapeKind(area)}` : size;
+}
+
+// 範囲の真ん中がどの国・地域か（「シンガポール付近」のように出す）
+function areaPlaceName(area) {
+  const b = areaBounds(area);
+  const id = countryNear((b.south + b.north) / 2, (b.west + b.east) / 2);
+  const c = id && WORLD.find((x) => x.id === id);
+  return c ? `${c.name}付近` : "海の上";
+}
+
+function areaShapeKind(area) {
+  const circles = areaCircles(area);
+  if (circles) return `円 ${circles.length} 個`;
+  return `多角形 ${area.rings[0].length} 点`;
+}
+
+// 写真のない自作の範囲は、「範囲の地図」の小窓で見せる
+// （Maps Static API の地図に、範囲の外を暗くして範囲を浮かび上がらせる。使えないときは線画）
+function customVisual(area) {
+  const thumb = staticThumb(area);
+  return `<div class="cv"><figure class="cv-shape${thumb ? " has-map" : ""}">${thumb || areaShapeSvg(area)}<figcaption>範囲の地図</figcaption></figure></div>`;
+}
+
+// ---------------------------------------------------------------- 範囲の地図サムネイル（Maps Static API）
+
+const THUMB = 200;       // サムネイルの大きさ（表示上の px。画像は scale=2 で2倍の解像度）
+const THUMB_FOOTER = 22; // 下の帯（Google のロゴと著作権表示）は暗くしない
+const staticCounted = new Set();
+let thumbSeq = 0;
+
+// Web メルカトルでのピクセル座標（ズーム z）
+function mercPx(lat, lng, z) {
+  const size = 256 * 2 ** z;
+  const sin = Math.sin((lat * Math.PI) / 180);
+  return { x: ((lng + 180) / 360) * size, y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * size };
+}
+
+function staticThumb(area) {
+  if (!CONFIG.apiKey || CONFIG.apiKey === "YOUR_API_KEY") return null;
+  const b = areaBounds(area);
+  const center = { lat: (b.south + b.north) / 2, lng: (b.west + b.east) / 2 };
+  // 範囲が枠の8割に収まる、いちばん大きなズームを選ぶ
+  let z = 18;
+  for (; z > 1; z--) {
+    const sw = mercPx(b.south, b.west, z), ne = mercPx(b.north, b.east, z);
+    if (Math.abs(ne.x - sw.x) <= THUMB * 0.8 && Math.abs(sw.y - ne.y) <= (THUMB - THUMB_FOOTER) * 0.8) break;
+  }
+  const url = "https://maps.googleapis.com/maps/api/staticmap" +
+    `?center=${center.lat.toFixed(5)},${center.lng.toFixed(5)}&zoom=${z}&size=${THUMB}x${THUMB}&scale=2&language=ja` +
+    `&maptype=${encodeURIComponent(state.prefs ? state.prefs.mapType : "roadmap")}&key=${encodeURIComponent(CONFIG.apiKey)}`;
+  // 同じ画像はブラウザが覚えているので、このページを開いている間は1回だけ数える
+  if (!staticCounted.has(url)) {
+    if (getUsage().staticMaps >= CONFIG.limits.staticMapsPerMonth) return null;
+    staticCounted.add(url);
+    addUsage("staticMaps");
+  }
+
+  const c = mercPx(center.lat, center.lng, z);
+  const px = (lat, lng) => {
+    const p = mercPx(lat, lng, z);
+    return [p.x - c.x + THUMB / 2, p.y - c.y + THUMB / 2];
+  };
+  const circles = areaCircles(area);
+  const shapes = circles
+    ? circles.map((ci) => {
+      const [x, y] = px(ci.center.lat, ci.center.lng);
+      const metersPerPx = (40075016.686 * Math.cos((ci.center.lat * Math.PI) / 180)) / (256 * 2 ** z);
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(ci.radius / metersPerPx).toFixed(1)}"/>`;
+    }).join("")
+    : area.rings.map((ring) => `<polygon points="${ring.map(([lat, lng]) => px(lat, lng).map((v) => v.toFixed(1)).join(",")).join(" ")}"/>`).join("");
+  const id = `thumb-mask-${++thumbSeq}`;
+  return `<svg class="static-thumb" viewBox="0 0 ${THUMB} ${THUMB}">
+    <defs><mask id="${id}"><rect width="${THUMB}" height="${THUMB - THUMB_FOOTER}" fill="#fff"/><g fill="#000">${shapes}</g></mask></defs>
+    <image href="${url}" width="${THUMB}" height="${THUMB}"/>
+    <rect class="thumb-dim" width="${THUMB}" height="${THUMB}" mask="url(#${id})"/>
+    <g class="thumb-outline">${shapes}</g>
+  </svg>`;
+}
+
+// 地図画像が読めなかったとき（Maps Static API が有効でないなど）は線画に切り替える
+function hydrateThumbs(root, area) {
+  root.querySelectorAll(".static-thumb image").forEach((img) => {
+    img.addEventListener("error", () => {
+      const fig = img.closest(".cv-shape");
+      if (!fig) return;
+      fig.classList.remove("has-map");
+      fig.querySelector(".static-thumb").outerHTML = areaShapeSvg(area);
+    }, { once: true });
+  });
+}
+
+// 範囲の形をそのまま線画にする
+function areaShapeSvg(area) {
+  const b = areaBounds(area);
+  const k = Math.cos((((b.north + b.south) / 2) * Math.PI) / 180);
+  const w = (b.east - b.west) * k;
+  const h = b.north - b.south;
+  const scale = 80 / Math.max(w, h);
+  const ox = (100 - w * scale) / 2;
+  const oy = (100 - h * scale) / 2;
+  const xy = (lat, lng) => [ox + (lng - b.west) * k * scale, oy + (b.north - lat) * scale];
+  const circles = areaCircles(area);
+  let shapes;
+  if (circles) {
+    shapes = circles.map((c) => {
+      const [x, y] = xy(c.center.lat, c.center.lng);
+      return `<circle cx="${x}" cy="${y}" r="${(c.radius / 111320) * scale}"/>`;
+    }).join("");
+  } else {
+    shapes = area.rings.map((ring) => `<polygon points="${ring.map(([lat, lng]) => xy(lat, lng).join(",")).join(" ")}"/>`).join("");
+  }
+  return `<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">${shapes}</svg>`;
+}
+
+// ---------------------------------------------------------------- プレイ記録
+
+const WORLD = window.LG_WORLD || [];
+const MAX_HISTORY_ROUNDS = 3000;
+
+function loadHistory() {
+  const h = loadJSON(STORE_HISTORY, {});
+  return { rounds: h.rounds || [], games: h.games || {} };
+}
+
+// 1ラウンドごとに「出題された場所・国・得点」を残す
+function recordRound(areaId, r) {
+  const h = loadHistory();
+  h.rounds.push({
+    lat: Math.round(r.answer.lat * 1e4) / 1e4,
+    lng: Math.round(r.answer.lng * 1e4) / 1e4,
+    area: areaId,
+    score: r.score,
+    c: countryNear(r.answer.lat, r.answer.lng),
+    t: Date.now(),
+  });
+  // 記録が増えすぎないように、新しいものだけ残す
+  if (h.rounds.length > MAX_HISTORY_ROUNDS) h.rounds = h.rounds.slice(-MAX_HISTORY_ROUNDS);
+  saveJSON(STORE_HISTORY, h);
+}
+
+// 1ゲームごとに、マップ別の「遊んだ回数」と「1ラウンドあたりの最高平均点」を残す
+function recordGame(g) {
+  if (!g.results.length) return;
+  const h = loadHistory();
+  const st = h.games[g.area.id] || { played: 0, bestAvg: 0 };
+  const avg = Math.round(g.results.reduce((sum, r) => sum + r.score, 0) / g.results.length);
+  st.played += 1;
+  st.bestAvg = Math.max(st.bestAvg, avg);
+  h.games[g.area.id] = st;
+  saveJSON(STORE_HISTORY, h);
+}
+
+// [経度, 緯度] の境界データのリストから「その点を含むもの」を探す関数を作る
+function makeLocator(list) {
+  let boxes = null;
+  const at = (lat, lng) => {
+    if (!boxes) {
+      boxes = list.map((c) => {
+        const b = { w: 180, e: -180, s: 90, n: -90 };
+        c.rings.forEach((r) => r.forEach(([x, y]) => {
+          b.w = Math.min(b.w, x); b.e = Math.max(b.e, x); b.s = Math.min(b.s, y); b.n = Math.max(b.n, y);
+        }));
+        return b;
+      });
+    }
+    for (let i = 0; i < list.length; i++) {
+      const b = boxes[i];
+      if (lng < b.w || lng > b.e || lat < b.s || lat > b.n) continue;
+      // データは [経度, 緯度] なので、[緯度, 経度] に直して判定する
+      if (list[i].rings.some((r) => pointInRing(lat, lng, r.map(([x, y]) => [y, x])))) return list[i].id;
+    }
+    return null;
+  };
+  // 簡略化した境界では小さな島（宮島など）が消えているので、見つからなければ周りを少しずつ探す
+  return (lat, lng) => {
+    const hit = at(lat, lng);
+    if (hit) return hit;
+    for (const d of [0.05, 0.1, 0.25, 0.5]) {
+      for (let k = 0; k < 8; k++) {
+        const a = (k * Math.PI) / 4;
+        const c = at(lat + d * Math.sin(a), lng + d * Math.cos(a));
+        if (c) return c;
+      }
+    }
+    return null;
+  };
+}
+
+const REGIONS = window.LG_REGIONS || [];
+const countryNear = makeLocator(WORLD);
+const regionNear = makeLocator(REGIONS);
+const regionById = new Map(REGIONS.map((r) => [r.id, r]));
+const regionCache = new Map();
+
+// 記録の点がどの区画（県・州など）か。何度も描き直すので結果を覚えておく
+function regionOfRound(r) {
+  const key = `${r.lat},${r.lng}`;
+  if (!regionCache.has(key)) regionCache.set(key, regionNear(r.lat, r.lng));
+  return regionCache.get(key);
+}
+
+// 世界地図は正距円筒図法: x = 経度 + 180、y = 85 − 緯度（南緯60度より南は切る）
+const projX = (lng) => lng + 180;
+const projY = (lat) => 85 - lat;
+const FULL_VIEW = { x: 0, y: 0, w: 360, h: 150 };
+const ringsToPath = (rings) => rings.map((r) => "M" + r.map(([x, y]) => `${projX(x).toFixed(2)},${projY(y).toFixed(2)}`).join("L") + "Z").join("");
+let worldPaths = null;
+
+function getWorldPaths() {
+  if (!worldPaths) worldPaths = WORLD.map((c) => ({ id: c.id, name: c.name, d: ringsToPath(c.rings) }));
+  return worldPaths;
+}
+
+// カテゴリに合わせて、地図の見せる範囲（viewBox）を決める
+function progressViewBox(areas, cat) {
+  if (cat === "all" || !areas.length) return { ...FULL_VIEW };
+  let w = 180, e = -180, so = 90, n = -90;
+  areas.forEach((a) => {
+    const b = areaBounds(a);
+    w = Math.min(w, b.west); e = Math.max(e, b.east); so = Math.min(so, b.south); n = Math.max(n, b.north);
+  });
+  // 小さなマップでも周りの国が見えるよう、最低でも横60度は見せる
+  const cx = (projX(w) + projX(e)) / 2, cy = (projY(n) + projY(so)) / 2;
+  let vw = Math.max(60, (projX(e) - projX(w)) * 1.6);
+  const vh = Math.max(vw / 2.4, (projY(so) - projY(n)) * 1.6);
+  vw = vh * 2.4;
+  return { x: cx - vw / 2, y: cy - vh / 2, w: vw, h: vh };
+}
+
+function setProgressView(vb) {
+  // 拡大しすぎ・縮小しすぎを防ぐ（横 2度〜360度）
+  const w = Math.max(2, Math.min(360, vb.w));
+  const h = w / 2.4;
+  const cx = vb.x + vb.w / 2, cy = vb.y + vb.h / 2;
+  state.progressView = { x: cx - w / 2, y: cy - h / 2, w, h };
+  const v = state.progressView;
+  $("world-map").setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`);
+}
+
+// 地図の中の点（割合 fx, fy）を中心に拡大・縮小する
+function zoomProgress(factor, fx = 0.5, fy = 0.5) {
+  const v = state.progressView;
+  const px = v.x + v.w * fx, py = v.y + v.h * fy;
+  const w = Math.max(2, Math.min(360, v.w * factor));
+  const h = w / 2.4;
+  setProgressView({ x: px - w * fx, y: py - h * fy, w, h });
+}
+
+// 拡大ボタン・ドラッグ移動・ホイール拡大
+function bindProgressMap() {
+  const svg = $("world-map");
+  $("btn-pm-in").addEventListener("click", () => zoomProgress(1 / 1.6));
+  $("btn-pm-out").addEventListener("click", () => zoomProgress(1.6));
+  $("btn-pm-reset").addEventListener("click", () => setProgressView(state.progressHome));
+  svg.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const r = svg.getBoundingClientRect();
+    zoomProgress(e.deltaY < 0 ? 1 / 1.25 : 1.25, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+  }, { passive: false });
+  let drag = null;
+  svg.addEventListener("pointerdown", (e) => {
+    drag = { x: e.clientX, y: e.clientY, view: { ...state.progressView } };
+    svg.setPointerCapture(e.pointerId);
+    svg.classList.add("dragging");
+  });
+  svg.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const r = svg.getBoundingClientRect();
+    const k = drag.view.w / r.width;
+    setProgressView({ ...drag.view, x: drag.view.x - (e.clientX - drag.x) * k, y: drag.view.y - (e.clientY - drag.y) * k });
+  });
+  const end = () => { drag = null; svg.classList.remove("dragging"); };
+  svg.addEventListener("pointerup", end);
+  svg.addEventListener("pointercancel", end);
+}
+
+function renderProgress(cat) {
+  const h = loadHistory();
+  const level = (n) => (!n ? 0 : n < 5 ? 1 : n < 20 ? 2 : 3);
+
+  // 遊んだ区画（県・州など）ごとのラウンド数
+  const regionCounts = new Map();
+  const countries = new Set();
+  h.rounds.forEach((r) => {
+    if (r.c) countries.add(r.c);
+    const id = regionOfRound(r);
+    if (id) regionCounts.set(id, (regionCounts.get(id) || 0) + 1);
+  });
+
+  // 国の形は下地として薄く、遊んだ区画だけを濃さで塗る
+  const base = getWorldPaths()
+    .map((c) => `<path class="country" d="${c.d}"><title>${escapeHtml(c.name)}</title></path>`)
+    .join("");
+  const played = [...regionCounts].map(([id, n]) => {
+    const reg = regionById.get(id);
+    if (!reg) return "";
+    if (!reg.path) reg.path = ringsToPath(reg.rings);
+    return `<path class="region lv-${level(n)}" d="${reg.path}"><title>${escapeHtml(reg.name)}: ${n} ラウンド</title></path>`;
+  }).join("");
+
+  const svg = $("world-map");
+  svg.innerHTML = `<rect class="ocean" x="-720" y="-300" width="1800" height="750"/>${base}${played}`;
+  state.progressHome = progressViewBox(areasInCategory(cat), cat);
+  setProgressView(state.progressHome);
+
+  // 数字のまとめ
+  const presetsPlayed = PRESETS.filter((a) => h.games[a.id]).length;
+  const pct = PRESETS.length ? Math.round((presetsPlayed / PRESETS.length) * 100) : 0;
+  const games = Object.values(h.games).reduce((sum, g) => sum + g.played, 0);
+  const avg = h.rounds.length ? Math.round(h.rounds.reduce((sum, r) => sum + r.score, 0) / h.rounds.length) : 0;
+  $("progress-stats").innerHTML = `
+    <div class="ring" style="--p:${pct}"><div><b>${pct}%</b><span>マップ制覇</span></div></div>
+    <div class="stat-grid">
+      <div><b>${presetsPlayed}<small> / ${PRESETS.length}</small></b><span>遊んだマップ</span></div>
+      <div><b>${countries.size}</b><span>訪れた国</span></div>
+      <div><b>${regionCounts.size}</b><span>訪れた区画（県・州など）</span></div>
+      <div><b>${games}</b><span>ゲーム数</span></div>
+      <div><b>${h.rounds.length}</b><span>ラウンド数</span></div>
+      <div><b>${avg}<small> / 1000</small></b><span>平均スコア</span></div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------- スコアのランキング
+
+const MAX_SCORES_PER_BOARD = 50;
+const DEFAULT_AVATAR = `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="24" fill="#2b3a5c"/><circle cx="24" cy="19" r="8" fill="#c9d4ea"/><path d="M9 40c2.5-8 8.5-12 15-12s12.5 4 15 12" fill="#c9d4ea"/></svg>`;
+
+function loadScores() {
+  return loadJSON(STORE_SCORES, {});
+}
+
+// ランキングは「同じ条件で遊んだもの」どうしで比べる（ラウンド数・ライフ制の難易度ごと）
+function boardOf(g) {
+  return g.mode === "life" ? `life-${g.difficulty}-${g.maxLife}` : `rounds-${g.rounds}`;
+}
+
+function boardLabel(key) {
+  const [mode, a, b] = key.split("-");
+  if (mode === "rounds") return `${a}ラウンド`;
+  return a === "custom" ? `ライフ ${Number(b).toLocaleString()}` : `ライフ・${DIFFICULTY_NAMES[a] || a}`;
+}
+
+// 並べ方: ラウンド制は点数が高い順、ライフ制は生き残ったラウンド数 → 点数の順。同点なら早い方が上
+function sortEntries(list, key) {
+  const life = key.startsWith("life");
+  return list.sort((x, y) =>
+    (life ? y.rounds - x.rounds : 0) || y.score - x.score || x.timeMs - y.timeMs || x.date - y.date);
+}
+
+function formatPlayTime(ms) {
+  const sec = Math.round(ms / 1000);
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function avatarHtml(icon) {
+  return icon ? `<img src="${icon}" alt="">` : DEFAULT_AVATAR;
+}
+
+// 最後まで遊んだゲームだけランキングに残せる（途中でやめたものは条件が揃わないため）
+function canSaveScore(g) {
+  if (!g.results.length) return false;
+  return g.mode === "life" ? g.life <= 0 : g.results.length >= g.rounds;
+}
+
+function renderSavePrompt(g) {
+  const box = document.createElement("div");
+  box.className = "save-prompt";
+  if (!canSaveScore(g)) {
+    box.innerHTML = `<p class="muted">途中で終わったゲームは、ランキングに残せません。</p>`;
+  } else if (g.savedRank) {
+    box.innerHTML = `<p class="saved">ランキングに記録しました（${boardLabel(boardOf(g))}で ${g.savedRank} 位）</p>`;
+  } else {
+    box.innerHTML = `<p>このスコアをランキングに残しますか？</p>
+      <div class="save-buttons"><button class="primary" data-act="save">残す</button><button class="secondary" data-act="skip">残さない</button></div>`;
+    box.querySelector('[data-act="save"]').addEventListener("click", () => openScoreDialog(g, box));
+    box.querySelector('[data-act="skip"]').addEventListener("click", () => {
+      box.innerHTML = `<p class="muted">今回のスコアは残しませんでした。</p>`;
+    });
+  }
+  $("result-text").appendChild(box);
+}
+
+// ---- スコアを記録するダイアログ
+
+const scoreForm = { icon: null, game: null, box: null };
+
+function openScoreDialog(g, box) {
+  const profile = loadJSON(STORE_PROFILE, {});
+  scoreForm.icon = profile.icon || null;
+  scoreForm.game = g;
+  scoreForm.box = box;
+  const total = g.results.reduce((sum, r) => sum + r.score, 0);
+  $("score-summary").innerHTML = `
+    <div><span>マップ</span><b>${escapeHtml(g.area.name)}</b></div>
+    <div><span>${g.mode === "life" ? "生き残り" : "スコア"}</span><b>${g.mode === "life" ? `${g.results.length} ラウンド` : `${total.toLocaleString()} 点`}</b></div>
+    <div><span>タイム</span><b>${formatPlayTime(g.playMs || 0)}</b></div>
+    <div><span>部門</span><b>${boardLabel(boardOf(g))}</b></div>`;
+  $("score-name").value = profile.name || "";
+  $("avatar-preview").innerHTML = avatarHtml(scoreForm.icon);
+  $("score-dialog").hidden = false;
+  $("score-name").focus();
+}
+
+function closeScoreDialog() {
+  $("score-dialog").hidden = true;
+}
+
+function saveScore() {
+  const g = scoreForm.game;
+  const name = $("score-name").value.trim() || "名無しの旅人";
+  const entry = {
+    id: `s-${Date.now()}`,
+    name,
+    icon: scoreForm.icon,
+    score: g.results.reduce((sum, r) => sum + r.score, 0),
+    max: g.results.length * 1000,
+    rounds: g.results.length,
+    timeMs: g.playMs || 0,
+    date: Date.now(),
+    rules: rulesText(g),
+  };
+  const key = boardOf(g);
+  const all = loadScores();
+  const boards = all[g.area.id] || {};
+  const list = sortEntries([...(boards[key] || []), entry], key).slice(0, MAX_SCORES_PER_BOARD);
+  boards[key] = list;
+  all[g.area.id] = boards;
+  saveJSON(STORE_SCORES, all);
+  // 次回のために名前とアイコンを覚えておく
+  saveJSON(STORE_PROFILE, { name, icon: scoreForm.icon });
+  const rank = list.findIndex((e) => e.id === entry.id) + 1;
+  g.savedRank = rank || `${MAX_SCORES_PER_BOARD}位圏外`;
+  closeScoreDialog();
+  const box = scoreForm.box;
+  box.innerHTML = rank
+    ? `<p class="saved">ランキングに記録しました！ <b>${boardLabel(key)}で ${rank} 位</b></p>`
+    : `<p class="saved">記録しましたが、上位 ${MAX_SCORES_PER_BOARD} 件には入りませんでした。</p>`;
+}
+
+// 選んだ画像を 128px の正方形に切り抜いて小さくする（保存する量を減らすため）
+function readAvatar(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const size = 128;
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = size;
+        const side = Math.min(img.width, img.height);
+        canvas.getContext("2d").drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function bindScoreDialog() {
+  const pick = () => $("avatar-file").click();
+  $("avatar-preview").addEventListener("click", pick);
+  $("btn-avatar-pick").addEventListener("click", pick);
+  $("avatar-file").addEventListener("change", async () => {
+    const file = $("avatar-file").files[0];
+    $("avatar-file").value = "";
+    if (!file) return;
+    try {
+      scoreForm.icon = await readAvatar(file);
+      $("avatar-preview").innerHTML = avatarHtml(scoreForm.icon);
+    } catch {
+      showMessage("画像を読み込めませんでした。別の画像を選んでください。");
+    }
+  });
+  $("btn-avatar-reset").addEventListener("click", () => {
+    scoreForm.icon = null;
+    $("avatar-preview").innerHTML = avatarHtml(null);
+  });
+  $("btn-to-ranking").addEventListener("click", () => $("ranking").scrollIntoView({ behavior: "smooth", block: "start" }));
+  $("score-save").addEventListener("click", saveScore);
+  $("score-cancel").addEventListener("click", closeScoreDialog);
+  $("score-dialog").querySelector(".dialog-backdrop").addEventListener("click", closeScoreDialog);
+  $("score-name").addEventListener("keydown", (e) => { if (e.key === "Enter") saveScore(); });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$("score-dialog").hidden) {
+      e.stopPropagation();
+      closeScoreDialog();
+    }
+  }, true);
+}
+
+// ---- 設定シートの下に出すランキング
+
+function renderRanking(areaId, key) {
+  const boards = loadScores()[areaId] || {};
+  const keys = Object.keys(boards).filter((k) => boards[k].length)
+    .sort((a, b) => (a.startsWith("life") - b.startsWith("life")) || parseInt(a.split("-")[1], 10) - parseInt(b.split("-")[1], 10));
+  // いま選んでいるルールの部門があればそれを、なければ記録のある最初の部門を出す
+  const current = state.mode === "life" ? null : `rounds-${$("opt-rounds").value}`;
+  const active = key || (keys.includes(current) ? current : keys[0]);
+  $("board-tabs").innerHTML = keys.map((k) => `<button data-board="${k}" class="${k === active ? "active" : ""}">${boardLabel(k)}</button>`).join("");
+  $("board-tabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => renderRanking(areaId, b.dataset.board)));
+
+  const list = active ? boards[active] : [];
+  $("ranking-empty").hidden = list.length > 0;
+  const life = active && active.startsWith("life");
+  const main = (e) => (life ? `${e.rounds} ラウンド` : `${e.score.toLocaleString()} 点`);
+  const sub = (e) => (life ? `${e.score.toLocaleString()} 点 ・ ${formatPlayTime(e.timeMs)}` : formatPlayTime(e.timeMs));
+  const date = (e) => new Date(e.date).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" });
+
+  // 1〜3位は表彰台（左から 2位・1位・3位）
+  const medals = ["gold", "silver", "bronze"];
+  $("podium").innerHTML = [1, 0, 2].map((i) => {
+    const e = list[i];
+    if (!e) return `<div class="podium-slot empty ${medals[i]}"></div>`;
+    return `<div class="podium-slot ${medals[i]}" style="--d:${i}">
+      ${i === 0 ? '<div class="crown">👑</div>' : ""}
+      <div class="avatar ring">${avatarHtml(e.icon)}<span class="medal">${i + 1}</span></div>
+      <b class="p-name">${escapeHtml(e.name)}</b>
+      <span class="p-score">${main(e)}</span>
+      <span class="p-time">${sub(e)}</span>
+      <div class="step"><span>${i + 1}</span></div>
+    </div>`;
+  }).join("");
+  $("podium").hidden = list.length === 0;
+
+  $("ranking-list").innerHTML = list.slice(3).map((e, i) => `
+    <li style="--d:${i}">
+      <span class="r-rank">${i + 4}</span>
+      <span class="avatar small">${avatarHtml(e.icon)}</span>
+      <span class="r-name">${escapeHtml(e.name)}</span>
+      <span class="r-score">${main(e)}</span>
+      <span class="r-time">${sub(e)}</span>
+      <span class="r-date">${date(e)}</span>
+    </li>`).join("");
+}
+
+// ---------------------------------------------------------------- 設定シート
+
+function openSettings(id) {
+  const area = findArea(id);
+  state.selectedAreaId = area.id;
+  saveSettings();
+  $("sheet-title").textContent = area.name;
+  $("sheet-cat").textContent = categoryLabel(area);
+  $("sheet-desc").innerHTML = `${escapeHtml(areaSummary(area))} ${difficultyBadge(area)} ${recordBadge(area)}`;
+  const hero = $("sheet-hero");
+  hero.style.backgroundImage = area.image ? `url('${area.image.src}')` : "";
+  hero.classList.toggle("custom", !area.image);
+  hero.querySelector(".hero-custom")?.remove();
+  if (!area.image) {
+    hero.insertAdjacentHTML("afterbegin", `<div class="hero-custom">${customVisual(area)}</div>`);
+    hydrateThumbs(hero, area);
+  }
+  renderUsage();
+  $("settings-sheet").hidden = false;
+  renderRanking(area.id);
+  decorateSheetForMulti();
+  $("btn-start").focus();
+}
+
+function closeSettings() {
+  $("settings-sheet").hidden = true;
+}
+
+function saveSettings() {
+  saveJSON(STORE_SETTINGS, {
+    areaId: state.selectedAreaId,
+    mode: state.mode,
+    rounds: $("opt-rounds").value,
+    difficulty: $("opt-difficulty").value,
+    customLife: $("opt-life").value,
+    move: $("opt-move").checked,
+    pan: $("opt-pan").checked,
+    zoom: $("opt-zoom").checked,
+    timer: $("opt-timer").checked,
+    time: $("opt-time").value,
+  });
+}
+
+// ---------------------------------------------------------------- 方位ベルト
+
+const TAPE_PX_PER_DEG = 2;
+const TAPE_LABELS = { 0: "N", 45: "NE", 90: "E", 135: "SE", 180: "S", 225: "SW", 270: "W", 315: "NW" };
+
+// -360°〜720° の目盛りを並べておき、向きに合わせて横にずらす（つなぎ目が見えないように3周分）
+function buildHeadingTape() {
+  const strip = $("heading-strip");
+  const html = [];
+  for (let deg = -360; deg <= 720; deg += 15) {
+    const x = (deg + 360) * TAPE_PX_PER_DEG;
+    const d = ((deg % 360) + 360) % 360;
+    const label = TAPE_LABELS[d];
+    html.push(`<div class="tick${label ? " major" : ""}" style="left:${x}px"></div>`);
+    if (label) html.push(`<div class="tick-label${d === 0 ? " north" : ""}" style="left:${x}px">${label}</div>`);
+  }
+  strip.innerHTML = html.join("");
+  strip.style.width = `${1080 * TAPE_PX_PER_DEG}px`;
+}
+
+function updateHeadingTape(heading) {
+  const h = ((heading % 360) + 360) % 360;
+  const center = $("heading-tape").clientWidth / 2;
+  $("heading-strip").style.transform = `translateX(${center - (h + 360) * TAPE_PX_PER_DEG}px)`;
+}
+
+// ---------------------------------------------------------------- 制限時間
+
+function formatTime(sec) {
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+}
+
+function updateTimerSettings() {
+  $("timer-row").hidden = !$("opt-timer").checked;
+  $("time-label").textContent = `${$("opt-time").value}秒`;
+}
+
+function startTimer() {
+  const g = state.game;
+  stopTimer();
+  const pill = $("timer-pill");
+  pill.hidden = !g.timeLimit;
+  pill.classList.remove("urgent", "beat");
+  if (!g.timeLimit) return;
+  const deadline = Date.now() + g.timeLimit * 1000;
+  let shown = null;
+  const tick = () => {
+    const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    if (left === shown) return;
+    shown = left;
+    $("timer-text").textContent = formatTime(left);
+    pill.classList.toggle("urgent", left <= 10);
+    // 残り10秒からは、1秒減るたびにビクッと動かす（アニメーションを最初からやり直す）
+    if (left <= 10) {
+      pill.classList.remove("beat");
+      void pill.offsetWidth;
+      pill.classList.add("beat");
+    }
+    if (left <= 0) {
+      stopTimer();
+      submitGuess(true);
+    }
+  };
+  tick();
+  state.timer = setInterval(tick, 250);
+}
+
+function stopTimer() {
+  clearInterval(state.timer);
+  state.timer = null;
+}
+
+// 結果画面に出す「どんなルールで遊んだか」の短い説明
+function rulesText(g) {
+  const parts = [
+    g.move ? "移動あり" : "移動なし",
+    g.pan ? null : "見回しなし",
+    g.zoom ? null : "ズームなし",
+    g.timeLimit ? `制限時間 ${g.timeLimit}秒` : null,
+  ].filter(Boolean);
+  return `（${parts.join("・")}）`;
+}
+
+// ---------------------------------------------------------------- ライフ制
+
+const LIFE_PRESETS = { easy: 10000, normal: 5000, hard: 2500 };
+const DIFFICULTY_NAMES = { easy: "簡単", normal: "普通", hard: "難しい", custom: "カスタム" };
+
+function setMode(mode) {
+  state.mode = mode;
+  document.querySelectorAll("#mode-tabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.mode === mode));
+  $("rounds-row").hidden = mode !== "rounds";
+  $("life-row").hidden = mode !== "life";
+  $("custom-life-row").hidden = $("opt-difficulty").value !== "custom";
+}
+
+function selectedLife() {
+  const d = $("opt-difficulty").value;
+  if (d !== "custom") return LIFE_PRESETS[d];
+  const v = Math.round(Number($("opt-life").value));
+  return Number.isFinite(v) ? Math.min(100000, Math.max(100, v)) : 5000;
+}
+
+// 外した度合いに応じて減るライフ。得点の裏返しなので、近ければ少し・遠ければ最大 1000
+function damageFor(score) {
+  return 1000 - score;
+}
+
+function lifeBar(life, max) {
+  return `<span class="lifebar"><span style="width:${(life / max) * 100}%"></span></span>`;
+}
+
+function renderHudLife() {
+  const g = state.game;
+  $("info-life-box").hidden = g.mode !== "life";
+  if (g.mode !== "life") return;
+  $("info-life-box").querySelector(".lifebar > span").style.width = `${(g.life / g.maxLife) * 100}%`;
+  $("info-life").textContent = g.life.toLocaleString();
+}
+
+// ---------------------------------------------------------------- 範囲エディタ
+
+const EDIT_COLOR = "#f2a541";
+const EDIT_ERROR_COLOR = "#ff5a4e";
+
+function openEditor() {
+  if (!ensureMap()) return;
+  closeSettings();
+  state.editor = { tool: "circle", circles: [], polygon: null, added: [], hovered: null, selected: null, trash: null };
+  state.editor.trash = new TrashButton(() => deleteShape(state.editor.hovered || state.editor.selected));
+  state.editor.trash.setMap(state.map);
+  setScreen("editor");
+  $("area-name").value = "";
+  $("area-category").value = state.category && !["all", "custom"].includes(state.category) ? state.category : "custom";
+  clearOverlay();
+  state.map.setOptions({ draggableCursor: "crosshair" });
+  setTool("circle");
+}
+
+function clearEditorShapes() {
+  const ed = state.editor;
+  ed.circles.forEach((c) => c.setMap(null));
+  if (ed.polygon) ed.polygon.setMap(null);
+  ed.circles = [];
+  ed.polygon = null;
+  ed.added = [];
+  ed.hovered = ed.selected = null;
+  ed.dragging = false;
+  if (ed.trash) ed.trash.hide();
+}
+
+function setTool(tool) {
+  const ed = state.editor;
+  clearEditorShapes();
+  ed.tool = tool;
+  document.querySelectorAll("#editor-panel .tab").forEach((t) => t.classList.toggle("active", t.dataset.tool === tool));
+  $("radius-row").hidden = tool !== "circle";
+  $("btn-undo").title = tool === "circle" ? "最後の円を消す" : "最後の点を消す";
+  const steps = tool === "circle"
+    ? ["地図をクリックして円を置く", "スライダーで大きさを決める", "円の中をドラッグで移動、縁の白い点で大きさを調整", "消すときは円にマウスを乗せてゴミ箱、または Delete キー"]
+    : ["地図をクリックして頂点を3つ以上置く", "点は形が崩れない位置に自動で入る", "図形の中をドラッグで移動、白い点で形を整える", "消すときは図形にマウスを乗せてゴミ箱、または Delete キー"];
+  $("editor-help").innerHTML = steps.map((t) => `<li>${t}</li>`).join("");
+  updateRadiusLabel();
+  updateEditorStatus();
+}
+
+function updateRadiusLabel() {
+  $("radius-label").textContent = formatDistance(Number($("radius").value));
+}
+
+function editorShapeOptions() {
+  // 編集できる図形は、クリックが地図に届かなくなるので自分でも受け取る
+  return {
+    map: state.map, strokeColor: EDIT_COLOR, strokeWeight: 2,
+    fillColor: EDIT_COLOR, fillOpacity: 0.15, editable: true, clickable: true,
+    // 図形そのものを掴んで動かせるようにする
+    draggable: true,
+  };
+}
+
+function editorClick(latLng) {
+  const ed = state.editor;
+  if (Date.now() < (ed.suppressClickUntil || 0)) return;
+  if (ed.tool === "circle") {
+    const circle = new google.maps.Circle({ ...editorShapeOptions(), center: latLng, radius: Number($("radius").value) });
+    circle.addListener("click", (e) => editorClick(e.latLng));
+    ["center_changed", "radius_changed"].forEach((ev) => circle.addListener(ev, updateEditorStatus));
+    bindShapeHover(circle);
+    ed.circles.push(circle);
+    ed.selected = circle;
+  } else {
+    addPolygonPoint(latLng);
+  }
+  updateEditorStatus();
+}
+
+// 平面とみなして計算するための座標（経度は緯度に応じて縮める）
+function toXY(latLng, refLat) {
+  return { x: latLng.lng() * Math.cos((refLat * Math.PI) / 180), y: latLng.lat() };
+}
+
+// 新しい頂点を「周の長さが一番伸びない辺」に差し込む。クリック順に関係なく、形が交差しにくくなる
+function addPolygonPoint(latLng) {
+  const ed = state.editor;
+  if (!ed.polygon) {
+    ed.polygon = new google.maps.Polygon(editorShapeOptions());
+    ed.polygon.setPath(new google.maps.MVCArray());
+    ed.polygon.addListener("click", (e) => { if (e.vertex == null && e.edge == null) editorClick(e.latLng); });
+    // 図形ごと動かしたあとも、広さや場所の表示を更新する
+    ed.polygon.addListener("dragend", updateEditorStatus);
+    const path = ed.polygon.getPath();
+    ["insert_at", "set_at", "remove_at"].forEach((ev) => path.addListener(ev, updateEditorStatus));
+    bindShapeHover(ed.polygon);
+  }
+  ed.selected = ed.polygon;
+  const path = ed.polygon.getPath();
+  const pts = path.getArray();
+  let index = pts.length;
+  if (pts.length >= 3) {
+    const ref = latLng.lat();
+    const p = toXY(latLng, ref);
+    const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    let best = Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const a = toXY(pts[i], ref);
+      const b = toXY(pts[(i + 1) % pts.length], ref);
+      const cost = d(a, p) + d(p, b) - d(a, b);
+      if (cost < best) { best = cost; index = i + 1; }
+    }
+  }
+  path.insertAt(index, latLng);
+  ed.added.push(latLng);
+}
+
+function undoEditor() {
+  const ed = state.editor;
+  if (ed.tool === "circle") {
+    const c = ed.circles.pop();
+    if (c) c.setMap(null);
+    ed.selected = ed.circles[ed.circles.length - 1] || null;
+  } else if (ed.polygon) {
+    const path = ed.polygon.getPath();
+    // 最後に追加した点を消す（ドラッグで動かされていたら、最後の点を消す）
+    const last = ed.added.pop();
+    const i = path.getArray().indexOf(last);
+    if (i >= 0) path.removeAt(i);
+    else if (path.getLength()) path.removeAt(path.getLength() - 1);
+  }
+  updateEditorStatus();
+}
+
+function segmentsCross(a, b, c, d) {
+  const cross = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  const d1 = cross(c, d, a), d2 = cross(c, d, b), d3 = cross(a, b, c), d4 = cross(a, b, d);
+  return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+}
+
+function polygonSelfIntersects(latLngs) {
+  const n = latLngs.length;
+  if (n < 4) return false;
+  const ref = latLngs[0].lat();
+  const p = latLngs.map((ll) => toXY(ll, ref));
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      // 隣り合う辺は端点を共有するので調べない
+      if (j === i + 1 || (i === 0 && j === n - 1)) continue;
+      if (segmentsCross(p[i], p[(i + 1) % n], p[j], p[(j + 1) % n])) return true;
+    }
+  }
+  return false;
+}
+
+// いま描いている範囲の広さ
+function editorSizeText() {
+  const ed = state.editor;
+  const area = ed.tool === "circle"
+    ? { type: "circles", circles: ed.circles.map((c) => ({ center: { lat: c.getCenter().lat(), lng: c.getCenter().lng() }, radius: c.getRadius() })) }
+    : { type: "polygons", rings: [ed.polygon.getPath().getArray().map((p) => [p.lat(), p.lng()])] };
+  return areaSummary({ ...area, custom: true });
+}
+
+// 図形の数や交差の有無を表示して、保存できる状態かを見せる
+function updateEditorStatus() {
+  const ed = state.editor;
+  if (!ed) return;
+  let text = "";
+  let ok = false;
+  const pts = ed.polygon ? ed.polygon.getPath().getArray() : [];
+  if (ed.tool === "circle") {
+    ok = ed.circles.length > 0;
+    text = `円: ${ed.circles.length} 個`;
+  } else {
+    const crossed = polygonSelfIntersects(pts);
+    if (ed.polygon) ed.polygon.setOptions({ strokeColor: crossed ? EDIT_ERROR_COLOR : EDIT_COLOR, fillColor: crossed ? EDIT_ERROR_COLOR : EDIT_COLOR });
+    ok = pts.length >= 3 && !crossed;
+    text = crossed ? "⚠ 線が交差しています。白い点をドラッグして直してください" : `頂点: ${pts.length} 個`;
+  }
+  const error = text.startsWith("⚠");
+  $("editor-status").textContent = error ? text.slice(2) : text;
+  $("editor-status-card").classList.toggle("error", error);
+  $("editor-status-card").classList.toggle("ready", ok);
+  $("editor-status-icon").textContent = error ? "!" : ok ? "✓" : "…";
+  $("editor-size").textContent = ok ? editorSizeText() : ed.tool === "circle" ? "まだ円がありません" : "頂点が3つ以上必要です";
+  $("editor-hint").textContent = ed.tool === "circle"
+    ? (ed.circles.length ? "続けてクリックすると円を追加できます" : "地図をクリックして円を置こう")
+    : (pts.length >= 3 ? "白い点をドラッグして形を整えられます" : `地図をクリックして頂点を置こう（あと ${3 - pts.length} 点）`);
+  $("btn-save-area").disabled = !ok;
+  $("btn-undo").disabled = ed.tool === "circle" ? !ed.circles.length : !(ed.polygon && ed.polygon.getPath().getLength());
+  // 図形が動いたり大きさが変わったりしたら、ゴミ箱もついていく
+  placeTrash();
+}
+
+function saveEditor() {
+  const ed = state.editor;
+  const name = $("area-name").value.trim() || "自作の範囲";
+  let area;
+  if (ed.tool === "circle") {
+    if (!ed.circles.length) return showMessage("地図をクリックして円を置いてください。");
+    area = {
+      type: "circles",
+      circles: ed.circles.map((c) => ({ center: { lat: c.getCenter().lat(), lng: c.getCenter().lng() }, radius: Math.round(c.getRadius()) })),
+    };
+  } else {
+    const pts = ed.polygon ? ed.polygon.getPath().getArray() : [];
+    if (pts.length < 3) return showMessage("頂点を3つ以上置いてください。");
+    if (polygonSelfIntersects(pts)) return showMessage("線が交差しているので保存できません。白い点をドラッグして直してください。");
+    area = { type: "polygons", rings: [pts.map((p) => [p.lat(), p.lng()])] };
+  }
+  const category = $("area-category").value;
+  area = { ...area, id: `custom-${Date.now()}`, name, custom: true, category: category === "custom" ? null : category };
+  saveJSON(STORE_AREAS, [...loadJSON(STORE_AREAS, []), area]);
+  closeEditor();
+  openSettings(area.id);
+}
+
+// ---------------------------------------------------------------- 図形の削除（ゴミ箱ボタンと Delete キー）
+
+// ゴミ箱を出す位置: 円なら一番上の縁、多角形なら一番上の頂点のあたり
+function trashAnchor(shape) {
+  if (shape instanceof google.maps.Circle) {
+    const c = shape.getCenter();
+    return new google.maps.LatLng(c.lat() + shape.getRadius() / 111320, c.lng());
+  }
+  const pts = shape.getPath().getArray();
+  if (!pts.length) return null;
+  // 図形から離れた場所に浮かないよう、一番上の頂点そのものに付ける
+  return pts.reduce((top, p) => (p.lat() > top.lat() ? p : top));
+}
+
+// ゴミ箱は「選んでいる図形」（最後に置いた・マウスを乗せた・動かした図形）に出したままにする。
+// マウスを離すと消える作りだと、ゆっくり動かしたときに押す前に消え、地図のクリック扱いになって図形が増えてしまうため
+function placeTrash() {
+  const ed = state.editor;
+  if (!ed || !ed.trash) return;
+  const shape = ed.selected;
+  const at = shape && !ed.dragging ? trashAnchor(shape) : null;
+  if (at) ed.trash.show(at);
+  else ed.trash.hide();
+}
+
+function bindShapeHover(shape) {
+  shape.addListener("mouseover", () => {
+    state.editor.hovered = shape;
+    state.editor.selected = shape;
+    placeTrash();
+  });
+  shape.addListener("mouseout", () => { if (state.editor.hovered === shape) state.editor.hovered = null; });
+  // ドラッグ中は隠して、離したら新しい位置に出し直す
+  shape.addListener("dragstart", () => {
+    state.editor.dragging = true;
+    state.editor.selected = shape;
+    placeTrash();
+  });
+  shape.addListener("dragend", () => {
+    state.editor.dragging = false;
+    placeTrash();
+  });
+}
+
+function deleteShape(shape) {
+  const ed = state.editor;
+  if (!ed || !shape) return;
+  if (shape instanceof google.maps.Circle) {
+    ed.circles = ed.circles.filter((c) => c !== shape);
+  } else if (shape === ed.polygon) {
+    ed.polygon = null;
+    ed.added = [];
+  } else {
+    return;
+  }
+  shape.setMap(null);
+  ed.hovered = ed.selected = null;
+  // 消した直後のクリックが地図に届いても、図形を追加しない
+  ed.suppressClickUntil = Date.now() + 400;
+  updateEditorStatus();
+}
+
+let TrashButton = null;
+
+// 地図の上に置く、押せるゴミ箱ボタン
+function defineTrashButton() {
+  TrashButton = class extends google.maps.OverlayView {
+    constructor(onClick) {
+      super();
+      this.pos = null;
+      this.div = document.createElement("button");
+      this.div.className = "shape-trash";
+      this.div.title = "この図形を削除（Delete）";
+      this.div.setAttribute("aria-label", "この図形を削除");
+      this.div.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      this.div.hidden = true;
+      // 押した操作が下の地図や図形に伝わらないようにする
+      ["pointerdown", "mousedown", "mouseup", "dblclick"].forEach((ev) => this.div.addEventListener(ev, (e) => e.stopPropagation()));
+      this.div.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick();
+      });
+      google.maps.OverlayView.preventMapHitsAndGesturesFrom(this.div);
+    }
+    onAdd() { this.getPanes().overlayMouseTarget.appendChild(this.div); }
+    draw() {
+      if (!this.pos || !this.getProjection()) return;
+      const p = this.getProjection().fromLatLngToDivPixel(this.pos);
+      this.div.style.left = `${p.x}px`;
+      this.div.style.top = `${p.y}px`;
+    }
+    onRemove() { this.div.remove(); }
+    show(latLng) {
+      this.pos = latLng;
+      this.div.hidden = false;
+      this.draw();
+    }
+    hide() { this.div.hidden = true; }
+  };
+}
+
+function closeEditor() {
+  if (state.editor) {
+    clearEditorShapes();
+    if (state.editor.trash) state.editor.trash.setMap(null);
+  }
+  state.editor = null;
+  showHome();
+}
+
+// ---------------------------------------------------------------- ゲーム本体
+
+function clearGameMarkers() {
+  const g = state.game;
+  if (!g) return;
+  if (g.guessMarker) g.guessMarker.setMap(null);
+  g.guessMarker = null;
+  (g.overlays || []).forEach((o) => o.setMap(null));
+  g.overlays = [];
+}
+
+// ---------------------------------------------------------------- 結果表示用のピン・線・ラベル
+
+const GUESS_COLOR = "#e5392f";
+const ANSWER_COLOR = "#2fae6e";
+
+function pinIcon(color, kind) {
+  // 正解は旗、自分のピンは丸印
+  const glyph = kind === "answer"
+    ? '<path d="M14 9v17" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><path d="M15 9.5h9l-2.6 3.6 2.6 3.6h-9z" fill="#fff"/>'
+    : '<circle cx="18" cy="17" r="6" fill="#fff"/>';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="48" viewBox="0 0 36 48">
+    <path d="M18 46.5S33.5 28.5 33.5 17A15.5 15.5 0 0 0 2.5 17C2.5 28.5 18 46.5 18 46.5Z" fill="${color}" stroke="#fff" stroke-width="2.5"/>
+    ${glyph}</svg>`;
+  return {
+    url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
+    scaledSize: new google.maps.Size(36, 48),
+    anchor: new google.maps.Point(18, 46),
+  };
+}
+
+let MapLabel = null;
+
+// 地図上の好きな位置に HTML のラベルを置くためのオーバーレイ
+function defineMapLabel() {
+  MapLabel = class extends google.maps.OverlayView {
+    constructor(position, html, className) {
+      super();
+      this.position = new google.maps.LatLng(position.lat, position.lng);
+      this.div = document.createElement("div");
+      this.div.className = `map-label ${className}`;
+      this.div.innerHTML = html;
+    }
+    onAdd() { this.getPanes().floatPane.appendChild(this.div); }
+    draw() {
+      const p = this.getProjection().fromLatLngToDivPixel(this.position);
+      if (!p) return;
+      this.div.style.left = `${p.x}px`;
+      this.div.style.top = `${p.y}px`;
+    }
+    onRemove() { this.div.remove(); }
+  };
+}
+
+function addOverlay(o) {
+  o.setMap(state.map);
+  state.game.overlays.push(o);
+  return o;
+}
+
+// 1ラウンド分の「自分のピン・正解・その間の線」を描く
+function drawRoundResult(r, { tag, showDistance, guessPin }) {
+  if (!r.guess) {
+    // ピンを立てる前に時間切れになったラウンドは、正解だけを表示する
+    addOverlay(new google.maps.Marker({ position: r.answer, icon: pinIcon(ANSWER_COLOR, "answer"), title: "正解", zIndex: 3 }));
+    addOverlay(new MapLabel(r.answer, tag ? `${tag} 正解（時間切れ）` : "正解", "tag answer"));
+    return;
+  }
+  if (guessPin) {
+    addOverlay(new google.maps.Marker({ position: r.guess, icon: pinIcon(GUESS_COLOR, "guess"), title: "あなたのピン", zIndex: 2 }));
+  }
+  addOverlay(new google.maps.Marker({ position: r.answer, icon: pinIcon(ANSWER_COLOR, "answer"), title: "正解", zIndex: 3 }));
+  // 白いふち + 破線で、どんな地図の上でも見やすくする
+  addOverlay(new google.maps.Polyline({ path: [r.guess, r.answer], strokeColor: "#ffffff", strokeOpacity: 0.85, strokeWeight: 7, zIndex: 1 }));
+  addOverlay(new google.maps.Polyline({
+    path: [r.guess, r.answer], strokeOpacity: 0, zIndex: 1,
+    icons: [{ icon: { path: "M 0,-1 0,1", strokeColor: "#1b2330", strokeOpacity: 1, strokeWeight: 3, scale: 3 }, offset: "0", repeat: "12px" }],
+  }));
+  if (showDistance) {
+    const mid = { lat: (r.guess.lat + r.answer.lat) / 2, lng: (r.guess.lng + r.answer.lng) / 2 };
+    addOverlay(new MapLabel(mid, formatDistance(r.distance), "distance"));
+  }
+  addOverlay(new MapLabel(r.answer, tag ? `${tag} 正解` : "正解", "tag answer"));
+  addOverlay(new MapLabel(r.guess, tag ? `${tag} あなた` : "あなた", "tag guess"));
+}
+
+function fitResults(results, padding) {
+  const b = new google.maps.LatLngBounds();
+  const points = results.flatMap((r) => (r.guess ? [r.guess, r.answer] : [r.answer]));
+  points.forEach((p) => b.extend(p));
+  // 地図のサイズが変わった直後なので、少し待ってから合わせる
+  setTimeout(() => {
+    if (points.length === 1) {
+      state.map.setCenter(points[0]);
+      state.map.setZoom(14);
+    } else {
+      state.map.fitBounds(b, padding);
+    }
+  }, 50);
+}
+
+function scoreBar(score, max) {
+  return `<div class="scorebar"><div style="width:${(score / max) * 100}%"></div></div>`;
+}
+
+const LEGEND = `<div class="legend">
+  <span><i class="dot guess"></i>あなたのピン</span>
+  <span><i class="dot answer"></i>正解の地点</span>
+</div>`;
+
+async function startGame() {
+  if (state.mp && state.mp.role === "host") return hostStartGame();
+  if (!ensureMap()) return;
+  closeSettings();
+  const mode = state.mode;
+  // ライフ制はライフが尽きるまで続くので、ラウンド数の上限はなし
+  const rounds = mode === "life" ? Infinity : Number($("opt-rounds").value);
+  if (remainingStreetView() < (mode === "life" ? 1 : rounds)) {
+    return showMessage("今月の無料枠の上限に達しました（config.js の limits）。来月まで待つか、上限を見直してください。");
+  }
+  saveSettings();
+  const maxLife = selectedLife();
+  state.game = {
+    area: findArea(state.selectedAreaId),
+    move: $("opt-move").checked,
+    pan: $("opt-pan").checked,
+    zoom: $("opt-zoom").checked,
+    timeLimit: $("opt-timer").checked ? Number($("opt-time").value) : 0,
+    mode,
+    difficulty: $("opt-difficulty").value,
+    maxLife,
+    life: maxLife,
+    rounds,
+    index: 0,
+    results: [],
+    overlays: [],
+    usedPanos: new Set(),
+  };
+  setScreen("game");
+  await startRound();
+}
+
+async function startRound() {
+  const g = state.game;
+  stopTimer();
+  clearGameMarkers();
+  g.guess = null;
+  g.answer = null;
+  $("timer-pill").hidden = true;
+  $("result").hidden = true;
+  $("btn-guess").disabled = true;
+  $("btn-guess").textContent = "ピンをマップに配置する";
+  $("btn-back-start").hidden = !g.move;
+  $("btn-zoom-in").disabled = $("btn-zoom-out").disabled = !g.zoom;
+  $("info-area").textContent = g.area.name;
+  $("info-round").textContent = g.mode === "life" ? `${g.index + 1}` : `${g.index + 1} / ${g.rounds}`;
+  $("info-score").textContent = g.results.reduce((s, r) => s + r.score, 0).toLocaleString();
+  renderHudLife();
+  setScreen("game");
+  drawArea(g.area);
+  state.map.setOptions({ draggableCursor: "crosshair" });
+
+  if (remainingStreetView() <= 0) {
+    showMessage("今月の無料枠の上限に達したので、ゲームを終了します。");
+    return showHome();
+  }
+
+  $("loading").hidden = false;
+  let answer;
+  try {
+    answer = await findLocation(g.area, g.usedPanos);
+  } catch (e) {
+    $("loading").hidden = true;
+    showMessage(e.message);
+    return showHome();
+  }
+  $("loading").hidden = true;
+  // 探している間に「やめる」が押された場合は表示しない（無駄な課金を防ぐ）
+  if (state.game !== g || app.className !== "screen-game") return;
+  g.answer = answer;
+  g.usedPanos.add(g.answer.panoId);
+  showPanorama(g.answer.panoId, g);
+  g.roundStartedAt = Date.now();
+  updateHeadingTape(state.pano.getPov().heading);
+  startTimer();
+}
+
+function showPanorama(panoId, { move, pan, zoom }) {
+  const opts = {
+    pano: panoId,
+    pov: { heading: Math.random() * 360, pitch: 0 },
+    zoom: 0,
+    addressControl: false,
+    showRoadLabels: false,
+    fullscreenControl: false,
+    motionTracking: false,
+    motionTrackingControl: false,
+    enableCloseButton: false,
+    linksControl: move,
+    clickToGo: move,
+    keyboardShortcuts: move,
+    panControl: false,
+    zoomControl: false,
+    scrollwheel: zoom,
+  };
+  // 見回しなしのときは、この向きに固定する
+  state.lockPov = opts.pov;
+  // パノラマの読み込み = Dynamic Street View の課金対象。1ラウンド1回として数える
+  addUsage("streetView");
+  if (!state.pano) {
+    state.pano = new google.maps.StreetViewPanorama($("pano"), opts);
+    state.pano.addListener("pov_changed", () => {
+      const pov = state.pano.getPov();
+      const g = state.game;
+      const lock = state.lockPov;
+      if (g && !g.pan && lock && (Math.abs(pov.heading - lock.heading) > 0.01 || Math.abs(pov.pitch - lock.pitch) > 0.01)) {
+        state.pano.setPov(lock);
+        return;
+      }
+      // 向いている方角に合わせてコンパスを回す
+      $("compass-rose").style.transform = `rotate(${-pov.heading}deg)`;
+      updateHeadingTape(pov.heading);
+    });
+    state.pano.addListener("zoom_changed", () => {
+      const g = state.game;
+      if (g && !g.zoom && state.pano.getZoom() !== 0) state.pano.setZoom(0);
+    });
+  } else {
+    state.pano.setOptions(opts);
+    state.pano.setPano(panoId);
+    state.pano.setPov(opts.pov);
+    state.pano.setZoom(0);
+  }
+}
+
+function placeGuess(latLng) {
+  const g = state.game;
+  g.guess = { lat: latLng.lat(), lng: latLng.lng() };
+  if (!g.guessMarker) {
+    g.guessMarker = new google.maps.Marker({
+      map: state.map, position: g.guess, icon: pinIcon(GUESS_COLOR, "guess"), title: "あなたのピン", zIndex: 2,
+    });
+  } else {
+    g.guessMarker.setPosition(g.guess);
+  }
+  $("btn-guess").disabled = false;
+  $("btn-guess").textContent = "決定する";
+}
+
+// timedOut: 制限時間切れで自動的に呼ばれたとき
+function submitGuess(timedOut = false) {
+  if (state.game && state.game.multi) return submitMultiGuess(timedOut);
+  const g = state.game;
+  if (!g || !g.answer || app.className !== "screen-game") return;
+  if (!g.guess && !timedOut) return;
+  stopTimer();
+  g.playMs = (g.playMs || 0) + (Date.now() - (g.roundStartedAt || Date.now()));
+  const missed = !g.guess;
+  const distance = missed ? null : distanceMeters(g.guess, g.answer);
+  const score = missed ? 0 : scoreFor(distance, g.area);
+  const result = { distance, score, answer: g.answer, guess: g.guess, timedOut };
+  if (g.mode === "life") {
+    result.damage = Math.min(g.life, damageFor(score));
+    g.life -= result.damage;
+  }
+  g.results.push(result);
+  recordRound(g.area.id, result);
+
+  // 置いたピンは結果表示用のものに置き換える
+  if (g.guessMarker) g.guessMarker.setMap(null);
+  g.guessMarker = null;
+  drawRoundResult(result, { showDistance: true, guessPin: true });
+  state.map.setOptions({ draggableCursor: null });
+
+  setScreen("result");
+  const last = g.mode === "life" ? g.life <= 0 : g.index + 1 >= g.rounds;
+  const lifeLine = g.mode === "life"
+    ? `<div class="life-line"><span class="damage">−${result.damage}</span> ライフ
+       ${lifeBar(g.life, g.maxLife)} 残り ${g.life.toLocaleString()}${g.life <= 0 ? "（ライフ切れ）" : ""}</div>`
+    : `<div class="score-line"><b>${score}</b> / 1000 点 ${scoreBar(score, 1000)}</div>`;
+  const subText = missed
+    ? "ピンを立てる前に時間切れになりました"
+    : timedOut ? "時間切れ（置いていたピンで提出）・正解から離れていた距離" : "正解から離れていた距離";
+  $("result-text").innerHTML = `
+    ${LEGEND}
+    <div class="big">${missed ? "時間切れ" : formatDistance(distance)}</div>
+    <div class="sub">${subText}</div>
+    ${lifeLine}
+    <div class="sub">${mapsLink(g.answer)}</div>`;
+  $("btn-next").textContent = last ? "結果を見る" : "次のラウンドへ";
+  $("btn-end").hidden = last;
+  $("result").hidden = false;
+  fitResults([result], { top: 70, bottom: 40, left: 60, right: 60 });
+}
+
+function mapsLink(p, label = "Google マップで見る") {
+  const url = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${p.lat},${p.lng}`;
+  return `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
+}
+
+function nextRound() {
+  if (state.game && state.game.multi) return multiNext();
+  const g = state.game;
+  g.index += 1;
+  const over = g.mode === "life" ? g.life <= 0 : g.index >= g.rounds;
+  if (!over) return startRound();
+  showFinal();
+}
+
+function showFinal() {
+  const g = state.game;
+  stopTimer();
+  clearGameMarkers();
+  if (!g.recorded) {
+    recordGame(g);
+    g.recorded = true;
+  }
+  const total = g.results.reduce((s, r) => s + r.score, 0);
+  const played = g.results.length;
+  setScreen("final");
+  // 全ラウンドのピンと線を番号付きで並べる
+  g.results.forEach((r, i) => drawRoundResult(r, { tag: i + 1, showDistance: false, guessPin: true }));
+  if (played) fitResults(g.results, { top: 60, bottom: 60, left: 400, right: 60 });
+  const move = rulesText(g);
+  let header;
+  if (g.mode === "life") {
+    const reason = g.life <= 0 ? "ライフ切れ" : "途中で終了";
+    header = `
+      <div class="sub">${escapeHtml(g.area.name)} ・ ライフ制 ${DIFFICULTY_NAMES[g.difficulty]}（${g.maxLife.toLocaleString()}）${move}</div>
+      <div class="big">${played} ラウンド</div>
+      <div class="sub">${reason} ・ 合計 ${total.toLocaleString()} 点</div>
+      <div class="life-line">${lifeBar(g.life, g.maxLife)} 残りライフ ${g.life.toLocaleString()}</div>`;
+  } else {
+    const ended = played < g.rounds ? `（${g.rounds}ラウンド中 ${played} で終了）` : "";
+    header = `
+      <div class="sub">${escapeHtml(g.area.name)} ・ ${played}ラウンド${ended}${move}</div>
+      <div class="big">${total.toLocaleString()} / ${(played * 1000).toLocaleString()} 点</div>
+      ${scoreBar(total, Math.max(1, played * 1000))}`;
+  }
+  $("result-text").innerHTML = `
+    ${header}
+    ${LEGEND}
+    <table>${g.results.map((r, i) =>
+      `<tr><td class="num">${i + 1}</td><td>${r.guess ? formatDistance(r.distance) : "時間切れ"}</td><td>${r.score} 点</td>` +
+      (g.mode === "life" ? `<td class="damage">−${r.damage}</td>` : "") +
+      `<td>${mapsLink(r.answer, "見る")}</td></tr>`).join("")}
+    </table>
+    <div class="play-time">プレイ時間 ${formatPlayTime(g.playMs || 0)}</div>`;
+  renderSavePrompt(g);
+  $("btn-next").textContent = "ホームに戻る";
+  $("btn-end").hidden = true;
+  $("result").hidden = false;
+  state.game.finished = true;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// ---------------------------------------------------------------- 起動
+
+function initApp() {
+  defineMapLabel();
+  defineTrashButton();
+  buildHeadingTape();
+  state.googleReady = true;
+  $("btn-cancel-area").addEventListener("click", closeEditor);
+  $("btn-undo").addEventListener("click", undoEditor);
+  $("radius").addEventListener("input", () => {
+    updateRadiusLabel();
+    // 最後に置いた円の半径を変える
+    const last = state.editor && state.editor.circles[state.editor.circles.length - 1];
+    if (last) last.setRadius(Number($("radius").value));
+  });
+  document.querySelectorAll("#editor-panel .tab").forEach((t) => t.addEventListener("click", () => setTool(t.dataset.tool)));
+  $("btn-guess").addEventListener("click", () => submitGuess());
+  $("btn-map-zoom-in").addEventListener("click", () => state.map && state.map.setZoom(state.map.getZoom() + 1));
+  $("btn-map-zoom-out").addEventListener("click", () => state.map && state.map.setZoom(state.map.getZoom() - 1));
+  $("btn-dock-bigger").addEventListener("click", () => changeDock((p) => ({ dockSize: p.dockSize + 1 })));
+  $("btn-dock-smaller").addEventListener("click", () => changeDock((p) => ({ dockSize: p.dockSize - 1 })));
+  $("btn-dock-pin").addEventListener("click", () => changeDock((p) => ({ dockPinned: !p.dockPinned })));
+  $("btn-next").addEventListener("click", () => (state.game && state.game.finished && !state.game.multi ? showHome() : nextRound()));
+  $("btn-end").addEventListener("click", showFinal);
+  $("btn-zoom-in").addEventListener("click", () => zoomPano(1));
+  $("btn-zoom-out").addEventListener("click", () => zoomPano(-1));
+  $("btn-game-settings").addEventListener("click", openGameSettings);
+  $("btn-resume").addEventListener("click", closeGameSettings);
+  $("btn-exit-game").addEventListener("click", exitGame);
+  $("btn-back-start").addEventListener("click", () => {
+    // 出発地点に戻るのは同じパノラマオブジェクト内の移動なので、新しい読み込みとしては数えない
+    if (state.game && state.game.answer) state.pano.setPano(state.game.answer.panoId);
+  });
+  $("opt-rounds").addEventListener("change", saveSettings);
+  ["opt-move", "opt-pan", "opt-zoom"].forEach((id) => $(id).addEventListener("change", saveSettings));
+  $("opt-timer").addEventListener("change", () => { updateTimerSettings(); saveSettings(); });
+  $("opt-time").addEventListener("input", updateTimerSettings);
+  $("opt-time").addEventListener("change", saveSettings);
+  $("compass").addEventListener("click", () => {
+    // 見回しできるときだけ、北を向き直す
+    if (state.pano && state.game && state.game.pan) state.pano.setPov({ heading: 0, pitch: state.pano.getPov().pitch });
+  });
+  document.querySelectorAll("#mode-tabs .tab").forEach((t) => t.addEventListener("click", () => {
+    setMode(t.dataset.mode);
+    saveSettings();
+  }));
+  $("opt-difficulty").addEventListener("change", () => { setMode(state.mode); saveSettings(); });
+  $("opt-life").addEventListener("change", saveSettings);
+}
+
+// 地図は必要になったとき（ゲーム開始・範囲作成）に1回だけ作り、使い回す
+// Dynamic Maps の課金は作成時の1回なので、タイトルやマップ選択を見るだけなら0回
+function ensureMap() {
+  if (state.map) return true;
+  if (!state.googleReady) {
+    showMessage("Google マップを読み込み中です。少し待ってからもう一度押してください。");
+    return false;
+  }
+  if (getUsage().mapLoads >= CONFIG.limits.mapLoadsPerMonth) {
+    showMessage("今月の地図読み込みの上限に達しました（config.js の limits）。");
+    return false;
+  }
+  addUsage("mapLoads");
+  state.map = new google.maps.Map($("map"), {
+    center: { lat: 1.35, lng: 103.82 },
+    zoom: 11,
+    streetViewControl: false,
+    mapTypeControl: false,
+    fullscreenControl: false,
+    clickableIcons: false,
+    gestureHandling: "greedy",
+    mapTypeId: state.prefs.mapType,
+  });
+  state.map.addListener("click", (e) => {
+    if (state.editor) return editorClick(e.latLng);
+    if (app.className === "screen-game" && state.game) placeGuess(e.latLng);
+  });
+  return true;
+}
+
+const RIPPLE_TARGETS = ".btn-hero, .btn-ghost, button.primary, button.secondary, .chip, .tab, .map-card, .btn-back, .dialog-ok";
+
+// 押したところから光の輪が広がる
+function addRipple(e) {
+  if (!state.prefs.anim) return;
+  const el = e.target.closest(RIPPLE_TARGETS);
+  if (!el || el.disabled) return;
+  const rect = el.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height) * 2;
+  const r = document.createElement("span");
+  r.className = "ripple";
+  r.style.width = r.style.height = `${size}px`;
+  r.style.left = `${e.clientX - rect.left - size / 2}px`;
+  r.style.top = `${e.clientY - rect.top - size / 2}px`;
+  el.classList.add("ripple-host");
+  el.appendChild(r);
+  r.addEventListener("animationend", () => r.remove());
+}
+
+// ---------------------------------------------------------------- ゲーム中の操作と設定
+
+const DEFAULT_PREFS = { compass: "both", mapType: "roadmap", anim: true, dockSize: 1, dockPinned: false };
+
+// 回答マップを広げたときの大きさ（横, 縦）。1 番目が今までの大きさ
+const DOCK_SIZES = [[440, 320], [600, 440], [820, 580], [1080, 760]];
+
+// 回答マップの大きさと「開いたまま」を反映する
+function applyDock() {
+  const p = state.prefs;
+  p.dockSize = Math.max(0, Math.min(DOCK_SIZES.length - 1, p.dockSize));
+  const [w, h] = DOCK_SIZES[p.dockSize];
+  const dock = $("map-dock");
+  dock.style.setProperty("--dock-w", `${w}px`);
+  dock.style.setProperty("--dock-h", `${h}px`);
+  dock.classList.toggle("pinned", !!p.dockPinned);
+  $("btn-dock-pin").classList.toggle("active", !!p.dockPinned);
+  $("btn-dock-pin").setAttribute("aria-pressed", String(!!p.dockPinned));
+  $("btn-dock-bigger").disabled = p.dockSize >= DOCK_SIZES.length - 1;
+  $("btn-dock-smaller").disabled = p.dockSize <= 0;
+}
+
+function changeDock(change) {
+  Object.assign(state.prefs, change(state.prefs));
+  saveJSON(STORE_PREFS, state.prefs);
+  applyDock();
+}
+state.prefs = { ...DEFAULT_PREFS, ...loadJSON(STORE_PREFS, {}) };
+
+function zoomPano(step) {
+  if (!state.pano || !state.game || !state.game.zoom) return;
+  const z = Math.round(state.pano.getZoom() || 0) + step;
+  state.pano.setZoom(Math.max(0, Math.min(4, z)));
+}
+
+function openGameSettings() {
+  if (app.className !== "screen-game") return;
+  $("gs-timer-note").hidden = !(state.game && state.game.timeLimit);
+  $("pref-fullscreen").checked = !!document.fullscreenElement;
+  $("game-settings").hidden = false;
+  $("btn-resume").focus();
+}
+
+function closeGameSettings() {
+  $("game-settings").hidden = true;
+}
+
+function exitGame() {
+  if (state.game && state.game.multi) return exitMultiGame();
+  closeGameSettings();
+  stopTimer();
+  $("loading").hidden = true;
+  showHome();
+  state.game = null;
+}
+
+// 設定の値を画面に反映する（方位の表示・回答マップの種類・アニメーション）
+function applyPrefs() {
+  const p = state.prefs;
+  app.dataset.compass = p.compass;
+  document.documentElement.classList.toggle("no-anim", !p.anim);
+  if (state.map) state.map.setMapTypeId(p.mapType);
+  document.querySelectorAll(".seg-pills").forEach((group) => {
+    group.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.v === p[group.dataset.pref]));
+  });
+  $("pref-anim").checked = p.anim;
+  applyDock();
+}
+
+function bindPrefs() {
+  document.querySelectorAll(".seg-pills").forEach((group) => {
+    group.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+      state.prefs[group.dataset.pref] = b.dataset.v;
+      saveJSON(STORE_PREFS, state.prefs);
+      applyPrefs();
+    }));
+  });
+  $("pref-anim").addEventListener("change", () => {
+    state.prefs.anim = $("pref-anim").checked;
+    saveJSON(STORE_PREFS, state.prefs);
+    applyPrefs();
+  });
+  $("pref-fullscreen").addEventListener("change", async () => {
+    try {
+      if ($("pref-fullscreen").checked) await document.documentElement.requestFullscreen();
+      else if (document.fullscreenElement) await document.exitFullscreen();
+    } catch {
+      $("pref-fullscreen").checked = !!document.fullscreenElement;
+    }
+  });
+  document.addEventListener("fullscreenchange", () => { $("pref-fullscreen").checked = !!document.fullscreenElement; });
+  applyPrefs();
+}
+
+// Google Maps を待たずに使える画面（タイトル・マップ選択・設定）のボタン
+function bindStaticUi() {
+  document.addEventListener("pointerdown", addRipple);
+  bindProgressMap();
+  $("btn-play").addEventListener("click", () => showMode());
+  $("btn-title-create").addEventListener("click", () => { showSelect(); openEditor(); });
+  $("btn-back-title").addEventListener("click", () => (state.mp && state.mp.role === "host" ? hostBackToLobby() : showMode()));
+  $("btn-sheet-close").addEventListener("click", closeSettings);
+  $("sheet-backdrop").addEventListener("click", closeSettings);
+  // ストリートビューにフォーカスがあるとキー操作が地図側で止められることがあるので、
+  // いちばん外側（window）で先に受け取る
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !$("dialog").hidden) return;
+    closeSettings();
+    // ゲーム中は Esc で設定を開閉する
+    if (app.className === "screen-game") {
+      e.preventDefault();
+      e.stopPropagation();
+      $("game-settings").hidden ? openGameSettings() : closeGameSettings();
+    }
+  }, true);
+  bindPrefs();
+  bindScoreDialog();
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Delete" || app.className !== "screen-editor" || !state.editor) return;
+    // 名前などを入力している間は、文字の削除として扱う
+    if (e.target.closest && e.target.closest("input, textarea, select")) return;
+    e.preventDefault();
+    deleteShape(state.editor.hovered || state.editor.selected);
+  });
+  $("btn-start").addEventListener("click", startGame);
+  $("btn-save-area").addEventListener("click", saveEditor);
+  $("btn-cancel-area-top").addEventListener("click", closeEditor);
+  $("area-category").innerHTML = CATEGORIES.filter((c) => c.id !== "all")
+    .map((c) => `<option value="${c.id}">${c.id === "custom" ? "自作のみ" : c.name}</option>`).join("");
+}
+
+function boot() {
+  const s = loadJSON(STORE_SETTINGS, {});
+  if (s.areaId && allAreas().some((a) => a.id === s.areaId)) state.selectedAreaId = s.areaId;
+  if (s.rounds) $("opt-rounds").value = s.rounds;
+  if (s.difficulty) $("opt-difficulty").value = s.difficulty;
+  if (s.customLife) $("opt-life").value = s.customLife;
+  $("opt-move").checked = !!s.move;
+  $("opt-pan").checked = s.pan !== false;
+  $("opt-zoom").checked = s.zoom !== false;
+  $("opt-timer").checked = !!s.timer;
+  if (s.time) $("opt-time").value = s.time;
+  updateTimerSettings();
+  // 開いたときは毎回ラウンド制から始める（ライフ制は設定シートで選ぶ）
+  setMode("rounds");
+  bindStaticUi();
+  buildTitleBackground();
+  showTitle();
+
+  if (!CONFIG.apiKey || CONFIG.apiKey === "YOUR_API_KEY") {
+    $("btn-start").disabled = true;
+    return showMessage("config.js に APIキーが設定されていません。\nREADME.md の手順で APIキーを作り、config.js の apiKey に貼り付けてください。", true);
+  }
+  window.initApp = initApp;
+  const script = document.createElement("script");
+  script.src = "https://maps.googleapis.com/maps/api/js" +
+    `?key=${encodeURIComponent(CONFIG.apiKey)}&v=weekly&loading=async&language=ja&callback=initApp`;
+  script.async = true;
+  script.onerror = () => showMessage("Google Maps の読み込みに失敗しました。ネット接続と APIキーを確認してください。");
+  document.head.appendChild(script);
+}
+
+window.gm_authFailure = () => {
+  showMessage("APIキーの認証に失敗しました。キーが正しいか、Maps JavaScript API が有効か、キーの制限（HTTPリファラー）に http://localhost:8000/* が入っているかを確認してください。");
+};
+
+boot();

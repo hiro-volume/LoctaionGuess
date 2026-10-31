@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LoctaionGuess</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app" class="screen-title">
+
+    <!-- タイトル画面 -->
+    <section id="title-screen">
+      <div class="title-bg" id="title-bg"></div>
+      <div class="title-inner">
+        <svg class="logo-mark" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
+          <circle cx="32" cy="32" r="29" fill="none" stroke="currentColor" stroke-width="2" opacity=".35"/>
+          <circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 4" opacity=".5"/>
+          <path d="M32 9 L37 32 L32 29 L27 32 Z" fill="#ff5a4e"/>
+          <path d="M32 55 L37 32 L32 35 L27 32 Z" fill="#f4efe6"/>
+        </svg>
+        <h1 class="logo">Loctaion<span>Guess</span></h1>
+        <p class="tagline">ストリートビューの景色だけを手がかりに、<br>ここがどこかを当てよう。</p>
+        <button id="btn-play" class="btn-hero">ゲームを始める</button>
+        <button id="btn-title-create" class="btn-ghost">自分で範囲を作る</button>
+      </div>
+      <footer class="title-foot">
+        <div id="usage-mini"></div>
+        <div id="title-credit" class="credit-line"></div>
+      </footer>
+    </section>
+
+    <!-- 遊び方の選択（シングル / マルチ） -->
+    <section id="mode-screen">
+      <header class="select-head">
+        <button id="btn-mode-back" class="btn-back" title="タイトルへ戻る" aria-label="タイトルへ戻る"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <div>
+          <p class="eyebrow">STEP 0</p>
+          <h2>遊び方を選ぶ</h2>
+        </div>
+      </header>
+      <div class="mode-grid">
+        <button id="btn-mode-single" class="mode-card single" style="--img:url('https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Girl_reading_the_Lisbon_Map_at_the_Tagus_River_%2836957597632%29.jpg/960px-Girl_reading_the_Lisbon_Map_at_the_Tagus_River_%2836957597632%29.jpg')">
+          <span class="mode-bg"></span>
+          <span class="mode-body">
+            <span class="mode-icon"><svg viewBox="0 0 24 24" width="30" height="30"><circle cx="12" cy="8" r="4" fill="currentColor"/><path d="M4 21c1-5 4.5-7 8-7s7 2 8 7" fill="currentColor"/></svg></span>
+            <span class="mode-title">シングルプレイ</span>
+            <span class="mode-desc">ひとりでじっくり。<br>自分のペースで、世界のどこかを当てよう。</span>
+            <span class="mode-cta">ひとりで遊ぶ →</span>
+          </span>
+        </button>
+        <button id="btn-mode-multi" class="mode-card multi" style="--img:url('https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Group_of_Italian_tourists_in_Shibuya.jpg/960px-Group_of_Italian_tourists_in_Shibuya.jpg')">
+          <span class="mode-bg"></span>
+          <span class="mode-body">
+            <span class="mode-icon"><svg viewBox="0 0 24 24" width="30" height="30"><circle cx="8" cy="8" r="3.4" fill="currentColor"/><circle cx="16.5" cy="8.5" r="3" fill="currentColor" opacity=".75"/><path d="M1.5 20c.8-4.2 3.6-6 6.5-6s5.7 1.8 6.5 6M13 14.6c1-.4 2.2-.6 3.5-.6 2.6 0 5 1.6 6 5.5" fill="currentColor"/></svg></span>
+            <span class="mode-title">マルチプレイ</span>
+            <span class="mode-desc">部屋を作って友達を招待。<br>同じ景色で、誰が一番近いか勝負しよう。</span>
+            <span class="mode-cta">部屋を作る →</span>
+          </span>
+        </button>
+      </div>
+      <div class="join-by-code">
+        <span>ルームコードで参加：</span>
+        <input type="text" id="join-code-input" maxlength="6" placeholder="例: K7M2QX" autocomplete="off" spellcheck="false">
+        <button id="btn-mode-join" class="secondary">参加する</button>
+      </div>
+      <p class="credits">写真（Wikimedia Commons）: <a href="https://commons.wikimedia.org/wiki/File:Girl_reading_the_Lisbon_Map_at_the_Tagus_River_(36957597632).jpg" target="_blank" rel="noopener">Pedro Ribeiro Simões / CC BY 2.0</a> ・ <a href="https://commons.wikimedia.org/wiki/File:Group_of_Italian_tourists_in_Shibuya.jpg" target="_blank" rel="noopener">Syced / CC0</a></p>
+    </section>
+
+    <!-- マルチプレイのロビー -->
+    <section id="lobby-screen">
+      <header class="select-head">
+        <button id="btn-lobby-back" class="btn-back" title="部屋から出る" aria-label="部屋から出る"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <div>
+          <p class="eyebrow">MULTIPLAYER</p>
+          <h2 id="lobby-title">ロビー</h2>
+        </div>
+      </header>
+      <div class="lobby-grid">
+        <div class="lobby-card" id="invite-card">
+          <h4>友達を招待する</h4>
+          <div class="room-code"><span>ルームコード</span><b id="room-code">------</b></div>
+          <div class="invite-link">
+            <input type="text" id="invite-link" readonly aria-label="招待リンク">
+            <button id="btn-copy-link" class="primary">コピー</button>
+          </div>
+          <div class="invite-row">
+            <div id="invite-qr" class="qr"></div>
+            <div class="invite-help">
+              <p>招待リンクを送るか、スマホでQRコードを読み取ってもらおう。ルームコードを伝えて「遊び方を選ぶ」画面から入ってもらうこともできます。</p>
+              <button id="btn-share-link" class="btn-ghost small-btn" hidden>リンクを共有…</button>
+              <p id="invite-warning" class="invite-warning" hidden>⚠ 今は localhost で開いているため、このリンクはこのPCでしか開けません。友達を招待する方法は README の「友達と遊ぶ」を見てください。</p>
+            </div>
+          </div>
+        </div>
+        <div class="lobby-card" id="join-card" hidden>
+          <h4>ルーム <b id="join-code"></b></h4>
+          <p id="join-state" class="join-state"></p>
+        </div>
+        <div class="lobby-card players-card">
+          <h4>プレイヤー <span id="player-count" class="count"></span></h4>
+          <ul id="player-list" class="player-list"></ul>
+          <div class="me-box">
+            <label for="my-name">あなたの名前</label>
+            <div class="name-row">
+              <input type="text" id="my-name" maxlength="16" placeholder="名前を入力（16文字まで）">
+              <button id="btn-ready" class="primary">決定</button>
+            </div>
+            <p id="lobby-status" class="lobby-status"></p>
+          </div>
+          <button id="btn-lobby-go" class="btn-hero small" hidden disabled>マップ選択へ進む</button>
+        </div>
+      </div>
+      <div id="lobby-waiting" class="lobby-waiting" hidden>
+        <div class="spinner"></div>
+        <b>ホストがマップを選んでいます…</b>
+        <span>始まるまで、このままお待ちください。</span>
+      </div>
+    </section>
+
+    <!-- マップ選択画面 -->
+    <section id="select-screen">
+      <header class="select-head">
+        <button id="btn-back-title" class="btn-back" title="タイトルへ戻る" aria-label="タイトルへ戻る"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <div>
+          <p class="eyebrow">STEP 1</p>
+          <h2>マップを選ぶ</h2>
+        </div>
+        <span id="mp-banner" class="mp-banner" hidden>👥 マルチプレイ ・ <b id="mp-banner-count"></b></span>
+      </header>
+      <!-- プレイ記録: 遊んだ国を色で塗る世界地図 -->
+      <div class="progress-panel">
+        <div class="progress-map">
+          <svg id="world-map" viewBox="0 0 360 150" preserveAspectRatio="xMidYMid meet" aria-label="プレイ記録の世界地図"></svg>
+          <div class="pm-tools">
+            <button id="btn-pm-in" class="dock-btn" title="拡大" aria-label="地図を拡大">＋</button>
+            <button id="btn-pm-out" class="dock-btn" title="縮小" aria-label="地図を縮小">－</button>
+            <button id="btn-pm-reset" class="dock-btn" title="元の範囲に戻す" aria-label="元の範囲に戻す">
+              <svg viewBox="0 0 24 24" width="15" height="15"><path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <div class="progress-legend">
+            <span><i class="sw sw-0"></i>未プレイ</span>
+            <span><i class="sw sw-1"></i>1〜4 ラウンド</span>
+            <span><i class="sw sw-2"></i>5〜19</span>
+            <span><i class="sw sw-3"></i>20 以上</span>
+            <span class="legend-hint">ドラッグで移動・ホイールで拡大</span>
+          </div>
+        </div>
+        <div class="progress-stats" id="progress-stats"></div>
+      </div>
+      <nav id="category-chips" class="chips"></nav>
+      <div id="map-grid" class="map-grid"></div>
+      <p id="credits" class="credits"></p>
+    </section>
+
+    <!-- マップを選んだあとの設定シート -->
+    <div id="settings-sheet" hidden>
+      <div class="sheet-backdrop" id="sheet-backdrop"></div>
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+        <div class="sheet-hero" id="sheet-hero">
+          <button id="btn-sheet-close" class="btn-close" aria-label="閉じる">×</button>
+          <div class="sheet-hero-text">
+            <span id="sheet-cat" class="pill"></span>
+            <h3 id="sheet-title"></h3>
+            <p id="sheet-desc"></p>
+          </div>
+        </div>
+
+        <div class="sheet-body">
+          <div class="sheet-col">
+            <h4>ゲームモード</h4>
+            <div class="tabs" id="mode-tabs">
+              <button data-mode="rounds" class="tab active">ラウンド制</button>
+              <button data-mode="life" class="tab">ライフ制</button>
+            </div>
+            <label class="row" id="rounds-row">ラウンド数
+              <select id="opt-rounds">
+                <option value="3">3</option>
+                <option value="5" selected>5</option>
+                <option value="10">10</option>
+              </select>
+            </label>
+            <div id="life-row" hidden>
+              <label class="row">難易度
+                <select id="opt-difficulty">
+                  <option value="easy">簡単（ライフ 10000）</option>
+                  <option value="normal" selected>普通（ライフ 5000）</option>
+                  <option value="hard">難しい（ライフ 2500）</option>
+                  <option value="custom">カスタム</option>
+                </select>
+              </label>
+              <label class="row" id="custom-life-row" hidden>ライフ
+                <input type="number" id="opt-life" min="100" max="100000" step="100" value="5000">
+              </label>
+              <p class="help">遠く外すほどライフが大きく減ります（1回で最大 1000）。ライフが 0 になったら終了です。</p>
+            </div>
+          </div>
+
+          <div class="sheet-col">
+            <h4>制限時間と操作</h4>
+            <label class="switch-row">制限時間
+              <input type="checkbox" id="opt-timer" class="switch">
+            </label>
+            <label class="row" id="timer-row" hidden>
+              <input type="range" id="opt-time" min="10" max="300" step="10" value="60">
+              <span id="time-label" class="time-label">60秒</span>
+            </label>
+            <div class="controls-grid">
+              <label class="ctl">
+                <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2l3 3h-2v6h6V9l3 3-3 3v-2h-6v6h2l-3 3-3-3h2v-6H5v2l-3-3 3-3v2h6V5H9z" fill="currentColor"/></svg>
+                移動
+                <input type="checkbox" id="opt-move" class="switch">
+              </label>
+              <label class="ctl">
+                <svg viewBox="0 0 24 24" width="22" height="22"><path d="M2 12l4-4v3h12V8l4 4-4 4v-3H6v3z" fill="currentColor"/></svg>
+                見回し
+                <input type="checkbox" id="opt-pan" class="switch" checked>
+              </label>
+              <label class="ctl">
+                <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="10" cy="10" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15 15l6 6M7 10h6M10 7v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                ズーム
+                <input type="checkbox" id="opt-zoom" class="switch" checked>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="sheet-foot">
+          <div class="sheet-foot-left">
+            <div id="usage"></div>
+            <button id="btn-to-ranking" class="link-btn">↓ このマップのランキングを見る</button>
+          </div>
+          <button id="btn-start" class="btn-hero small">このマップで始める</button>
+        </div>
+
+        <!-- このマップのランキング（シートを下にスクロールすると見える） -->
+        <section class="ranking" id="ranking">
+          <div class="ranking-head">
+            <h4><span class="trophy">🏆</span>ランキング</h4>
+            <div class="seg-pills" id="board-tabs"></div>
+          </div>
+          <div id="podium" class="podium"></div>
+          <ol id="ranking-list" class="ranking-list"></ol>
+          <p id="ranking-empty" class="ranking-empty">まだ記録がありません。<br>ゲームを最後まで遊んで、スコアを残してみよう。</p>
+        </section>
+      </div>
+    </div>
+
+    <!-- 範囲エディタの左パネル -->
+    <aside id="panel">
+      <section id="editor-panel">
+        <button id="btn-cancel-area-top" class="btn-back" title="マップ選択へ戻る" aria-label="マップ選択へ戻る"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <p class="eyebrow">CREATE</p>
+        <h2>範囲を作る</h2>
+
+        <div class="seg" id="tool-tabs">
+          <button data-tool="circle" class="tab active">
+            <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="9" cy="12" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="10" r="4" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span><b>円</b><small>いくつでも置ける</small></span>
+          </button>
+          <button data-tool="polygon" class="tab">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path d="M5 7l8-3 7 6-3 9-11-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            <span><b>多角形</b><small>形を自由に囲む</small></span>
+          </button>
+        </div>
+
+        <ol id="editor-help" class="steps"></ol>
+
+        <div class="field" id="radius-row">
+          <div class="field-head"><label for="radius">半径（最後に置いた円）</label><span id="radius-label" class="value-badge"></span></div>
+          <input type="range" id="radius" min="300" max="50000" step="100" value="3000">
+        </div>
+
+        <div class="status-card" id="editor-status-card">
+          <div class="status-icon" id="editor-status-icon"></div>
+          <div>
+            <p id="editor-status" class="editor-status"></p>
+            <p id="editor-size" class="editor-size"></p>
+          </div>
+          <button id="btn-undo" class="btn-soft" title="取り消す">↶</button>
+        </div>
+
+        <div class="field">
+          <label for="area-name">名前</label>
+          <input type="text" id="area-name" placeholder="例: 宮島周辺">
+        </div>
+        <div class="field">
+          <label for="area-category">カテゴリ</label>
+          <select id="area-category"></select>
+        </div>
+        <div class="buttons">
+          <button id="btn-cancel-area" class="secondary">キャンセル</button>
+          <button id="btn-save-area" class="primary">保存する</button>
+        </div>
+      </section>
+    </aside>
+
+    <!-- ゲーム画面 -->
+    <main id="stage">
+      <div id="pano"></div>
+      <!-- 左下の操作ボタン -->
+      <div id="game-controls">
+        <button id="compass" class="ctrl round" title="クリックで北を向く" aria-label="方位（クリックで北を向く）">
+          <svg viewBox="0 0 40 40" width="40" height="40">
+            <g id="compass-rose">
+              <path d="M20 5 L25 20 L15 20 Z" fill="#ff5a4e"/>
+              <path d="M20 35 L25 20 L15 20 Z" fill="#f2f4f7"/>
+              <circle cx="20" cy="20" r="2" fill="#1b2330"/>
+            </g>
+          </svg>
+        </button>
+        <div class="ctrl-group">
+          <button id="btn-zoom-in" class="ctrl" title="ズームイン" aria-label="ズームイン">＋</button>
+          <button id="btn-zoom-out" class="ctrl" title="ズームアウト" aria-label="ズームアウト">－</button>
+        </div>
+        <button id="btn-back-start" class="ctrl round" title="出発地点に戻る" aria-label="出発地点に戻る" hidden><svg viewBox="0 0 24 24" width="20" height="20"><path d="M9 14L4 9l5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10a6 6 0 0 1 0 12h-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+        <button id="btn-game-settings" class="ctrl round" title="設定（Esc）" aria-label="設定"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z" fill="currentColor"/></svg></button>
+      </div>
+      <!-- 上の方位ベルト: 中央の印が今向いている方角 -->
+      <div id="heading-tape" aria-label="方位">
+        <div id="heading-strip"></div>
+        <div class="heading-marker"></div>
+      </div>
+      <!-- 残り時間（上の真ん中に独立して出す） -->
+      <div id="timer-pill" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 9v4l2.5 2M9.5 2.5h5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        <b id="timer-text">0:00</b>
+      </div>
+      <!-- 右上の情報カード -->
+      <div id="info-card">
+        <div class="info"><span>エリア</span><b id="info-area"></b></div>
+        <div class="info"><span>ラウンド</span><b id="info-round"></b></div>
+        <div class="info"><span>スコア</span><b id="info-score"></b></div>
+        <div class="info" id="info-life-box" hidden>
+          <span>ライフ</span><b id="info-life"></b>
+          <span class="lifebar"><span></span></span>
+        </div>
+      </div>
+      <div id="map-dock">
+        <!-- 回答マップの大きさを変えるボタン（マウスを乗せたとき・固定中に出る） -->
+        <div id="dock-tools">
+          <button id="btn-dock-bigger" class="dock-btn" title="マップを大きくする" aria-label="マップを大きくする">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M17 17L7 7M7 15V7h8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button id="btn-dock-smaller" class="dock-btn" title="マップを小さくする" aria-label="マップを小さくする">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 7l10 10M17 9v8H9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button id="btn-dock-pin" class="dock-btn" title="マップを開いたままにする" aria-label="マップを開いたままにする" aria-pressed="false">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M15 3l6 6-3 1-4 4 .5 4.5L13 20l-4-4-5 5-1-1 5-5-4-4 1.5-1.5L10 10l4-4z" fill="currentColor"/></svg>
+          </button>
+        </div>
+        <!-- 回答マップの拡大・縮小 -->
+        <div id="map-zoom">
+          <button id="btn-map-zoom-in" class="dock-btn" title="地図を拡大" aria-label="地図を拡大">＋</button>
+          <button id="btn-map-zoom-out" class="dock-btn" title="地図を縮小" aria-label="地図を縮小">－</button>
+        </div>
+        <div id="map"></div>
+      </div>
+      <button id="btn-guess" class="primary" disabled>ピンをマップに配置する</button>
+      <div id="editor-hint" class="editor-hint"></div>
+      <div id="loading" hidden>場所を探しています…</div>
+      <div id="mp-wait" hidden>
+        <div class="spinner"></div>
+        <b id="mp-wait-title"></b>
+        <div id="mp-wait-list" class="mp-wait-list"></div>
+      </div>
+
+      <div id="game-settings" hidden>
+        <div class="gs-panel" role="dialog" aria-modal="true" aria-labelledby="gs-title">
+          <h3 id="gs-title">設定</h3>
+
+          <div class="gs-row">
+            <div class="gs-label">
+              <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M15.5 8.5l-2 5-5 2 2-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+              方位の表示
+            </div>
+            <div class="seg-pills" data-pref="compass">
+              <button data-v="classic">針</button>
+              <button data-v="modern">ベルト</button>
+              <button data-v="both">針＋ベルト</button>
+            </div>
+          </div>
+
+          <div class="gs-row">
+            <div class="gs-label">
+              <svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+              回答マップの種類
+            </div>
+            <div class="seg-pills" data-pref="mapType">
+              <button data-v="roadmap">地図</button>
+              <button data-v="hybrid">航空写真</button>
+              <button data-v="terrain">地形</button>
+            </div>
+          </div>
+
+          <label class="gs-row gs-switch">
+            <div class="gs-label">
+              <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              フルスクリーン
+            </div>
+            <input type="checkbox" id="pref-fullscreen" class="switch">
+          </label>
+
+          <label class="gs-row gs-switch">
+            <div class="gs-label">
+              <svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 12h3l2-6 4 12 2-6h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              アニメーション
+            </div>
+            <input type="checkbox" id="pref-anim" class="switch">
+          </label>
+
+          <p class="gs-note" id="gs-timer-note" hidden>制限時間は、設定を開いている間も進みます。</p>
+
+          <div class="gs-actions">
+            <button id="btn-resume" class="btn-hero small">ゲームを再開する</button>
+            <button id="btn-exit-game" class="btn-ghost">ゲームを終了する</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ラウンド結果 / 最終結果 -->
+    <div id="result" hidden>
+      <div id="result-text"></div>
+      <div class="result-buttons">
+        <button id="btn-next" class="primary">次へ</button>
+        <button id="btn-end" class="secondary">ここで終わる</button>
+      </div>
+    </div>
+
+    <div id="message" hidden></div>
+
+    <!-- スコアを記録するダイアログ -->
+    <div id="score-dialog" hidden>
+      <div class="dialog-backdrop"></div>
+      <div class="dialog score-dialog" role="dialog" aria-modal="true" aria-labelledby="score-dialog-title">
+        <h3 id="score-dialog-title">スコアを記録</h3>
+        <div id="score-summary" class="score-summary"></div>
+        <div class="avatar-picker">
+          <button id="avatar-preview" class="avatar big" title="アイコンの画像を選ぶ" aria-label="アイコンの画像を選ぶ"></button>
+          <div class="avatar-actions">
+            <button id="btn-avatar-pick" class="btn-ghost small-btn">画像を選ぶ</button>
+            <button id="btn-avatar-reset" class="link-btn">デフォルトのアイコンに戻す</button>
+          </div>
+          <input type="file" id="avatar-file" accept="image/*" hidden>
+        </div>
+        <div class="field">
+          <label for="score-name">名前</label>
+          <input type="text" id="score-name" maxlength="16" placeholder="名前を入力（16文字まで）">
+        </div>
+        <div class="dialog-actions">
+          <button id="score-cancel" class="btn-ghost">やめる</button>
+          <button id="score-save" class="dialog-ok">記録する</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="dialog" hidden>
+      <div class="dialog-backdrop"></div>
+      <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-text">
+        <div class="dialog-icon" id="dialog-icon"></div>
+        <h3 id="dialog-title"></h3>
+        <p id="dialog-text"></p>
+        <div class="dialog-actions">
+          <button id="dialog-cancel" class="btn-ghost">キャンセル</button>
+          <button id="dialog-ok" class="dialog-ok">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="hiroshima-boundary.js"></script>
+  <script src="world-boundary.js"></script>
+  <script src="region-boundary.js"></script>
+  <script src="regions.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <script src="app.js"></script>
+  <script src="multiplayer.js"></script>
+</body>
+</html>
