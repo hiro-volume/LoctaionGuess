@@ -1464,3 +1464,25 @@ html.no-anim .fr-emoji { animation: none; }
   .fr-emoji { font-size: 42px; }
   #react-layer { left: 54px; width: 140px; }
 }
+
+/* 最終結果・ラウンド結果のエクストラモードの印 */
+.final-extra {
+  display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; padding: 8px 14px; border-radius: 12px;
+  color: #fff; font-size: 13px; font-weight: 700;
+  background: linear-gradient(135deg, #ff3d2e, #ff8a00 55%, #ffb020);
+  box-shadow: 0 0 18px rgba(255,90,40,.55), inset 0 0 0 1px rgba(255,255,255,.3);
+  text-shadow: 0 1px 2px rgba(120,20,0,.6);
+}
+.final-extra b { font-size: 15px; font-weight: 900; letter-spacing: .12em; }
+.final-extra .flame { font-size: 18px; display: inline-block; transform-origin: 50% 90%; }
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.no-anim) .final-extra .flame { animation: flicker .9s ease-in-out infinite alternate; }
+}
+.rs-extra {
+  display: inline-block; margin-right: 6px; padding: 1px 7px; border-radius: 6px; font-size: 10px; font-weight: 900; letter-spacing: .08em;
+  color: #fff; background: linear-gradient(135deg, #ff3d2e, #ff8a00);
+}
+
+/* 最終結果のカードは上から並べる（真ん中寄せだと、縦にあふれたとき上端が切れて見えなくなる） */
+.screen-final #result { justify-content: flex-start; }
+.screen-final #result > * { flex-shrink: 0; }

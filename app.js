@@ -2051,7 +2051,7 @@ function submitGuess(timedOut = false) {
   const last = g.mode === "life" ? g.life <= 0 : g.index + 1 >= g.rounds;
   const right = g.mode === "life"
     ? `<div class="rs-big rs-damage">−${result.damage.toLocaleString()}</div>
-       <div class="rs-cap">ライフ ${lifeBar(g.life, g.maxLife)} 残り ${g.life.toLocaleString()}${g.life <= 0 ? "（ライフ切れ）" : ""}</div>`
+       <div class="rs-cap">${g.hardcore ? '<span class="rs-extra">🔥EXTRA</span>' : ""}ライフ ${lifeBar(g.life, g.maxLife)} 残り ${g.life.toLocaleString()} / ${g.maxLife.toLocaleString()}${g.life <= 0 ? "（ライフ切れ）" : ""}</div>`
     : `<div class="rs-big rs-score">${score.toLocaleString()}</div>
        <div class="rs-cap">1,000 点のうち</div>`;
   const roundText = g.mode === "life" ? `ラウンド ${g.index + 1}` : `ラウンド ${g.index + 1} / ${g.rounds}`;
@@ -2102,11 +2102,16 @@ function showFinal() {
   let header;
   if (g.mode === "life") {
     const reason = g.life <= 0 ? "ライフ切れ" : "途中で終了";
+    // エクストラモードは、どのライフの量で挑んだかがひと目でわかる帯を出す
+    const extra = g.hardcore
+      ? `<div class="final-extra"><span class="flame">🔥</span><b>EXTRA</b><span>ライフ ${g.maxLife.toLocaleString()}（${DIFFICULTY_NAMES[g.difficulty]}）で挑戦</span></div>`
+      : "";
     header = `
-      <div class="sub">${escapeHtml(g.area.name)} ・ ライフ制 ${DIFFICULTY_NAMES[g.difficulty]}（${g.maxLife.toLocaleString()}）${g.hardcore ? " ・ 🔥エクストラモード" : ""}${move}</div>
+      ${extra}
+      <div class="sub">${escapeHtml(g.area.name)} ・ ライフ制 ${DIFFICULTY_NAMES[g.difficulty]}（${g.maxLife.toLocaleString()}）${move}</div>
       <div class="big">${played} ラウンド</div>
       <div class="sub">${reason} ・ 合計 ${total.toLocaleString()} 点</div>
-      <div class="life-line">${lifeBar(g.life, g.maxLife)} 残りライフ ${g.life.toLocaleString()}</div>`;
+      <div class="life-line">${lifeBar(g.life, g.maxLife)} 残りライフ ${g.life.toLocaleString()} / ${g.maxLife.toLocaleString()}</div>`;
   } else {
     const ended = played < g.rounds ? `（${g.rounds}ラウンド中 ${played} で終了）` : "";
     header = `
