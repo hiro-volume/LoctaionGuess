@@ -113,6 +113,32 @@
           </div>
           <button id="btn-lobby-go" class="btn-hero small" hidden disabled>マップ選択へ進む</button>
         </div>
+        <div class="lobby-card match-card" id="match-card">
+          <h4>対戦形式 <small id="match-host-note" class="muted"></small></h4>
+          <div class="seg match-mode" id="match-mode">
+            <button data-m="solo" class="tab"><span><b>👤 個人戦</b><small>合計点で順位を決める</small></span></button>
+            <button data-m="team" class="tab"><span><b>⚔ チーム戦</b><small>赤と青に分かれて、ライフを削り合う</small></span></button>
+          </div>
+          <div id="team-setup" hidden>
+            <div class="team-cols">
+              <div class="team-col red">
+                <header><span class="tg-badge">赤</span><b>チーム赤</b><span class="count" id="team-red-count"></span></header>
+                <ul class="team-members" id="team-red-members"></ul>
+                <label class="row">ライフ <input type="number" id="team-red-life" min="500" max="50000" step="500" value="6000"></label>
+                <label class="switch-row"><span>🔥 エクストラモード</span><input type="checkbox" id="team-red-extra" class="switch"></label>
+                <button class="btn-ghost small-btn join-team" data-team="red">赤チームに入る</button>
+              </div>
+              <div class="team-col blue">
+                <header><span class="tg-badge">青</span><b>チーム青</b><span class="count" id="team-blue-count"></span></header>
+                <ul class="team-members" id="team-blue-members"></ul>
+                <label class="row">ライフ <input type="number" id="team-blue-life" min="500" max="50000" step="500" value="6000"></label>
+                <label class="switch-row"><span>🔥 エクストラモード</span><input type="checkbox" id="team-blue-extra" class="switch"></label>
+                <button class="btn-ghost small-btn join-team" data-team="blue">青チームに入る</button>
+              </div>
+            </div>
+            <p class="help team-help">毎ラウンド、それぞれのチームで<b>いちばん正解に近かった人</b>の得点で比べます。<b>点差 × 倍率</b>が相手チームへのダメージになり、相手のライフを先に 0 にしたチームの勝ちです。倍率はラウンドが進むと上がります（×1 → ×1.5 → ×2 …最大 ×3）。ライフとエクストラモードはチームごとに変えられるので、ハンデにも使えます。</p>
+          </div>
+        </div>
       </div>
       <div id="lobby-waiting" class="lobby-waiting" hidden>
         <div class="spinner"></div>
@@ -173,6 +199,7 @@
         <div class="sheet-body">
           <div class="sheet-col">
             <h4>ゲームモード</h4>
+            <p id="team-note" class="help team-note" hidden>⚔ <b>チーム戦</b>: 相手チームのライフを 0 にするまで続きます。ライフとエクストラモードはロビーで設定します。</p>
             <div class="tabs" id="mode-tabs">
               <button data-mode="rounds" class="tab active">ラウンド制</button>
               <button data-mode="life" class="tab">ライフ制</button>
@@ -373,6 +400,31 @@
         <div class="info" id="info-life-box" hidden>
           <span>ライフ</span><b id="info-life"></b>
           <span class="lifebar"><span></span></span>
+        </div>
+      </div>
+      <!-- チーム戦: 左上に赤、右上に青のライフ（結果では上の帯に、ラウンドと距離もまとめる） -->
+      <div id="team-hud" hidden>
+        <div class="tg red">
+          <span class="tg-badge">赤</span>
+          <div class="tg-main">
+            <div class="tg-bar"><i class="tg-fill"></i><b class="tg-life">0</b></div>
+            <div class="tg-meta"><small class="tg-name">TEAM RED</small><span class="tg-extra" hidden>🔥EXTRA</span><span class="tg-you">あなたのチーム</span></div>
+            <span class="tg-points"></span>
+          </div>
+          <span class="tg-dmg"></span>
+        </div>
+        <div class="th-center">
+          <div class="th-title"><b class="th-round">ラウンド 1</b><span class="th-mult">×1</span></div>
+          <div class="th-dist"><span class="d-red"></span><i>VS</i><span class="d-blue"></span></div>
+        </div>
+        <div class="tg blue">
+          <span class="tg-badge">青</span>
+          <div class="tg-main">
+            <div class="tg-bar"><i class="tg-fill"></i><b class="tg-life">0</b></div>
+            <div class="tg-meta"><small class="tg-name">TEAM BLUE</small><span class="tg-extra" hidden>🔥EXTRA</span><span class="tg-you">あなたのチーム</span></div>
+            <span class="tg-points"></span>
+          </div>
+          <span class="tg-dmg"></span>
         </div>
       </div>
       <div id="map-dock">

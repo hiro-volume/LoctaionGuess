@@ -1195,7 +1195,8 @@ html.no-anim *, html.no-anim *::before, html.no-anim *::after {
 .screen-final .result-buttons { display: flex; flex-direction: column; gap: 8px; }
 
 /* ================================================================ ラウンド結果（下のバー） */
-.screen-result { --rbar: 112px; }
+.screen-result { --rbar: 112px; --tbar: 0px; }
+body.team-game .screen-result { --tbar: 124px; }
 .screen-result #map-dock { inset: 0 0 var(--rbar) 0; }
 .screen-result #result {
   height: var(--rbar); padding: 0 24px; overflow: visible;
@@ -1239,7 +1240,7 @@ html.no-anim *, html.no-anim *::before, html.no-anim *::after {
 
 /* ラウンド・凡例・リンクは地図の左上に（ひとことや、Google のロゴと表記に重ならないように） */
 .screen-result .rs-meta {
-  position: absolute; left: 12px; top: calc(12px - 100vh + var(--rbar)); z-index: 2;
+  position: absolute; left: 12px; top: calc(12px - 100vh + var(--rbar) + var(--tbar)); z-index: 2;
   display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-radius: 999px;
   background: rgba(17, 21, 40, .85); font-size: 12px; color: var(--muted);
 }
@@ -1249,8 +1250,8 @@ html.no-anim *, html.no-anim *::before, html.no-anim *::after {
 
 /* マルチ: 全員の結果は地図の右上のカードに */
 .screen-result .rs-board {
-  position: absolute; right: 12px; top: calc(12px - 100vh + var(--rbar)); z-index: 2; margin: 0;
-  max-height: calc(100vh - var(--rbar) - 100px); overflow-y: auto; display: block;
+  position: absolute; right: 12px; top: calc(12px - 100vh + var(--rbar) + var(--tbar)); z-index: 2; margin: 0;
+  max-height: calc(100vh - var(--rbar) - var(--tbar) - 100px); overflow-y: auto; display: block;
   padding: 6px 8px; border-radius: 12px; background: rgba(17, 21, 40, .9); box-shadow: 0 6px 20px rgba(0,0,0,.4);
 }
 
@@ -1481,3 +1482,163 @@ html.no-anim .fr-emoji { animation: none; }
 /* エクストラモードのひとことは、赤い炎色のふきだしに */
 #result-text .rs-reaction .reaction.extra { color: #fff; background: linear-gradient(135deg, #d92a1f, #ff6a00); box-shadow: 0 8px 24px rgba(255,70,30,.45); }
 #result-text .rs-reaction .reaction.extra::after { border-top-color: #e8401a; }
+
+/* ================================================================ チーム戦 */
+.tag.team-red { background: rgba(229,57,47,.2); color: #ff8a80; }
+.tag.team-blue { background: rgba(59,130,246,.2); color: #93c5fd; }
+.match-card { grid-column: 1 / -1; }
+.match-card h4 small { font-size: 12px; font-weight: 500; }
+.match-mode .tab { text-align: left; }
+.match-mode .tab span { display: flex; flex-direction: column; gap: 2px; }
+.match-mode .tab small { font-size: 11px; color: var(--muted); font-weight: 500; }
+.match-mode .tab:disabled { cursor: default; }
+.match-mode .tab:disabled:not(.active) { opacity: .5; }
+.team-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+.team-col { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--bg-2); }
+.team-col.red { border-color: rgba(229,57,47,.55); background: linear-gradient(180deg, rgba(229,57,47,.14), var(--bg-2) 60%); }
+.team-col.blue { border-color: rgba(59,130,246,.55); background: linear-gradient(180deg, rgba(59,130,246,.14), var(--bg-2) 60%); }
+.team-col header { display: flex; align-items: center; gap: 8px; }
+.team-col header .count { margin-left: auto; font-size: 12px; color: var(--muted); }
+.team-members { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-height: 36px; }
+.team-members li { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
+.team-members li small { font-size: 11px; color: var(--btn-hi); }
+.team-members li.empty { color: var(--muted); font-weight: 500; }
+.team-members .p-avatar { width: 26px; height: 26px; font-size: 12px; }
+.team-col .row input { width: 110px; }
+.team-col input:disabled { opacity: .7; }
+.team-help { margin-top: 12px; font-size: 12px; line-height: 1.7; }
+.team-note { margin: 0 0 8px; }
+
+.tg-badge {
+  flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  font-weight: 900; font-size: 16px; color: #fff; border: 2px solid rgba(255,255,255,.8);
+  box-shadow: 0 4px 12px rgba(0,0,0,.4);
+}
+.red .tg-badge { background: radial-gradient(circle at 35% 30%, #ff7b6e, #c62318); }
+.blue .tg-badge { background: radial-gradient(circle at 35% 30%, #7fb0ff, #1d5fd1); }
+.team-col .tg-badge, .tf-team .tg-badge { width: 28px; height: 28px; font-size: 13px; border-width: 1.5px; }
+.tg-extra {
+  padding: 1px 7px; border-radius: 6px; font-size: 10px; font-weight: 900; letter-spacing: .06em; color: #fff;
+  background: linear-gradient(135deg, #ff3d2e, #ff8a00); box-shadow: 0 0 10px rgba(255,90,40,.5);
+}
+
+/* ゲージ（ゲーム中: 左上と右上） */
+#team-hud { display: none; }
+body.team-game .screen-game #team-hud:not([hidden]), body.team-game .screen-result #team-hud:not([hidden]) { display: block; }
+#team-hud { position: absolute; inset: 0 0 auto 0; z-index: 6; pointer-events: none; }
+.tg { position: absolute; top: 12px; display: flex; align-items: center; gap: 10px; width: min(34vw, 360px); }
+.tg.red { left: 12px; }
+.tg.blue { right: 12px; flex-direction: row-reverse; }
+.tg-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.tg-bar {
+  position: relative; height: 26px; border-radius: 8px; overflow: hidden;
+  background: rgba(20, 16, 50, .85); border: 2px solid rgba(160,140,255,.55); box-shadow: 0 4px 14px rgba(0,0,0,.45);
+}
+.tg-fill { position: absolute; top: 0; bottom: 0; left: 0; width: 100%; transition: width .9s cubic-bezier(.2,.8,.2,1); }
+.red .tg-fill { background: linear-gradient(180deg, #ff6b5e, #d62a1e); }
+.blue .tg-fill { left: auto; right: 0; background: linear-gradient(180deg, #6ea8ff, #2563eb); }
+.tg-life {
+  position: absolute; inset: 0; display: grid; place-items: center; font-size: 14px; font-weight: 900; color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.7); font-variant-numeric: tabular-nums;
+}
+.tg-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.tg.blue .tg-meta { flex-direction: row-reverse; }
+.tg-name { font-weight: 900; letter-spacing: .1em; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+.tg-you { display: none; padding: 1px 7px; border-radius: 6px; font-size: 10px; font-weight: 800; color: #0b1120; background: var(--btn-hi); }
+.tg.mine .tg-you { display: inline-block; }
+.tg.mine .tg-bar { border-color: #fff; }
+.tg-points { display: none; }
+.tg-dmg {
+  position: absolute; top: 34px; font-size: 22px; font-weight: 900; color: #ff5a4e; opacity: 0;
+  text-shadow: 0 2px 8px rgba(0,0,0,.6);
+}
+.tg.red .tg-dmg { left: 60px; }
+.tg.blue .tg-dmg { right: 60px; }
+.tg-dmg.show { animation: dmgPop 1.8s ease forwards; }
+@keyframes dmgPop {
+  0% { opacity: 0; transform: translateY(-6px) scale(.6); }
+  15% { opacity: 1; transform: translateY(0) scale(1.25); }
+  30% { transform: scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(14px); }
+}
+.tg.hit .tg-bar { animation: hitShake .5s ease; }
+@keyframes hitShake { 20%, 60% { translate: -5px 0; } 40%, 80% { translate: 5px 0; } }
+.th-center { display: none; }
+
+/* 結果: 上の帯に「赤のゲージ ｜ ラウンド・倍率・距離 ｜ 青のゲージ」 */
+body.team-game .screen-result #map-dock { top: var(--tbar); }
+body.team-game .screen-result #team-hud:not([hidden]) {
+  height: var(--tbar); display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 18px; padding: 14px 20px 0;
+  background: linear-gradient(180deg, #1c1640, #140f30); border-bottom: 1px solid rgba(255,255,255,.12);
+}
+body.team-game .screen-result .tg { position: relative; top: 0; left: auto; right: auto; width: auto; align-items: flex-start; }
+body.team-game .screen-result .tg-points {
+  display: block; margin-top: 2px; font-size: 34px; font-weight: 900; line-height: 1; color: rgba(255,255,255,.75);
+  text-shadow: 0 2px 10px rgba(0,0,0,.5); font-variant-numeric: tabular-nums;
+}
+body.team-game .screen-result .tg.blue .tg-points { text-align: right; }
+body.team-game .screen-result .tg-dmg { top: 64px; }
+body.team-game .screen-result .th-center { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.th-title { display: flex; align-items: center; gap: 10px; }
+.th-round { font-size: 20px; font-weight: 900; }
+.th-mult {
+  padding: 4px 10px; border-radius: 10px; font-size: 16px; font-weight: 900; font-style: italic; color: #fff;
+  background: linear-gradient(135deg, #6d5bd0, #4936a8); border: 2px solid rgba(255,255,255,.35);
+}
+.th-dist {
+  display: flex; align-items: center; gap: 12px; padding: 7px 16px; border-radius: 12px; font-weight: 900; font-size: 15px;
+  background: rgba(60,45,140,.9); border: 2px solid rgba(170,150,255,.6); box-shadow: 0 6px 18px rgba(0,0,0,.4);
+}
+.th-dist .d-red { color: #ffb3ab; }
+.th-dist .d-blue { color: #b5d0ff; }
+.th-dist i { font-size: 11px; font-style: normal; color: rgba(255,255,255,.6); }
+
+/* チーム戦の間は、右上の情報カードの代わりにゲージを出す */
+body.team-game .screen-game #info-card { display: none; }
+body.team-game #mp-wait { top: 92px; }
+
+/* 最終結果 */
+.team-final {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px; border-radius: 16px; color: #fff;
+  box-shadow: 0 10px 30px rgba(0,0,0,.4);
+}
+.team-final.red { background: linear-gradient(135deg, #c62318, #ff6b4a); }
+.team-final.blue { background: linear-gradient(135deg, #1d4fc4, #4f9bff); }
+.team-final b { font-size: 26px; font-weight: 900; letter-spacing: .04em; }
+.team-final span { font-size: 13px; font-weight: 700; }
+.tf-trophy { font-size: 38px; }
+.tf-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; text-align: left; }
+.tf-team { padding: 10px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.tf-team.won { border-color: rgba(255,210,80,.8); box-shadow: 0 0 0 2px rgba(255,210,80,.2); }
+.tf-team header { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.tf-life { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted); }
+.tf-life .lifebar { width: 100%; }
+.tf-team.blue .lifebar > span { background: #3b82f6; }
+.tf-team ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; }
+.tf-team li { display: flex; align-items: center; gap: 6px; }
+.tf-team li.me { color: var(--btn-hi); }
+.tf-team .p-avatar { width: 20px; height: 20px; font-size: 10px; }
+.tf-table { margin-top: 10px; width: 100%; }
+.tf-table th { font-size: 11px; color: var(--muted); font-weight: 700; padding: 4px; }
+.tf-table td.red, .tf-table th.red { color: #ff9a90; }
+.tf-table td.blue, .tf-table th.blue { color: #9cc2ff; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .team-final { animation: popIn .5s cubic-bezier(.2,1.4,.4,1) both; }
+  .tf-trophy { animation: popIn .6s .2s cubic-bezier(.2,1.8,.4,1) both; }
+}
+html.no-anim .tg-dmg.show { animation: reactFade 1.6s ease forwards; }
+html.no-anim .tg.hit .tg-bar { animation: none; }
+
+@media (max-width: 720px) {
+  .team-cols { grid-template-columns: 1fr; }
+  .tg { width: calc(50vw - 20px); gap: 6px; }
+  .tg-badge { width: 30px; height: 30px; font-size: 13px; }
+  .tg-bar { height: 22px; }
+  body.team-game .screen-result { --tbar: 150px; }
+  body.team-game .screen-result #team-hud:not([hidden]) { grid-template-columns: 1fr 1fr; padding: 10px 10px 0; gap: 8px; }
+  body.team-game .screen-result .th-center { grid-column: 1 / -1; grid-row: 2; flex-direction: row; justify-content: center; }
+  body.team-game .screen-result .tg-points { font-size: 24px; }
+  .tf-teams { grid-template-columns: 1fr; }
+}

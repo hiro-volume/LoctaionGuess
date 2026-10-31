@@ -46,7 +46,8 @@ function hostRoom() {
   const profile = loadJSON(STORE_PROFILE, {});
   state.mp = {
     role: "host", code, peer, conns: new Map(), me: "host", phase: "lobby", connecting: true,
-    players: [{ id: "host", name: profile.name || "", ready: false, color: MP_COLORS[0], isHost: true }],
+    players: [{ id: "host", name: profile.name || "", ready: false, color: MP_COLORS[0], isHost: true, team: "red" }],
+    config: defaultMatchConfig(),
   };
   showLobby();
   peer.on("open", () => {
@@ -78,7 +79,7 @@ function hostAccept(conn) {
       return;
     }
     mp.conns.set(conn.peer, conn);
-    mp.players.push({ id: conn.peer, name: "", ready: false, color: nextPlayerColor(), isHost: false });
+    mp.players.push({ id: conn.peer, name: "", ready: false, color: nextPlayerColor(), isHost: false, team: smallerTeam() });
     conn.on("data", (msg) => hostOnMessage(conn.peer, msg));
     conn.on("close", () => hostRemovePlayer(conn.peer));
     broadcastLobby();
@@ -110,6 +111,11 @@ function hostOnMessage(id, msg) {
     recordGuess(id, msg);
   } else if (msg.type === "view") {
     hostReceiveView(id, msg.view);
+  } else if (msg.type === "team") {
+    if (TEAMS[msg.team] && mp.phase === "lobby") {
+      player.team = msg.team;
+      broadcastLobby();
+    }
   } else if (msg.type === "react") {
     hostRelaySocial(player, { type: "react", emoji: msg.emoji });
   } else if (msg.type === "chat") {
@@ -127,13 +133,13 @@ function broadcast(msg) {
 }
 
 function publicPlayers() {
-  return state.mp.players.map(({ id, name, ready, color, isHost }) => ({ id, name, ready, color, isHost }));
+  return state.mp.players.map(({ id, name, ready, color, isHost, team }) => ({ id, name, ready, color, isHost, team }));
 }
 
 function broadcastLobby() {
   const mp = state.mp;
   mp.conns.forEach((conn, id) => {
-    if (conn.open) conn.send({ type: "lobby", players: publicPlayers(), phase: mp.phase, you: id });
+    if (conn.open) conn.send({ type: "lobby", players: publicPlayers(), phase: mp.phase, you: id, config: mp.config });
   });
   renderLobby();
 }
@@ -147,7 +153,7 @@ function joinRoom(code) {
   const peer = new window.Peer();
   state.mp = {
     role: "guest", code, peer, conn: null, me: null, phase: "lobby", connecting: true,
-    players: [], myName: profile.name || "",
+    players: [], myName: profile.name || "", config: defaultMatchConfig(),
   };
   showLobby();
   peer.on("open", () => {
@@ -195,6 +201,7 @@ function guestOnMessage(msg) {
       const backToLobby = mp.phase !== "lobby" && msg.phase === "lobby";
       mp.players = msg.players;
       mp.me = msg.you;
+      if (msg.config) mp.config = msg.config;
       mp.phase = msg.phase;
       if (backToLobby || app.className === "screen-lobby") showLobby();
       else renderLobby();
@@ -254,6 +261,7 @@ function leaveRoom() {
   state.mp = null;
   if (state.game && state.game.multi) state.game = null;
   resetSocial();
+  document.body.classList.remove("team-game");
   // 招待リンクで開いた場合、URL のルームコードを消しておく（再読み込みで勝手に入り直さないように）
   if (location.search.includes("room=")) history.replaceState(null, "", location.pathname);
 }
@@ -319,6 +327,7 @@ function renderLobby() {
       <span class="p-avatar" style="--c:${p.color}">${escapeHtml((p.name || "?").slice(0, 1))}</span>
       <span class="p-name">${p.name ? escapeHtml(p.name) : '<i class="typing">名前を入力中…</i>'}${p.id === mp.me ? '<small>あなた</small>' : ""}</span>
       ${p.isHost ? '<span class="tag host">ホスト</span>' : ""}
+      ${mp.config.mode === "team" && TEAMS[p.team] ? `<span class="tag team-${p.team}">${TEAMS[p.team].short}</span>` : ""}
       <span class="tag ${p.ready ? "ready" : "wait"}">${p.ready ? "準備OK" : "準備中"}</span>
     </li>`).join("") || '<li class="empty">接続しています…</li>';
 
@@ -336,11 +345,13 @@ function renderLobby() {
   // ホストは全員の準備ができたらマップ選択へ進める
   const others = mp.players.filter((p) => !p.isHost);
   const allReady = mp.players.every((p) => p.ready);
+  const teamsOk = mp.config.mode !== "team" || Object.keys(TEAMS).every((t) => mp.players.some((p) => p.team === t));
   $("btn-lobby-go").hidden = !host;
-  $("btn-lobby-go").disabled = !(allReady && others.length >= 1);
+  $("btn-lobby-go").disabled = !(allReady && others.length >= 1 && teamsOk);
   let status;
   if (host) {
     if (!others.length) status = "友達が参加するのを待っています。";
+    else if (!teamsOk) status = "チーム戦は、赤と青の両方に 1 人以上必要です。";
     else if (!allReady) status = `全員の準備ができたら進めます（${mp.players.filter((p) => p.ready).length} / ${mp.players.length} 人）`;
     else status = "全員の準備ができました！マップを選びましょう。";
   } else {
@@ -350,6 +361,7 @@ function renderLobby() {
 
   // 参加者は、ホストがマップを選んでいる間は待ち画面
   $("lobby-waiting").hidden = host || mp.phase !== "select";
+  renderMatchCard();
 }
 
 function submitMyName() {
@@ -404,6 +416,9 @@ function joinByCode() {
 // ホストが「マップ選択へ進む」を押したとき
 function hostGoSelect() {
   const mp = state.mp;
+  if (mp.config.mode === "team" && !Object.keys(TEAMS).every((t) => mp.players.some((p) => p.team === t))) {
+    return showMessage("チーム戦は、赤と青の両方に 1 人以上必要です。");
+  }
   // みんなで遊ぶときは、移動できる設定から始める（前に一人で遊んだときの設定を引き継がない）
   $("opt-move").checked = true;
   saveSettings();
@@ -429,10 +444,16 @@ function decorateSelectForMulti() {
 
 function decorateSheetForMulti() {
   const multi = !!(state.mp && state.mp.role === "host");
-  // マルチプレイはラウンド制だけ（ライフ制は人によって終わる時間が違うため）
+  const team = multi && state.mp.config.mode === "team";
+  // マルチプレイの個人戦はラウンド制だけ（ライフ制は人によって終わる時間が違うため）。
+  // チーム戦はロビーで決めたライフで戦うので、モードの選択を出さない
   document.querySelector('#mode-tabs [data-mode="life"]').hidden = multi;
   if (multi && state.mode === "life") setMode("rounds");
-  $("btn-start").textContent = multi ? `${state.mp.players.length}人で始める` : "このマップで始める";
+  else setMode(state.mode);
+  $("mode-tabs").hidden = team;
+  $("team-note").hidden = !team;
+  if (team) $("rounds-row").hidden = true;
+  $("btn-start").textContent = team ? `${state.mp.players.length}人でチーム戦を始める` : multi ? `${state.mp.players.length}人で始める` : "このマップで始める";
   $("ranking").hidden = multi;
   $("btn-to-ranking").hidden = multi;
 }
@@ -449,6 +470,10 @@ function hostStartGame() {
     pan: $("opt-pan").checked,
     zoom: $("opt-zoom").checked,
     timeLimit: $("opt-timer").checked ? Number($("opt-time").value) : 0,
+    // チーム戦: 始めた時点のチーム分けと、チームごとのライフ・エクストラ
+    team: mp.config.mode === "team"
+      ? { teams: JSON.parse(JSON.stringify(mp.config.teams)), members: Object.fromEntries(mp.players.map((p) => [p.id, p.team])) }
+      : null,
   };
   saveSettings();
   startMultiGame(area, settings);
@@ -480,11 +505,19 @@ function prepareMultiGame(area, settings) {
   closeSettings();
   stopTimer();
   clearGameMarkers();
+  const team = settings.team || null;
+  const myTeam = team ? team.members[state.mp.me] : null;
   state.game = {
-    area, multi: true, mode: "rounds", rounds: settings.rounds,
+    area, multi: true, mode: "rounds", rounds: team ? Infinity : settings.rounds,
     move: settings.move, pan: settings.pan, zoom: settings.zoom, timeLimit: settings.timeLimit,
     index: -1, results: [], overlays: [], usedPanos: new Set(), total: 0,
+    team, myTeam,
+    // リアクションの厳しさは、自分のチームのエクストラに合わせる
+    hardcore: !!(team && myTeam && team.teams[myTeam].extra),
+    teamLife: team ? { red: team.teams.red.life, blue: team.teams.blue.life } : null,
+    history: [],
   };
+  document.body.classList.toggle("team-game", !!team);
   setScreen("game");
   $("loading").hidden = false;
 }
@@ -534,9 +567,10 @@ function beginMultiRound(msg) {
   $("btn-back-start").hidden = !g.move;
   $("btn-zoom-in").disabled = $("btn-zoom-out").disabled = !g.zoom;
   $("info-area").textContent = g.area.name;
-  $("info-round").textContent = `${g.index + 1} / ${g.rounds}`;
+  $("info-round").textContent = g.team ? `${g.index + 1}` : `${g.index + 1} / ${g.rounds}`;
   $("info-score").textContent = g.total.toLocaleString();
   renderHudLife();
+  renderTeamHud();
   setScreen("game");
   drawArea(g.area);
   state.map.setOptions({ draggableCursor: "crosshair" });
@@ -564,7 +598,9 @@ function submitMultiGuess(timedOut) {
   state.map.setOptions({ draggableCursor: null });
   if (state.mp.role === "host") recordGuess("host", msg);
   else guestSend(msg);
-  renderWaiting(state.mp.role === "host" ? [...state.mp.guesses.keys()] : [state.mp.me]);
+  // ホストが最後に答えたときは、ここまでにラウンドが終わって回答の一覧が片付いている
+  if (state.mp.role !== "host") renderWaiting([state.mp.me]);
+  else if (state.mp.guesses) renderWaiting([...state.mp.guesses.keys()]);
 }
 
 function recordGuess(id, msg) {
@@ -603,7 +639,8 @@ function finishMultiRound() {
   });
   mp.answer = null;
   mp.guesses = null;
-  const msg = { type: "result", index: g.index, answer, results, last: g.index + 1 >= g.rounds };
+  const team = g.team ? hostTeamRound(results) : null;
+  const msg = { type: "result", index: g.index, answer, results, team, last: team ? !!team.winner : g.index + 1 >= g.rounds };
   broadcast(msg);
   showMultiResult(msg);
 }
@@ -801,16 +838,21 @@ function showMultiResult(msg) {
 
   const rows = [...msg.results].sort((a, b) => b.score - a.score || a.ms - b.ms);
   const missed = !mine || !mine.guess;
+  if (g.team && msg.team) {
+    g.teamLife = { red: msg.team.teams.red.life, blue: msg.team.teams.blue.life };
+    g.history.push({ index: msg.index, ...msg.team });
+  }
+  renderTeamHud(msg.team);
   $("result-text").innerHTML = `
     ${mine ? `<div class="rs-reaction"><span class="reaction${g.hardcore ? " extra" : ""}">${reactionFor(missed ? null : mine.distance, g.hardcore)}</span></div>` : ""}
-    <div class="rs-meta"><b>ラウンド ${msg.index + 1} / ${g.rounds}</b>${mapsLink(answer)}</div>
+    <div class="rs-meta"><b>ラウンド ${msg.index + 1}${g.team ? "" : ` / ${g.rounds}`}</b>${mapsLink(answer)}</div>
     <div class="rs-side rs-left">
       <div class="rs-big rs-dist">${missed ? "時間切れ" : formatDistance(mine.distance)}</div>
       <div class="rs-cap">${missed ? "ピンを立てる前に時間切れ" : "正解から"}</div>
     </div>
-    <div class="rs-side rs-right">
+    <div class="rs-side rs-right">${g.team && msg.team ? teamResultSide(msg.team) : `
       <div class="rs-big rs-score">${mine ? mine.score.toLocaleString() : 0}</div>
-      <div class="rs-cap">1,000 点のうち ・ 合計 ${mine ? mine.total.toLocaleString() : 0}</div>
+      <div class="rs-cap">1,000 点のうち ・ 合計 ${mine ? mine.total.toLocaleString() : 0}</div>`}
     </div>
     <table class="mp-table rs-board">${rows.map((r, i) => `
       <tr class="${r.id === mp.me ? "me" : ""}">
@@ -849,7 +891,9 @@ function hostFinal() {
   const standings = mp.players
     .map((p) => ({ id: p.id, name: p.name, color: p.color, total: mp.totals.get(p.id) || 0 }))
     .sort((a, b) => b.total - a.total);
-  const msg = { type: "final", standings, rounds: state.game.rounds };
+  const g = state.game;
+  const msg = { type: "final", standings, rounds: g.team ? g.index + 1 : g.rounds };
+  if (g.team && g.lastResult && g.lastResult.team) msg.winner = g.lastResult.team.winner;
   broadcast(msg);
   showMultiFinal(msg);
 }
@@ -862,6 +906,7 @@ function showMultiFinal(msg) {
   clearGameMarkers();
   g.finished = true;
   setScreen("final");
+  if (g.team) return showTeamFinal(msg);
   const max = msg.rounds * 1000;
   const medals = ["gold", "silver", "bronze"];
   const podium = [1, 0, 2].map((i) => {
@@ -914,6 +959,218 @@ async function exitMultiGame() {
 }
 
 // ---------------------------------------------------------------- 起動
+
+// ---------------------------------------------------------------- チーム戦
+// 毎ラウンド、各チームでいちばん正解に近かった人の得点を比べ、点差 × 倍率を相手チームのライフから引く。
+// エクストラモードのチームは、ずれを厳しく判定した得点（1000 − エクストラのダメージ）で比べる。
+
+const TEAMS = {
+  red: { name: "チーム赤", short: "赤", color: "#e5392f" },
+  blue: { name: "チーム青", short: "青", color: "#3b82f6" },
+};
+const TEAM_LIFE_MIN = 500;
+const TEAM_LIFE_MAX = 50000;
+
+function defaultMatchConfig() {
+  return { mode: "solo", teams: { red: { life: 6000, extra: false }, blue: { life: 6000, extra: false } } };
+}
+
+// 人数の少ないチームに入れる（同じなら赤）
+function smallerTeam() {
+  const count = (t) => state.mp.players.filter((p) => p.team === t).length;
+  return count("blue") < count("red") ? "blue" : "red";
+}
+
+// ラウンドが進むほどダメージが大きくなる（1・2 ラウンド目 ×1、3・4 ×1.5 … 最大 ×3）
+function teamMultiplier(index) {
+  return Math.min(3, 1 + 0.5 * Math.floor(index / 2));
+}
+
+function hostTeamRound(results) {
+  const g = state.game;
+  const multiplier = teamMultiplier(g.index);
+  const teams = {};
+  for (const t of Object.keys(TEAMS)) {
+    const best = results
+      .filter((r) => g.team.members[r.id] === t && r.guess)
+      .sort((a, b) => a.distance - b.distance)[0];
+    const points = best ? Math.max(0, 1000 - damageFor(scoreFor(best.distance, g.area), best.distance, g.team.teams[t].extra)) : 0;
+    teams[t] = { points, best: best ? { id: best.id, name: best.name, distance: best.distance } : null, before: g.teamLife[t] };
+  }
+  const diff = teams.red.points - teams.blue.points;
+  const loser = diff > 0 ? "blue" : diff < 0 ? "red" : null;
+  for (const t of Object.keys(TEAMS)) {
+    const damage = t === loser ? Math.min(g.teamLife[t], Math.round(Math.abs(diff) * multiplier)) : 0;
+    g.teamLife[t] -= damage;
+    Object.assign(teams[t], { damage, life: g.teamLife[t] });
+  }
+  const winner = g.teamLife.red <= 0 ? "blue" : g.teamLife.blue <= 0 ? "red" : null;
+  return { multiplier, teams, winner };
+}
+
+// 数字を、前の値から新しい値までカウントダウンさせる
+function countNumber(el, from, to, ms = 900) {
+  const start = performance.now();
+  const step = (now) => {
+    const k = Math.min(1, (now - start) / ms);
+    el.textContent = Math.round(from + (to - from) * (1 - (1 - k) ** 3)).toLocaleString();
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+// ゲーム中は左上・右上のゲージ、結果では上の帯（round を渡すと、ダメージを受けて減る様子を見せる）
+function renderTeamHud(round) {
+  const g = state.game;
+  const hud = $("team-hud");
+  hud.hidden = !(g && g.team);
+  if (hud.hidden) return;
+  for (const t of Object.keys(TEAMS)) {
+    const el = hud.querySelector(`.tg.${t}`);
+    const max = g.team.teams[t].life;
+    const now = g.teamLife[t];
+    const from = round ? round.teams[t].before : now;
+    el.classList.toggle("mine", g.myTeam === t);
+    el.querySelector(".tg-extra").hidden = !g.team.teams[t].extra;
+    const fill = el.querySelector(".tg-fill");
+    const num = el.querySelector(".tg-life");
+    fill.style.transition = "none";
+    fill.style.width = `${(from / max) * 100}%`;
+    num.textContent = from.toLocaleString();
+    el.querySelector(".tg-points").textContent = round ? round.teams[t].points.toLocaleString() : "";
+    const dmg = el.querySelector(".tg-dmg");
+    dmg.classList.remove("show");
+    dmg.textContent = round && round.teams[t].damage ? `−${round.teams[t].damage.toLocaleString()}` : "";
+    if (round && from !== now) {
+      setTimeout(() => {
+        fill.style.transition = "";
+        fill.style.width = `${(now / max) * 100}%`;
+        countNumber(num, from, now);
+        dmg.classList.add("show");
+        el.classList.remove("hit");
+        void el.offsetWidth;
+        el.classList.add("hit");
+      }, 700);
+    }
+  }
+  hud.querySelector(".th-round").textContent = `ラウンド ${g.index + 1}`;
+  hud.querySelector(".th-mult").textContent = `×${teamMultiplier(Math.max(0, g.index))}`;
+  const dist = (t) => {
+    const b = round && round.teams[t].best;
+    return b ? formatDistance(b.distance) : "—";
+  };
+  hud.querySelector(".th-dist").hidden = !round;
+  hud.querySelector(".d-red").textContent = dist("red");
+  hud.querySelector(".d-blue").textContent = dist("blue");
+}
+
+// 結果の下のバーの右側: 自分のチームの得点と、与えた・受けたダメージ
+function teamResultSide(round) {
+  const g = state.game;
+  const mine = g.myTeam || "red";
+  const opp = mine === "red" ? "blue" : "red";
+  const dealt = round.teams[opp].damage;
+  const taken = round.teams[mine].damage;
+  const text = dealt ? `相手に −${dealt.toLocaleString()} ダメージ！` : taken ? `−${taken.toLocaleString()} ダメージを受けた…` : "引き分け（ダメージなし）";
+  return `
+      <div class="rs-big rs-score">${round.teams[mine].points.toLocaleString()}</div>
+      <div class="rs-cap">チームの得点 ×${round.multiplier} ・ ${text}</div>`;
+}
+
+function showTeamFinal(msg) {
+  const mp = state.mp;
+  const g = state.game;
+  const win = msg.winner || (g.teamLife.red >= g.teamLife.blue ? "red" : "blue");
+  const members = (t) => mp.players.filter((p) => g.team.members[p.id] === t)
+    .map((p) => `<li class="${p.id === mp.me ? "me" : ""}"><span class="p-avatar" style="--c:${p.color}">${escapeHtml((p.name || "?").slice(0, 1))}</span>${escapeHtml(p.name || "?")}</li>`).join("");
+  const side = (t) => `
+    <div class="tf-team ${t}${t === win ? " won" : ""}">
+      <header><span class="tg-badge">${TEAMS[t].short}</span><b>${TEAMS[t].name}</b>${g.team.teams[t].extra ? '<span class="tg-extra">🔥EXTRA</span>' : ""}</header>
+      <div class="tf-life">${lifeBar(Math.max(0, g.teamLife[t]), g.team.teams[t].life)}<span>${Math.max(0, g.teamLife[t]).toLocaleString()} / ${g.team.teams[t].life.toLocaleString()}</span></div>
+      <ul>${members(t)}</ul>
+    </div>`;
+  const rows = g.history.map((h) => `<tr>
+      <td class="num">${h.index + 1}</td>
+      <td class="red">${h.teams.red.best ? formatDistance(h.teams.red.best.distance) : "—"}</td>
+      <td class="blue">${h.teams.blue.best ? formatDistance(h.teams.blue.best.distance) : "—"}</td>
+      <td class="num">×${h.multiplier}</td>
+      <td class="damage">${h.teams.red.damage ? `赤 −${h.teams.red.damage.toLocaleString()}` : h.teams.blue.damage ? `青 −${h.teams.blue.damage.toLocaleString()}` : "—"}</td>
+    </tr>`).join("");
+  const mineWon = g.myTeam === win;
+  $("result-text").innerHTML = `
+    <div class="team-final ${win}">
+      <div class="tf-trophy">🏆</div>
+      <b>${TEAMS[win].name}の勝利！</b>
+      <span>${g.myTeam ? (mineWon ? "あなたのチームの勝ち！おめでとう🎉" : "あなたのチームの負け…次こそ！") : ""}</span>
+    </div>
+    <div class="sub">${escapeHtml(g.area.name)} ・ ${msg.rounds} ラウンドで決着</div>
+    <div class="tf-teams">${side("red")}${side("blue")}</div>
+    <table class="tf-table"><tr><th>R</th><th class="red">赤のベスト</th><th class="blue">青のベスト</th><th>倍率</th><th>ダメージ</th></tr>${rows}</table>`;
+  $("btn-next").textContent = "ロビーに戻る";
+  $("btn-next").disabled = false;
+  $("btn-end").hidden = true;
+  setResultButtons(true, mp.role === "host");
+  if (mp.role !== "host") $("result-text").insertAdjacentHTML("beforeend", '<p class="sub">ホストが「もう一度遊ぶ」を押すと、同じチームですぐに始まります。</p>');
+  $("result").hidden = false;
+}
+
+// ロビーの「対戦形式」カード（設定を変えられるのはホストだけ。チームは各自が選ぶ）
+function renderMatchCard() {
+  const mp = state.mp;
+  if (!mp) return;
+  const host = mp.role === "host";
+  const cfg = mp.config;
+  const team = cfg.mode === "team";
+  document.querySelectorAll("#match-mode .tab").forEach((b) => {
+    b.classList.toggle("active", b.dataset.m === cfg.mode);
+    b.disabled = !host;
+  });
+  $("match-host-note").textContent = host ? "" : "（ホストが決めます）";
+  $("team-setup").hidden = !team;
+  const me = mp.players.find((p) => p.id === mp.me);
+  for (const t of Object.keys(TEAMS)) {
+    const list = mp.players.filter((p) => p.team === t);
+    $(`team-${t}-count`).textContent = `${list.length}人`;
+    $(`team-${t}-members`).innerHTML = list.map((p) => `<li class="${p.id === mp.me ? "me" : ""}">
+      <span class="p-avatar" style="--c:${p.color}">${escapeHtml((p.name || "?").slice(0, 1))}</span>${p.name ? escapeHtml(p.name) : "名前を入力中…"}${p.id === mp.me ? "<small>あなた</small>" : ""}</li>`).join("")
+      || '<li class="empty">まだ誰もいません</li>';
+    const life = $(`team-${t}-life`);
+    if (document.activeElement !== life) life.value = cfg.teams[t].life;
+    life.disabled = !host;
+    $(`team-${t}-extra`).checked = !!cfg.teams[t].extra;
+    $(`team-${t}-extra`).disabled = !host;
+    const join = document.querySelector(`.join-team[data-team="${t}"]`);
+    join.hidden = !me || me.team === t;
+  }
+}
+
+function bindMatchCard() {
+  const hostOnly = (fn) => () => {
+    const mp = state.mp;
+    if (!mp || mp.role !== "host" || mp.phase !== "lobby") return;
+    fn(mp.config);
+    broadcastLobby();
+  };
+  document.querySelectorAll("#match-mode .tab").forEach((b) => b.addEventListener("click", hostOnly((cfg) => { cfg.mode = b.dataset.m; })));
+  for (const t of Object.keys(TEAMS)) {
+    $(`team-${t}-life`).addEventListener("change", hostOnly((cfg) => {
+      const v = Math.round(Number($(`team-${t}-life`).value) / 100) * 100;
+      cfg.teams[t].life = Number.isFinite(v) ? Math.min(TEAM_LIFE_MAX, Math.max(TEAM_LIFE_MIN, v)) : 6000;
+      $(`team-${t}-life`).value = cfg.teams[t].life;
+    }));
+    $(`team-${t}-extra`).addEventListener("change", hostOnly((cfg) => { cfg.teams[t].extra = $(`team-${t}-extra`).checked; }));
+  }
+  document.querySelectorAll(".join-team").forEach((b) => b.addEventListener("click", () => {
+    const mp = state.mp;
+    if (!mp || mp.phase !== "lobby") return;
+    if (mp.role === "host") {
+      mp.players.find((p) => p.id === "host").team = b.dataset.team;
+      broadcastLobby();
+    } else {
+      guestSend({ type: "team", team: b.dataset.team });
+    }
+  }));
+}
 
 // ---------------------------------------------------------------- リアクションとチャット
 
@@ -1083,6 +1340,7 @@ function bindMultiplayerUi() {
   $("btn-lobby-go").addEventListener("click", hostGoSelect);
   $("btn-spectate-stop").addEventListener("click", () => stopSpectate(true));
   bindSocial();
+  bindMatchCard();
   // ページを閉じるときは部屋も閉じる
   window.addEventListener("beforeunload", () => leaveRoom());
 }
