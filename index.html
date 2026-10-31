@@ -366,6 +366,7 @@
       </div>
       <!-- 右上の情報カード -->
       <div id="info-card">
+        <div class="info-extra" id="info-extra" hidden title="エクストラモード: 数メートルのずれでもライフが減ります"><span class="flame">🔥</span>EXTRA</div>
         <div class="info"><span>エリア</span><b id="info-area"></b></div>
         <div class="info"><span>ラウンド</span><b id="info-round"></b></div>
         <div class="info"><span>スコア</span><b id="info-score"></b></div>
@@ -393,8 +394,9 @@
           <button id="btn-map-zoom-out" class="dock-btn" title="地図を縮小" aria-label="地図を縮小">－</button>
         </div>
         <div id="map"></div>
+        <!-- 決定ボタンはマップと一体（マップを広げると一緒に伸び、押しに行ってもマップが閉じない） -->
+        <button id="btn-guess" class="primary" disabled>ピンをマップに配置する</button>
       </div>
-      <button id="btn-guess" class="primary" disabled>ピンをマップに配置する</button>
       <div id="editor-hint" class="editor-hint"></div>
       <div id="loading" hidden>場所を探しています…</div>
       <div id="mp-wait" hidden>

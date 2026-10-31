@@ -1172,6 +1172,9 @@ function lifeBar(life, max) {
 
 function renderHudLife() {
   const g = state.game;
+  // エクストラモード中は、右上のカードに目立つ印を出す
+  $("info-extra").hidden = !g.hardcore;
+  $("info-card").classList.toggle("extra", !!g.hardcore);
   $("info-life-box").hidden = g.mode !== "life";
   if (g.mode !== "life") return;
   $("info-life-box").querySelector(".lifebar > span").style.width = `${(g.life / g.maxLife) * 100}%`;

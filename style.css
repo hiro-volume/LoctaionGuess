@@ -1280,11 +1280,55 @@ html.no-anim *, html.no-anim *::before, html.no-anim *::after {
   .screen-result .rs-meta .legend { display: none; }
 }
 
-/* 回答マップを広げたら、決定ボタンも同じ幅に伸ばす */
-.screen-game #btn-guess { transition: width .2s, background .2s, transform .15s; }
-.screen-game #map-dock.open ~ #btn-guess, .screen-game #map-dock.pinned ~ #btn-guess {
-  width: min(var(--dock-w, 600px), calc(100vw - 32px));
+/* ================================================================ 回答マップと決定ボタンを一体に */
+/* ボタンはマップの枠の中（下）にあるので、マップを広げると同じ幅に伸び、押しに行っても閉じない */
+.screen-game #map-dock {
+  bottom: 16px; gap: 8px;
+  height: calc(240px + 60px);
+  overflow: visible; border-radius: 0; box-shadow: none;
+}
+.screen-game #map-dock.open, .screen-game #map-dock.pinned {
+  height: calc(min(var(--dock-h, 440px), calc(100vh - 160px)) + 60px);
+}
+.screen-game #map { border-radius: 10px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,.5); }
+.screen-game #btn-guess {
+  position: static; flex: none; width: 100%; height: 52px;
+  transition: background .2s, transform .15s;
 }
 @media (max-width: 720px) {
-  .screen-game #map-dock.open ~ #btn-guess, .screen-game #map-dock.pinned ~ #btn-guess { width: calc(100vw - 32px); }
+  .screen-game #map-dock { height: calc(35vh + 60px); }
+  .screen-game #map-dock.open, .screen-game #map-dock.pinned { height: calc(55vh + 60px); }
+  .screen-game #btn-guess { width: 100%; }
+}
+
+/* ================================================================ エクストラモードの印 */
+.info-extra {
+  align-self: center; display: inline-flex; align-items: center; gap: 4px; margin: 0 6px 0 4px;
+  padding: 5px 10px 5px 8px; border-radius: 8px;
+  font-size: 13px; font-weight: 900; letter-spacing: .12em; color: #fff;
+  background: linear-gradient(135deg, #ff3d2e, #ff8a00 55%, #ffd23f);
+  box-shadow: 0 0 14px rgba(255,90,40,.75), inset 0 0 0 1px rgba(255,255,255,.35);
+  text-shadow: 0 1px 2px rgba(120,20,0,.7);
+}
+.info-extra .flame { font-size: 15px; display: inline-block; transform-origin: 50% 90%; }
+.screen-game #info-card.extra {
+  border-color: rgba(255,110,50,.8);
+  box-shadow: 0 0 0 1px rgba(255,80,40,.35), 0 0 22px rgba(255,80,40,.45), 0 4px 16px rgba(0,0,0,.35);
+  background: linear-gradient(180deg, rgba(60,14,10,.88), rgba(17,21,28,.88));
+}
+#info-card.extra .lifebar > span { background: linear-gradient(90deg, #ff3d2e, #ffb020); }
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.no-anim) .screen-game #info-card.extra { animation: fadeDown .5s .2s both, extraGlow 1.8s .7s ease-in-out infinite; }
+  html:not(.no-anim) .info-extra .flame { animation: flicker .9s ease-in-out infinite alternate; }
+}
+@keyframes extraGlow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255,80,40,.35), 0 0 14px rgba(255,80,40,.35), 0 4px 16px rgba(0,0,0,.35); }
+  50% { box-shadow: 0 0 0 1px rgba(255,120,40,.7), 0 0 30px rgba(255,90,30,.75), 0 4px 16px rgba(0,0,0,.35); }
+}
+@keyframes flicker {
+  0% { transform: rotate(-6deg) scale(1); }
+  100% { transform: rotate(6deg) scale(1.15); }
+}
+@media (max-width: 720px) {
+  .info-extra { font-size: 11px; padding: 4px 6px; letter-spacing: .06em; }
 }
