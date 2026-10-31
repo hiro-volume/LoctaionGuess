@@ -185,11 +185,11 @@
               </select>
             </label>
             <div id="life-row" hidden>
-              <label class="row">難易度
+              <label class="row">ライフの量
                 <select id="opt-difficulty">
-                  <option value="easy">簡単（ライフ 10000）</option>
-                  <option value="normal" selected>普通（ライフ 5000）</option>
-                  <option value="hard">難しい（ライフ 2500）</option>
+                  <option value="easy">多め（10000）</option>
+                  <option value="normal" selected>ふつう（5000）</option>
+                  <option value="hard">少なめ（2500）</option>
                   <option value="custom">カスタム</option>
                 </select>
               </label>
@@ -198,18 +198,18 @@
               </label>
               <p class="help">遠く外すほどライフが大きく減ります（1回で最大 1000）。ライフが 0 になったら終了です。</p>
               <label class="switch-row hardcore-row">
-                <span><b>🔥 激ムズモード</b><small>地元の人向け</small></span>
+                <span><b>🎯 ピンポイント判定</b><small>数メートルのずれも見逃さない・地元の人向け</small></span>
                 <input type="checkbox" id="opt-hardcore" class="switch">
               </label>
               <div class="hardcore-help" id="hardcore-help">
-                <p>ふつうは 25m 以内なら減りませんが、激ムズでは<b>数メートルのずれでもライフが減ります</b>。
+                <p>ライフの量とは別に、<b>ずれの判定</b>を厳しくします。ふつうの判定は 25m 以内なら減りませんが、ピンポイント判定では<b>数メートルのずれでもライフが減ります</b>。
                 近いほど減る量は少なく、遠いほど大きく減ります。広い範囲でも、地元を当てるくらいの厳しさで判定します（ふつうより減る量が少なくなることはありません）。</p>
                 <table>
                   <tr><th>ずれ</th><td>5 m</td><td>100 m</td><td>500 m</td><td>1 km</td><td>5 km</td></tr>
-                  <tr><th>ふつう（広島県）</th><td>0</td><td>−8</td><td>−40</td><td>−78</td><td>−335</td></tr>
-                  <tr><th>激ムズ</th><td>−2</td><td>−49</td><td>−221</td><td>−393</td><td>−918</td></tr>
+                  <tr><th>ふつうの判定（広島県）</th><td>0</td><td>−8</td><td>−40</td><td>−78</td><td>−335</td></tr>
+                  <tr><th>ピンポイント判定</th><td>−2</td><td>−49</td><td>−221</td><td>−393</td><td>−918</td></tr>
                 </table>
-                <p>道の角や建物の位置までわかる、自分の地元で挑戦するのがおすすめです。ランキングは激ムズだけで別に集計します。</p>
+                <p>道の角や建物の位置までわかる、自分の地元で挑戦するのがおすすめです。ランキングはピンポイント判定だけで別に集計します。</p>
               </div>
             </div>
           </div>

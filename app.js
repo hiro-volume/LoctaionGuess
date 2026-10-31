@@ -799,7 +799,7 @@ function boardLabel(key) {
   const [mode, a, b, x] = key.split("-");
   if (mode === "rounds") return `${a}ラウンド`;
   const label = a === "custom" ? `ライフ ${Number(b).toLocaleString()}` : `ライフ・${DIFFICULTY_NAMES[a] || a}`;
-  return x ? `${label}・🔥激ムズ` : label;
+  return x ? `${label}・🎯ピンポイント` : label;
 }
 
 // 並べ方: ラウンド制は点数が高い順、ライフ制は生き残ったラウンド数 → 点数の順。同点なら早い方が上
@@ -1127,7 +1127,7 @@ function rulesText(g) {
     g.pan ? null : "見回しなし",
     g.zoom ? null : "ズームなし",
     g.timeLimit ? `制限時間 ${g.timeLimit}秒` : null,
-    g.hardcore ? "🔥激ムズ" : null,
+    g.hardcore ? "🎯ピンポイント判定" : null,
   ].filter(Boolean);
   return `（${parts.join("・")}）`;
 }
@@ -1135,7 +1135,7 @@ function rulesText(g) {
 // ---------------------------------------------------------------- ライフ制
 
 const LIFE_PRESETS = { easy: 10000, normal: 5000, hard: 2500 };
-const DIFFICULTY_NAMES = { easy: "簡単", normal: "普通", hard: "難しい", custom: "カスタム" };
+const DIFFICULTY_NAMES = { easy: "多め", normal: "ふつう", hard: "少なめ", custom: "カスタム" };
 
 function setMode(mode) {
   state.mode = mode;
@@ -1155,7 +1155,7 @@ function selectedLife() {
 // 外した度合いに応じて減るライフ。得点の裏返しなので、近ければ少し・遠ければ最大 1000
 const HARDCORE_DECAY = 2000;
 
-// 激ムズ: 範囲の広さに関係なく 2km を目安に減らし、数メートルのずれでも少し減る。
+// ピンポイント判定: 範囲の広さに関係なく 2km を目安に減らし、数メートルのずれでも少し減る。
 // 狭い範囲ではふつうの方が厳しいこともあるので、ふつうより減る量が少なくならないようにする
 function damageFor(score, distance, hardcore) {
   const normal = 1000 - score;
@@ -1909,19 +1909,59 @@ function placeGuess(latLng) {
 
 // 近さごとのひとこと（同じ段階でも毎回少し変える）
 const REACTIONS = [
-  { max: 50, lines: ["ぴったり！？ もしかしてここに住んでます？😳", "うそでしょ…ほぼ正解！神ですか！？✨", "ドンピシャ！！地図が頭に入ってる…🤯"] },
-  { max: 300, lines: ["すごい！地元の方ですか！？", "近っ！この辺よく来ます？👀", "さすが！ほとんど目の前です🎯"] },
-  { max: 1000, lines: ["かなり近い！土地勘ありますね👏", "おしい！歩いて行ける距離です🚶", "いい読み！あと少しでした"] },
-  { max: 5000, lines: ["いい線いってる！あと一歩！", "方向はバッチリ！もう一声👍", "なかなか！自転車ならすぐの距離🚲"] },
-  { max: 20000, lines: ["だいたいこの辺…かも？🤔", "惜しい…けど、まだまだいける！", "エリアは合ってる！次は近づけよう"] },
-  { max: 100000, lines: ["うーん、ちょっと遠いかな😅", "電車でひと駅…どころじゃないかも🚃", "次はもっと手がかりを探してみよう🔍"] },
-  { max: Infinity, lines: ["どこ行っちゃったの！？🌏", "大冒険でしたね…！✈️", "逆にすごい、この遠さ😂"] },
+  { max: 10, lines: [
+    "は！？ ほぼ同じ場所…！！😱", "ミリ単位の精度…人間ですか？🤖", "Street View の中の人ですか？📸",
+    "伝説が生まれました…👑", "完全一致！拍手が鳴りやまない👏👏👏", "もう地図いらないですね🗺️❌",
+  ] },
+  { max: 50, lines: [
+    "ぴったり！？ もしかしてここに住んでます？😳", "うそでしょ…ほぼ正解！神ですか！？✨", "ドンピシャ！！地図が頭に入ってる…🤯",
+    "目の前！ここ毎日通ってます？🏠", "鳥肌立ちました…🐔", "その読み、プロの犯行です🕵️",
+  ] },
+  { max: 300, lines: [
+    "すごい！地元の方ですか！？", "近っ！この辺よく来ます？👀", "さすが！ほとんど目の前です🎯",
+    "声をかければ届く距離！📣", "ほぼ正解！角ひとつ分のずれ🏢", "この精度、ただ者じゃない…😎",
+    "あの看板、見逃さなかったですね🔎",
+  ] },
+  { max: 1000, lines: [
+    "かなり近い！土地勘ありますね👏", "おしい！歩いて行ける距離です🚶", "いい読み！あと少しでした",
+    "ご近所さんレベル！🏘️", "コンビニ1軒分くらいのずれ🏪", "いいね！この調子でいこう🔥",
+    "ほぼ同じ町内！🎉",
+  ] },
+  { max: 5000, lines: [
+    "いい線いってる！あと一歩！", "方向はバッチリ！もう一声👍", "なかなか！自転車ならすぐの距離🚲",
+    "雰囲気はつかめてる！✨", "同じエリア！次はもっと寄せよう📍", "惜しい！バス停いくつか分🚌",
+    "勘がいい！あとは細かい手がかりを🔍",
+  ] },
+  { max: 20000, lines: [
+    "だいたいこの辺…かも？🤔", "惜しい…けど、まだまだいける！", "エリアは合ってる！次は近づけよう",
+    "車ならすぐ！🚗", "方角は悪くない！🧭", "道路標識をよく見てみよう🪧",
+    "うん、遠からず近からず😌",
+  ] },
+  { max: 100000, lines: [
+    "うーん、ちょっと遠いかな😅", "電車でひと駅…どころじゃないかも🚃", "次はもっと手がかりを探してみよう🔍",
+    "ちょっとした旅行になりそう🧳", "迷子になってません？🙈", "景色はきれいでしたね…😇",
+    "ドンマイ！次で取り返そう💪",
+  ] },
+  { max: Infinity, lines: [
+    "どこ行っちゃったの！？🌏", "大冒険でしたね…！✈️", "逆にすごい、この遠さ😂",
+    "パスポートが必要かも🛂", "地球の裏側…ではないはず🌍", "ピンが旅に出ました🎒",
+    "今のはなかったことに…🤫",
+  ] },
 ];
 
+const TIMEOUT_LINES = [
+  "時間切れ…！次は急いでいこう⏰", "あっ、時間が…！⌛", "考えすぎちゃいました？🤯",
+  "タイムアップ！迷ったらまずピンを置こう📍", "時計を見るのを忘れずに…🕰️",
+];
+
+let lastReaction = "";
+
 function reactionFor(distance) {
-  if (distance == null) return "時間切れ…！次は急いでいこう⏰";
-  const tier = REACTIONS.find((r) => distance <= r.max);
-  return tier.lines[Math.floor(Math.random() * tier.lines.length)];
+  const lines = distance == null ? TIMEOUT_LINES : REACTIONS.find((r) => distance <= r.max).lines;
+  // 同じひとことが続かないようにする
+  const pool = lines.filter((l) => l !== lastReaction);
+  lastReaction = pool[Math.floor(Math.random() * pool.length)];
+  return lastReaction;
 }
 
 // ピンを刺した場所に、波紋が広がる
@@ -2012,7 +2052,7 @@ function showFinal() {
   if (g.mode === "life") {
     const reason = g.life <= 0 ? "ライフ切れ" : "途中で終了";
     header = `
-      <div class="sub">${escapeHtml(g.area.name)} ・ ライフ制 ${DIFFICULTY_NAMES[g.difficulty]}（${g.maxLife.toLocaleString()}）${g.hardcore ? " ・ 🔥激ムズ" : ""}${move}</div>
+      <div class="sub">${escapeHtml(g.area.name)} ・ ライフ制 ${DIFFICULTY_NAMES[g.difficulty]}（${g.maxLife.toLocaleString()}）${g.hardcore ? " ・ 🎯ピンポイント判定" : ""}${move}</div>
       <div class="big">${played} ラウンド</div>
       <div class="sub">${reason} ・ 合計 ${total.toLocaleString()} 点</div>
       <div class="life-line">${lifeBar(g.life, g.maxLife)} 残りライフ ${g.life.toLocaleString()}</div>`;
@@ -2133,11 +2173,9 @@ function bindDockOpen() {
   const dock = $("map-dock");
   let hover = false;
   let dragging = false;
-  let timer = null;
   const update = () => {
-    clearTimeout(timer);
     if (hover || dragging) dock.classList.add("open");
-    else timer = setTimeout(() => dock.classList.remove("open"), 350);
+    else dock.classList.remove("open");
   };
   dock.addEventListener("mouseenter", () => { hover = true; update(); });
   dock.addEventListener("mouseleave", () => { hover = false; update(); });
