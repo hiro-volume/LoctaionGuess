@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>使用量モニター</title>
+<style>
+  :root {
+    --bg: #0b1120; --panel: #141d31; --bg-2: #111a2e; --line: #27324b;
+    --text: #eef1f6; --muted: #8f9bb4; --good: #2fb36b; --warn: #f5c542; --bad: #ff5a4e;
+    --c-sv: #3b82f6; --c-map: #2fb36b; --c-static: #a855f7; --c-meta: #8f9bb4; --c-other: #f97316;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, "Yu Gothic UI", "Hiragino Sans", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 28px 20px 48px; }
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 26px; }
+  .eyebrow { margin: 0 0 4px; font-size: 12px; letter-spacing: .2em; color: var(--good); font-weight: 700; }
+  .meta { color: var(--muted); font-size: 13px; text-align: right; line-height: 1.7; }
+  button { font: inherit; cursor: pointer; border-radius: 10px; padding: 8px 16px; border: 1px solid var(--line); background: var(--bg-2); color: var(--text); }
+  button:hover { border-color: var(--muted); }
+  .note { margin: 18px 0; padding: 12px 14px; border-radius: 12px; background: rgba(245,197,66,.08); border: 1px solid rgba(245,197,66,.3); font-size: 13px; line-height: 1.7; color: #e9dcb0; }
+  .error { background: rgba(255,90,78,.1); border-color: rgba(255,90,78,.5); color: #ffc9c4; white-space: pre-wrap; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-top: 18px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+  .card h2 { margin: 0 0 6px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .card h2 i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .card .num { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .card .num small { font-size: 14px; color: var(--muted); font-weight: 600; }
+  .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; margin: 10px 0 6px; }
+  .bar > div { height: 100%; border-radius: 4px; background: var(--good); }
+  .bar.warn > div { background: var(--warn); }
+  .bar.bad > div { background: var(--bad); }
+  .card .sub { font-size: 12px; color: var(--muted); }
+  section { margin-top: 26px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+  section h3 { margin: 0 0 14px; font-size: 15px; }
+  .chart { display: flex; align-items: flex-end; gap: 4px; height: 180px; padding-top: 8px; }
+  .chart .day { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; min-width: 0; position: relative; }
+  .chart .day span { display: block; width: 100%; }
+  .chart .day:hover { filter: brightness(1.25); }
+  .axis { display: flex; gap: 4px; margin-top: 6px; }
+  .axis span { flex: 1; text-align: center; font-size: 10px; color: var(--muted); min-width: 0; overflow: hidden; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; font-size: 12px; color: var(--muted); }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; margin-right: 5px; vertical-align: -1px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-top: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; border-top: none; }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  td code { font-size: 12px; color: #c9d1e2; }
+  .empty { color: var(--muted); text-align: center; padding: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="eyebrow">LOCTAIONGUESS ・ このPC専用</p>
+      <h1>APIキーの使用量モニター</h1>
+    </div>
+    <div class="meta">
+      <div id="meta">読み込み中…</div>
+      <button id="refresh">今すぐ更新</button>
+    </div>
+  </header>
+
+  <div class="note">
+    Google Cloud に記録された、<b>APIキー全体の使用回数</b>（友達のブラウザ・別の端末の分も含む）です。<br>
+    Google 側の記録は<b>数分ほど遅れて</b>反映されます。表示は5分ごとに自動で更新します。<br>
+    Google の無料枠は<b>太平洋時間の月ごと</b>に数えるので、日本時間では毎月1日の夕方（16〜17時ごろ）に切り替わります。
+    実際の請求額は、Google Cloud の「お支払い」で確認してください。
+  </div>
+  <div id="error" class="note error" hidden></div>
+
+  <div class="cards" id="cards"></div>
+
+  <section>
+    <h3>日ごとの使用回数（請求月・成功したリクエスト）</h3>
+    <div class="chart" id="chart"></div>
+    <div class="axis" id="axis"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section>
+    <h3>内訳（Google の記録そのまま）</h3>
+    <table>
+      <thead><tr><th>サービス</th><th>メソッド</th><th class="n">成功</th><th class="n">失敗</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+// Google の記録（service と method の名前）から、料金の種類に振り分ける
+const CATEGORIES = [
+  { id: "sv", name: "ストリートビュー", color: "var(--c-sv)", free: 5000,
+    test: (s) => /street.?view|panorama/i.test(s) && !/metadata/i.test(s) },
+  { id: "meta", name: "場所探し（メタデータ・無料）", color: "var(--c-meta)", free: null, test: (s) => /metadata/i.test(s) },
+  { id: "static", name: "範囲の地図画像（Static Maps）", color: "var(--c-static)", free: 10000, test: (s) => /static/i.test(s) },
+  { id: "map", name: "地図の読み込み", color: "var(--c-map)", free: 10000, test: (s) => /map/i.test(s) },
+  { id: "other", name: "その他", color: "var(--c-other)", free: null, test: () => true },
+];
+
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => n.toLocaleString("ja-JP");
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const categoryOf = (r) => CATEGORIES.find((c) => c.test(`${r.service} ${r.method}`));
+
+async function load(force) {
+  $("meta").textContent = "読み込み中…";
+  let data;
+  try {
+    data = await fetch(`/api/usage${force ? "?refresh=1" : ""}`).then((r) => r.json());
+  } catch (e) {
+    data = { ok: false, error: "モニターのプログラムに接続できませんでした。monitor.py が動いているか確認してください。" };
+  }
+  $("error").hidden = data.ok;
+  if (!data.ok) {
+    $("error").textContent = `使用量を読めませんでした。\n${data.error}`;
+    $("meta").textContent = "エラー";
+    return;
+  }
+  render(data);
+}
+
+function render(data) {
+  const ok = data.rows.filter((r) => r.codeClass === "2xx");
+  $("meta").innerHTML = `プロジェクト: <b>${esc(data.project)}</b> ・ 請求月: <b>${esc(data.month)}</b>（太平洋時間）<br>最終更新: ${new Date(data.fetchedAt).toLocaleString("ja-JP")}`;
+
+  // 種類ごとの合計（無料枠と比べる）
+  const totals = new Map(CATEGORIES.map((c) => [c.id, 0]));
+  ok.forEach((r) => totals.set(categoryOf(r).id, totals.get(categoryOf(r).id) + r.count));
+  $("cards").innerHTML = CATEGORIES.filter((c) => c.id !== "other" || totals.get("other") > 0).map((c) => {
+    const n = totals.get(c.id);
+    if (!c.free) {
+      return `<div class="card"><h2><i style="background:${c.color}"></i>${c.name}</h2>
+        <div class="num">${fmt(n)}<small> 回</small></div><div class="sub">料金はかかりません</div></div>`;
+    }
+    const pct = Math.min(100, (n / c.free) * 100);
+    const level = pct >= 90 ? "bad" : pct >= 70 ? "warn" : "";
+    return `<div class="card"><h2><i style="background:${c.color}"></i>${c.name}</h2>
+      <div class="num">${fmt(n)}<small> / ${fmt(c.free)} 回</small></div>
+      <div class="bar ${level}"><div style="width:${pct}%"></div></div>
+      <div class="sub">無料枠の ${pct.toFixed(1)}% ・ あと ${fmt(Math.max(0, c.free - n))} 回</div></div>`;
+  }).join("");
+
+  // 日ごとの積み上げ棒グラフ
+  const days = [];
+  for (let d = new Date(data.from); d <= new Date(data.to); d.setUTCDate(d.getUTCDate() + 1)) days.push(d.toISOString().slice(0, 10));
+  const byDay = new Map(days.map((d) => [d, new Map()]));
+  ok.forEach((r) => {
+    const m = byDay.get(r.day) || byDay.set(r.day, new Map()).get(r.day);
+    const id = categoryOf(r).id;
+    m.set(id, (m.get(id) || 0) + r.count);
+  });
+  const chartCats = CATEGORIES.filter((c) => c.id !== "meta"); // メタデータは数が多く無料なので、グラフからは外す
+  const max = Math.max(1, ...[...byDay.values()].map((m) => chartCats.reduce((s, c) => s + (m.get(c.id) || 0), 0)));
+  $("chart").innerHTML = [...byDay].map(([day, m]) => {
+    const total = chartCats.reduce((s, c) => s + (m.get(c.id) || 0), 0);
+    const parts = chartCats.map((c) => {
+      const v = m.get(c.id) || 0;
+      return v ? `<span style="height:${(v / max) * 100}%;background:${c.color}"></span>` : "";
+    }).join("");
+    return `<div class="day" title="${day}: ${fmt(total)} 回">${parts}</div>`;
+  }).join("");
+  $("axis").innerHTML = [...byDay.keys()].map((d) => `<span>${Number(d.slice(8))}</span>`).join("");
+  $("legend").innerHTML = chartCats.map((c) => `<span><i style="background:${c.color}"></i>${c.name}</span>`).join("")
+    + "<span>※ 場所探し（無料）はグラフに含めていません</span>";
+
+  // 内訳の表
+  const agg = new Map();
+  data.rows.forEach((r) => {
+    const key = `${r.service}|${r.method}`;
+    const a = agg.get(key) || { service: r.service, method: r.method, ok: 0, ng: 0 };
+    if (r.codeClass === "2xx") a.ok += r.count; else a.ng += r.count;
+    agg.set(key, a);
+  });
+  const rows = [...agg.values()].sort((a, b) => b.ok - a.ok);
+  $("rows").innerHTML = rows.length
+    ? rows.map((a) => `<tr><td><code>${esc(a.service)}</code></td><td><code>${esc(a.method)}</code></td><td class="n">${fmt(a.ok)}</td><td class="n">${fmt(a.ng)}</td></tr>`).join("")
+    : '<tr><td colspan="4" class="empty">今月の記録はまだありません</td></tr>';
+}
+
+$("refresh").addEventListener("click", () => load(true));
+load(false);
+setInterval(() => load(false), 5 * 60 * 1000);
+</script>
+</body>
+</html>

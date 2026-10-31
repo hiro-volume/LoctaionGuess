@@ -1,2 +1,5 @@
 # Claude Code のローカル設定（公開しない）
 .claude/
+
+# 使用量モニターの鍵（絶対に公開しない）
+monitor/*.json

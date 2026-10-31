@@ -65,6 +65,8 @@ function addUsage(kind, n = 1) {
   all[key] = u;
   saveJSON(STORE_USAGE, all);
   renderUsage();
+  // マルチプレイの参加者は、使った分をホストにも知らせる（ホストのグラフに全員分を足すため）
+  if (state.mp && state.mp.role === "guest") guestSend({ type: "usage", kind, n });
 }
 
 function remainingStreetView() {

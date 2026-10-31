@@ -108,6 +108,11 @@ function hostOnMessage(id, msg) {
     broadcastLobby();
   } else if (msg.type === "guess") {
     recordGuess(id, msg);
+  } else if (msg.type === "usage") {
+    // 参加者のブラウザが読み込んだ分も、同じ APIキーの消費としてホストのグラフに足す
+    const kinds = ["streetView", "mapLoads", "metadata", "staticMaps"];
+    const n = Math.round(Number(msg.n));
+    if (kinds.includes(msg.kind) && n >= 1 && n <= 10) addUsage(msg.kind, n);
   }
 }
 
