@@ -1870,3 +1870,21 @@ html.no-anim #round-countdown.count-pop b { animation: none; }
   .rc-ring { width: 120px; height: 120px; }
   .rc-ring b { font-size: 52px; }
 }
+
+/* ================================================================ マルチプレイ: 退出のお知らせ */
+#mp-toast {
+  position: fixed; top: 16px; left: 50%; translate: -50% 0; z-index: 60; pointer-events: none;
+  padding: 10px 20px; border-radius: 999px; font-size: 14px; font-weight: 800; color: #fff; white-space: nowrap;
+  background: rgba(17, 24, 40, .95); border: 2px solid rgba(255,138,128,.8); box-shadow: 0 10px 28px rgba(0,0,0,.5);
+}
+#mp-toast[hidden] { display: none; }
+#mp-toast.show { animation: hurryIn 4.5s ease forwards; }
+html.no-anim #mp-toast.show { animation: none; }
+.replay-note {
+  margin: 4px 0 0; padding: 10px 12px; border-radius: 10px; font-size: 12px; line-height: 1.6; text-align: left;
+  color: #ffd2cc; background: rgba(229,57,47,.12); border: 1px solid rgba(229,57,47,.45);
+}
+#btn-replay:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(.6); }
+@media (max-width: 720px) {
+  #mp-toast { white-space: normal; max-width: calc(100vw - 32px); text-align: center; }
+}

@@ -89,9 +89,16 @@ function hostAccept(conn) {
 function hostRemovePlayer(id) {
   const mp = state.mp;
   if (!mp || mp.role !== "host") return;
+  const leaving = mp.players.find((p) => p.id === id);
   mp.conns.delete(id);
   mp.players = mp.players.filter((p) => p.id !== id);
   broadcastLobby();
+  // 抜けた人がいることを、全員に知らせる
+  if (leaving) {
+    const note = { type: "left", name: leaving.name || "名無しの旅人", team: leaving.team };
+    broadcast(note);
+    showLeftNote(note);
+  }
   // ラウンド中に抜けた人がいたら、残りの全員が答えていれば結果に進む
   if (mp.phase === "game") checkAllGuessed();
 }
@@ -231,6 +238,9 @@ function guestOnMessage(msg) {
       break;
     case "hurry":
       applyHurry(msg);
+      break;
+    case "left":
+      showLeftNote(msg);
       break;
     case "react":
       showReaction(msg);
@@ -512,8 +522,58 @@ function startMultiGame(area, settings) {
 function hostReplay() {
   const mp = state.mp;
   if (!mp || mp.role !== "host" || !mp.lastGame) return;
-  if (mp.players.length < 2) return showMessage("一緒に遊ぶ人がいません。ロビーに戻って、友達を招待してください。");
-  startMultiGame(mp.lastGame.area, mp.lastGame.settings);
+  const reason = replayBlockedReason();
+  if (reason) return showMessage(reason);
+  const settings = { ...mp.lastGame.settings };
+  // チーム戦は、いま部屋にいる人で組み直す（抜けた人を外す）
+  if (settings.team) {
+    settings.team = { ...settings.team, members: Object.fromEntries(mp.players.map((p) => [p.id, p.team])) };
+  }
+  startMultiGame(mp.lastGame.area, settings);
+}
+
+// もう一度遊べないときの理由（遊べるなら null）
+function replayBlockedReason() {
+  const mp = state.mp;
+  const g = state.game;
+  if (mp.players.length < 2) return "一緒に遊ぶ人がいなくなったので、もう一度遊べません。ロビーに戻って、友達を招待してください。";
+  if (g && g.team && !Object.keys(TEAMS).every((t) => mp.players.some((p) => p.team === t))) {
+    return "片方のチームに誰もいなくなったので、同じチームでは遊べません。「チーム分けに戻る」でチームを組み直してください。";
+  }
+  return null;
+}
+
+// 最終結果の「もう一度遊ぶ」を、いまの人数で遊べるかに合わせて押せる・押せないを切り替える
+function updateReplayAvailability() {
+  const mp = state.mp;
+  const g = state.game;
+  if (!mp || !g || !g.finished || mp.role !== "host") return;
+  const reason = replayBlockedReason();
+  $("btn-replay").disabled = !!reason;
+  $("btn-replay").title = reason || "";
+  let box = $("replay-note");
+  if (!box) {
+    box = document.createElement("p");
+    box.id = "replay-note";
+    box.className = "replay-note";
+    $("result-text").appendChild(box);
+  }
+  box.hidden = !reason;
+  box.textContent = reason ? `⚠ ${reason}` : "";
+}
+
+// 「○○ さんが退出しました」を画面の上に出す（最終結果を見ているときは、もう一度遊べるかも見直す）
+function showLeftNote(msg) {
+  const team = TEAMS[msg.team] && state.game && state.game.team ? `（${TEAMS[msg.team].name}）` : "";
+  const toast = $("mp-toast");
+  toast.textContent = `👋 ${msg.name} さん${team}が退出しました`;
+  toast.hidden = false;
+  toast.classList.remove("show");
+  void toast.offsetWidth;
+  toast.classList.add("show");
+  clearTimeout(state.toastTimer);
+  state.toastTimer = setTimeout(() => { toast.hidden = true; }, 4500);
+  updateReplayAvailability();
 }
 
 function prepareMultiGame(area, settings) {
@@ -1076,11 +1136,12 @@ function showMultiFinal(msg) {
     <div class="sub">あなたは <b>${myRank} 位</b>（${myLine}）</div>
     <div class="podium mp-podium">${podium}</div>
     <ol class="ranking-list">${rest}</ol>`;
-  $("btn-next").textContent = "ロビーに戻る";
+  $("btn-next").textContent = g.team ? "チーム分けに戻る" : "ロビーに戻る";
   $("btn-next").disabled = false;
   $("btn-end").hidden = true;
   // もう一度遊ぶのはホストが決める（参加者には、始まるまで待ってもらう）
   setResultButtons(true, mp.role === "host");
+  updateReplayAvailability();
   if (mp.role !== "host") $("result-text").insertAdjacentHTML("beforeend", '<p class="sub">ホストが「もう一度遊ぶ」を押すと、同じ設定ですぐに始まります。</p>');
   $("result").hidden = false;
 }
@@ -1280,10 +1341,11 @@ function showTeamFinal(msg) {
     <div class="sub">${escapeHtml(g.area.name)} ・ ${msg.rounds} ラウンドで決着</div>
     <div class="tf-teams">${side("red")}${side("blue")}</div>
     <table class="tf-table"><tr><th>R</th><th class="red">赤のベスト</th><th class="blue">青のベスト</th><th>倍率</th><th>ダメージ</th></tr>${rows}</table>`;
-  $("btn-next").textContent = "ロビーに戻る";
+  $("btn-next").textContent = g.team ? "チーム分けに戻る" : "ロビーに戻る";
   $("btn-next").disabled = false;
   $("btn-end").hidden = true;
   setResultButtons(true, mp.role === "host");
+  updateReplayAvailability();
   if (mp.role !== "host") $("result-text").insertAdjacentHTML("beforeend", '<p class="sub">ホストが「もう一度遊ぶ」を押すと、同じチームですぐに始まります。</p>');
   $("result").hidden = false;
 }

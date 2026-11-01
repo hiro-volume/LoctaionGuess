@@ -2125,6 +2125,7 @@ async function replayGame() {
 // 結果の下のボタンを、途中のラウンド用と、最終結果用で切り替える
 function setResultButtons(final, replay) {
   $("btn-replay").hidden = !replay;
+  $("btn-replay").disabled = false;
   $("btn-next").className = final && replay ? "secondary" : "primary";
 }
 
