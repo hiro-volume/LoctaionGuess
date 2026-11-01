@@ -333,6 +333,7 @@ function drawArea(area, fit = true) {
   if (fit) {
     const b = areaBounds(area);
     state.map.fitBounds(b, 20);
+    state.mapTouched = false;
   }
 }
 
@@ -2542,14 +2543,30 @@ function ensureMap() {
   });
   state.map.addListener("idle", () => { if (state.game && state.game.multi) sendMyView(); });
   bindDockOpen();
-  // 地図の大きさが変わるたびに（回答マップを広げたときなど）、引ける限界を合わせる
-  new ResizeObserver(fitMinZoom).observe($("map"));
+  // 地図の大きさが変わるたびに（回答マップを広げたときなど）、引ける限界を合わせ、
+  // まだ自分で地図を動かしていなければ、出題範囲が地図いっぱいに見えるように合わせ直す
+  new ResizeObserver(() => { fitMinZoom(); refitArea(); }).observe($("map"));
   fitMinZoom();
+  // ホイール・ドラッグ・クリック・＋－ボタンで地図を触ったら、自動で合わせ直すのをやめる
+  ["wheel", "pointerdown", "dblclick"].forEach((ev) => $("map").addEventListener(ev, () => { state.mapTouched = true; }, { passive: true }));
+  $("map-zoom").addEventListener("click", () => { state.mapTouched = true; });
   return true;
 }
 
 // 一番引いたときに、世界地図が横に何枚も並んだり、上下に灰色が出たりしないようにする。
 // 世界地図の幅（256px × 2^ズーム）が、地図の枠の大きさとだいたい同じになるところを下限にする
+// ゲーム中、まだ地図を触っていなければ、出題範囲に合わせ直す（全世界は世界地図のまま）
+let refitTimer = null;
+function refitArea() {
+  const g = state.game;
+  if (!g || g.submitted || state.mapTouched || app.className !== "screen-game" || g.area.type === "world") return;
+  clearTimeout(refitTimer);
+  // 広がるアニメーションが終わってから合わせる
+  refitTimer = setTimeout(() => {
+    if (!state.mapTouched && app.className === "screen-game") state.map.fitBounds(areaBounds(g.area), 20);
+  }, 220);
+}
+
 function fitMinZoom() {
   const el = $("map");
   if (!state.map || !el.clientWidth) return;
@@ -2567,9 +2584,15 @@ function bindDockOpen() {
     if (hover || dragging) dock.classList.add("open");
     else dock.classList.remove("open");
   };
+  // 枠のふち（1〜2px）にマウスがあるだけでは広げない。半透明↔不透明の切り替えで枠の位置が
+  // 1px 未満ずれることがあり、ふちに置いたままだと「入った・出た」をくり返して伸び縮みしてしまうため
+  const wellInside = (e) => {
+    const r = dock.getBoundingClientRect();
+    return e.clientX > r.left + 2 && e.clientX < r.right - 2 && e.clientY > r.top + 2 && e.clientY < r.bottom - 2;
+  };
   // ストリートビューを掴んで向きを変えたままマップの上に来たときは広げない（ボタンを押していないときだけ）
-  dock.addEventListener("mouseenter", (e) => { hover = e.buttons === 0; update(); });
-  dock.addEventListener("mousemove", (e) => { if (!hover && e.buttons === 0) { hover = true; update(); } });
+  dock.addEventListener("mouseenter", (e) => { hover = e.buttons === 0 && wellInside(e); update(); });
+  dock.addEventListener("mousemove", (e) => { if (!hover && e.buttons === 0 && wellInside(e)) { hover = true; update(); } });
   dock.addEventListener("mouseleave", () => { hover = false; update(); });
   dock.addEventListener("pointerdown", () => { dragging = true; update(); });
   window.addEventListener("pointerup", () => { if (dragging) { dragging = false; update(); } });

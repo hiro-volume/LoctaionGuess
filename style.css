@@ -1820,3 +1820,5 @@ body:has(#mp-social:not([hidden])) #mp-wait { left: 68px; max-width: min(360px, 
 #guess-tabs .tab { flex: 1; }
 .rs-correct { color: #6be39a; text-shadow: 0 0 16px rgba(80,220,140,.6); }
 .rs-wrong { color: #ff8a80; text-shadow: 0 0 16px rgba(255,80,70,.5); }
+/* 半透明でも不透明でも、同じ重なり方（レイヤー）で描いて、枠の位置がずれないようにする */
+.screen-game #map-dock { will-change: opacity; }
