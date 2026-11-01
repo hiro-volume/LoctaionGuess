@@ -448,11 +448,10 @@ function decorateSelectForMulti() {
 function decorateSheetForMulti() {
   const multi = !!(state.mp && state.mp.role === "host");
   const team = multi && state.mp.config.mode === "team";
-  // マルチプレイの個人戦はラウンド制だけ（ライフ制は人によって終わる時間が違うため）。
+  // 個人戦はラウンド制とライフ制（ライフが尽きた人から脱落）。
   // チーム戦はロビーで決めたライフで戦うので、モードの選択を出さない
-  document.querySelector('#mode-tabs [data-mode="life"]').hidden = multi;
-  if (multi && state.mode === "life") setMode("rounds");
-  else setMode(state.mode);
+  document.querySelector('#mode-tabs [data-mode="life"]').hidden = false;
+  setMode(state.mode);
   $("mode-tabs").hidden = team;
   $("team-note").hidden = !team;
   if (team) $("rounds-row").hidden = true;
@@ -468,8 +467,14 @@ function hostStartGame() {
   const mp = state.mp;
   if (!ensureMap()) return;
   const area = findArea(state.selectedAreaId);
+  const life = mp.config.mode !== "team" && state.mode === "life";
   const settings = {
     rounds: Number($("opt-rounds").value),
+    // 個人戦のライフ制: 全員同じライフで始め、尽きた人から脱落（観戦にまわる）
+    mode: life ? "life" : "rounds",
+    difficulty: $("opt-difficulty").value,
+    maxLife: life ? selectedLife() : 0,
+    hardcore: life && $("opt-hardcore").checked && (state.guessMode || "pin") === "pin",
     move: $("opt-move").checked,
     pan: $("opt-pan").checked,
     zoom: $("opt-zoom").checked,
@@ -492,6 +497,8 @@ function startMultiGame(area, settings) {
   mp.lastGame = { area, settings };
   mp.phase = "game";
   mp.totals = new Map(mp.players.map((p) => [p.id, 0]));
+  mp.lives = new Map(mp.players.map((p) => [p.id, settings.maxLife || 0]));
+  mp.outRound = new Map();
   broadcastLobby();
   // 範囲のデータごと送る（自作の範囲は参加者のブラウザにないため）
   broadcast({ type: "start", area, settings });
@@ -514,17 +521,21 @@ function prepareMultiGame(area, settings) {
   clearGameMarkers();
   const team = settings.team || null;
   const myTeam = team ? team.members[state.mp.me] : null;
+  const life = !team && settings.mode === "life";
   state.game = {
-    area, multi: true, mode: "rounds", rounds: team ? Infinity : settings.rounds,
+    area, multi: true, mode: life ? "life" : "rounds", rounds: team || life ? Infinity : settings.rounds,
+    difficulty: settings.difficulty, maxLife: settings.maxLife || 0, life: settings.maxLife || 0,
+    alive: null,
     move: settings.move, pan: settings.pan, zoom: settings.zoom, timeLimit: settings.timeLimit,
     index: -1, results: [], overlays: [], usedPanos: new Set(), usedSpots: [], total: 0,
     team, myTeam,
     guessMode: settings.guessMode || "pin",
     // リアクションの厳しさは、自分のチームのエクストラに合わせる（国・都道府県当てでは使わない）
-    hardcore: !!(team && myTeam && team.teams[myTeam].extra) && (settings.guessMode || "pin") === "pin",
+    hardcore: (team ? !!(myTeam && team.teams[myTeam].extra) : !!settings.hardcore) && (settings.guessMode || "pin") === "pin",
     teamLife: team ? { red: team.teams.red.life, blue: team.teams.blue.life } : null,
     history: [],
   };
+  state.lifeShown = null;
   document.body.classList.toggle("team-game", !!team);
   setScreen("game");
   $("loading").hidden = false;
@@ -550,8 +561,9 @@ async function hostNextRound() {
   mp.answer = answer;
   mp.guesses = new Map();
   const heading = Math.random() * 360;
-  broadcast({ type: "round", index, panoId: answer.panoId, heading });
-  beginMultiRound({ index, panoId: answer.panoId, heading });
+  const alive = aliveIds();
+  broadcast({ type: "round", index, panoId: answer.panoId, heading, alive });
+  beginMultiRound({ index, panoId: answer.panoId, heading, alive });
 }
 
 function beginMultiRound(msg) {
@@ -564,6 +576,7 @@ function beginMultiRound(msg) {
   g.answer = { panoId: msg.panoId };
   g.usedPanos.add(msg.panoId);
   g.submitted = false;
+  g.alive = Array.isArray(msg.alive) ? new Set(msg.alive) : null;
   stopSpectate(false);
   state.mp.views = new Map();
   state.mp.done = [];
@@ -576,7 +589,7 @@ function beginMultiRound(msg) {
   $("btn-back-start").hidden = !g.move;
   $("btn-zoom-in").disabled = $("btn-zoom-out").disabled = !g.zoom;
   $("info-area").textContent = g.area.name;
-  $("info-round").textContent = g.team ? `${g.index + 1}` : `${g.index + 1} / ${g.rounds}`;
+  $("info-round").textContent = Number.isFinite(g.rounds) ? `${g.index + 1} / ${g.rounds}` : `${g.index + 1}`;
   $("info-score").textContent = g.total.toLocaleString();
   renderHudLife();
   renderTeamHud();
@@ -592,6 +605,7 @@ function beginMultiRound(msg) {
   g.roundStartedAt = Date.now();
   startTimer();
   sendMyView();
+  if (!isAlive(state.mp.me)) startEliminatedRound();
 }
 
 // submitGuess の代わり: 自分の回答をホストに送って、全員がそろうのを待つ
@@ -639,7 +653,34 @@ function recordGuess(id, msg) {
 function checkAllGuessed() {
   const mp = state.mp;
   if (!mp || !mp.guesses || !mp.answer) return;
-  if (mp.players.every((p) => mp.guesses.has(p.id))) finishMultiRound();
+  if (mp.players.every((p) => mp.guesses.has(p.id) || !isAlive(p.id))) finishMultiRound();
+}
+
+// ---------------------------------------------------------------- 個人戦のライフ制（脱落した人は観戦）
+
+// ライフ制で、まだライフが残っている人（ライフ制でなければ全員）
+function isAlive(id) {
+  const mp = state.mp;
+  const g = state.game;
+  if (!g || g.mode !== "life" || g.team) return true;
+  if (mp.role === "host") return (mp.lives.get(id) || 0) > 0;
+  return !g.alive || g.alive.has(id);
+}
+
+function aliveIds() {
+  return state.mp.players.filter((p) => isAlive(p.id)).map((p) => p.id);
+}
+
+// 脱落した人は答えずに、まだ残っている人の画面を観戦する
+function startEliminatedRound() {
+  const g = state.game;
+  stopTimer();
+  $("timer-pill").hidden = true;
+  g.submitted = true;
+  $("btn-guess").disabled = true;
+  $("btn-guess").textContent = "💀 脱落しました（観戦中）";
+  state.map.setOptions({ draggableCursor: null });
+  renderWaiting(state.mp.done || []);
 }
 
 function finishMultiRound() {
@@ -647,15 +688,33 @@ function finishMultiRound() {
   const g = state.game;
   const answer = { lat: mp.answer.lat, lng: mp.answer.lng, panoId: mp.answer.panoId };
   const results = mp.players.map((p) => {
+    const base = { id: p.id, name: p.name, color: p.color };
+    // もう脱落している人は、このラウンドには参加していない
+    if (!isAlive(p.id)) {
+      return { ...base, guess: null, distance: null, score: 0, total: mp.totals.get(p.id) || 0, ms: 0, out: true, life: 0, damage: 0, outRound: mp.outRound.get(p.id) };
+    }
     const sub = mp.guesses.get(p.id) || { guess: null, ms: 0 };
     const judged = judgeGuess(g, sub.guess, answer);
     mp.totals.set(p.id, (mp.totals.get(p.id) || 0) + judged.score);
-    return { id: p.id, name: p.name, color: p.color, guess: sub.guess, ...judged, total: mp.totals.get(p.id), ms: sub.ms };
+    const entry = { ...base, guess: sub.guess, ...judged, total: mp.totals.get(p.id), ms: sub.ms };
+    if (g.mode === "life" && !g.team) {
+      const life = mp.lives.get(p.id) || 0;
+      entry.damage = Math.min(life, damageFor(judged.score, judged.distance, g.hardcore));
+      entry.life = life - entry.damage;
+      mp.lives.set(p.id, entry.life);
+      if (entry.life <= 0) {
+        mp.outRound.set(p.id, g.index);
+        entry.justOut = true;
+      }
+    }
+    return entry;
   });
   mp.answer = null;
   mp.guesses = null;
   const team = g.team ? hostTeamRound(results) : null;
-  const msg = { type: "result", index: g.index, answer, results, team, last: team ? !!team.winner : g.index + 1 >= g.rounds };
+  // ライフ制の個人戦は、残りが 1 人以下になったら終わり
+  const last = team ? !!team.winner : g.mode === "life" ? aliveIds().length <= 1 : g.index + 1 >= g.rounds;
+  const msg = { type: "result", index: g.index, answer, results, team, last };
   broadcast(msg);
   showMultiResult(msg);
 }
@@ -690,23 +749,27 @@ function renderWaiting(done) {
   if (!mp || !g || !g.submitted || app.className !== "screen-game") return;
   const set = new Set(done);
   mp.done = [...set];
+  const playing = mp.players.filter((p) => isAlive(p.id));
   $("mp-wait").hidden = false;
-  $("mp-wait-title").textContent = `回答しました！ 他の人を待っています（${set.size} / ${mp.players.length}）`;
+  $("mp-wait-title").textContent = isAlive(mp.me)
+    ? `回答しました！ 他の人を待っています（${set.size} / ${playing.length}）`
+    : `💀 脱落しました。残っている人の画面を観戦できます（${set.size} / ${playing.length} 人が回答）`;
   // 1人ずつの行: 色つきのアイコン・名前・回答したかどうか・「見る」ボタン
   $("mp-wait-list").innerHTML = mp.players.map((p) => {
     const me = p.id === mp.me;
     const done = set.has(p.id);
     const watching = state.spectating === p.id;
     const teamId = g.team ? g.team.members[p.id] : null;
-    const cls = ["pl-row", done ? "done" : "", me ? "me" : "", watching ? "watching" : ""].join(" ");
-    return `<button class="${cls}" data-id="${escapeHtml(p.id)}" style="--c:${p.color}" ${me ? "disabled" : ""}>
+    const out = !isAlive(p.id);
+    const cls = ["pl-row", done ? "done" : "", me ? "me" : "", watching ? "watching" : "", out ? "out" : ""].join(" ");
+    return `<button class="${cls}" data-id="${escapeHtml(p.id)}" style="--c:${p.color}" ${me || out ? "disabled" : ""}>
       <span class="p-avatar" style="--c:${p.color}">${escapeHtml((p.name || "?").slice(0, 1))}</span>
       <span class="pl-name">${TEAMS[teamId] ? `<i class="pl-team ${teamId}">${TEAMS[teamId].short}</i>` : ""}${escapeHtml(p.name || "?")}</span>
-      <span class="pl-state">${done ? "✓ 回答済み" : '<i class="dots">考え中</i>'}</span>
-      <span class="pl-watch">${me ? "あなた" : watching ? "👀 見ています" : "👀 見る"}</span>
+      <span class="pl-state">${out ? "💀 脱落" : done ? "✓ 回答済み" : '<i class="dots">考え中</i>'}</span>
+      <span class="pl-watch">${me ? "あなた" : out ? "—" : watching ? "👀 見ています" : "👀 見る"}</span>
     </button>`;
   }).join("");
-  $("mp-wait-list").querySelectorAll(".pl-row:not(.me)").forEach((b) => b.addEventListener("click", () => startSpectate(b.dataset.id)));
+  $("mp-wait-list").querySelectorAll(".pl-row:not(.me):not(.out)").forEach((b) => b.addEventListener("click", () => startSpectate(b.dataset.id)));
   if (state.spectating) renderSpectateBar();
 }
 
@@ -762,9 +825,9 @@ function hostReceiveView(id, raw) {
   const view = cleanView(raw);
   if (!mp || !view || !g || view.index !== g.index || !mp.views) return;
   mp.views.set(id, view);
-  // もう回答した人にだけ配る
+  // もう回答した人と、脱落して観戦している人にだけ配る
   mp.conns.forEach((conn, cid) => {
-    if (conn.open && cid !== id && mp.guesses && mp.guesses.has(cid)) conn.send({ type: "view", id, view });
+    if (conn.open && cid !== id && mp.guesses && (mp.guesses.has(cid) || !isAlive(cid))) conn.send({ type: "view", id, view });
   });
   if (id !== "host") receiveView(id, view, true);
 }
@@ -886,13 +949,17 @@ function showMultiResult(msg) {
 
   // 自分の結果は、プレイ記録（世界地図）にも残す
   const mine = msg.results.find((r) => r.id === mp.me);
-  if (mine) {
+  if (mine && !mine.out) {
     g.total = mine.total;
     recordRound(g.area.id, { answer, score: mine.score });
   }
 
   const rows = [...msg.results].sort((a, b) => b.score - a.score || a.ms - b.ms);
   const missed = !mine || !mine.guess;
+  if (mine && g.mode === "life" && !g.team && !mine.out) {
+    g.life = mine.life;
+    if (mine.justOut) g.alive = new Set(msg.results.filter((r) => !r.out && r.life > 0).map((r) => r.id));
+  }
   if (g.team && msg.team) {
     g.teamLife = { red: msg.team.teams.red.life, blue: msg.team.teams.blue.life };
     g.history.push({ index: msg.index, ...msg.team });
@@ -900,7 +967,7 @@ function showMultiResult(msg) {
   renderTeamHud(msg.team);
   $("result-text").innerHTML = `
     ${mine ? `<div class="rs-reaction"><span class="reaction${g.hardcore ? " extra" : ""}">${isRegionMode(g) ? regionReaction(g, mine) : reactionFor(missed ? null : mine.distance, g.hardcore)}</span></div>` : ""}
-    <div class="rs-meta"><b>ラウンド ${msg.index + 1}${g.team ? "" : ` / ${g.rounds}`}</b>${mapsLink(answer)}</div>
+    <div class="rs-meta"><b>ラウンド ${msg.index + 1}${Number.isFinite(g.rounds) ? ` / ${g.rounds}` : ""}</b>${mapsLink(answer)}</div>
     <div class="rs-side rs-left">
 ${isRegionMode(g) && !missed ? `
       <div class="rs-big ${mine.correct ? "rs-correct" : "rs-wrong"}">${mine.correct ? "正解！" : "はずれ"}</div>
@@ -908,7 +975,7 @@ ${isRegionMode(g) && !missed ? `
       <div class="rs-big rs-dist">${missed ? "時間切れ" : formatDistance(mine.distance)}</div>
       <div class="rs-cap">${missed ? "ピンを立てる前に時間切れ" : "正解から"}</div>`}
     </div>
-    <div class="rs-side rs-right">${g.team && msg.team ? teamResultSide(msg.team) : `
+    <div class="rs-side rs-right">${g.team && msg.team ? teamResultSide(msg.team) : g.mode === "life" && mine ? lifeResultSide(g, mine, msg) : `
       <div class="rs-big rs-score">${mine ? mine.score.toLocaleString() : 0}</div>
       <div class="rs-cap">${MAX_SCORE.toLocaleString()} 点のうち ・ 合計 ${mine ? mine.total.toLocaleString() : 0}</div>`}
     </div>
@@ -918,7 +985,7 @@ ${isRegionMode(g) && !missed ? `
         <td class="pl"><i class="dot" style="background:${r.color}"></i>${escapeHtml(r.name)}</td>
         <td>${escapeHtml(guessResultText(g, r))}</td>
         <td class="gain">+${r.score}</td>
-        <td><b>${r.total.toLocaleString()}</b></td>
+        <td><b>${g.mode === "life" && !g.team ? (r.out ? "💀" : `♥ ${r.life.toLocaleString()}`) : r.total.toLocaleString()}</b></td>
       </tr>`).join("")}
     </table>`;
   const host = mp.role === "host";
@@ -946,11 +1013,20 @@ function multiNext() {
 
 function hostFinal() {
   const mp = state.mp;
-  const standings = mp.players
-    .map((p) => ({ id: p.id, name: p.name, color: p.color, total: mp.totals.get(p.id) || 0 }))
-    .sort((a, b) => b.total - a.total);
   const g = state.game;
-  const msg = { type: "final", standings, rounds: g.team ? g.index + 1 : g.rounds };
+  const life = g.mode === "life" && !g.team;
+  const standings = mp.players
+    .map((p) => {
+      const s = { id: p.id, name: p.name, color: p.color, total: mp.totals.get(p.id) || 0 };
+      if (!life) return s;
+      s.life = mp.lives.get(p.id) || 0;
+      s.outRound = mp.outRound.has(p.id) ? mp.outRound.get(p.id) : null;
+      s.label = s.life > 0 ? `生き残り ♥ ${s.life.toLocaleString()}` : `ラウンド ${s.outRound + 1} で脱落`;
+      return s;
+    })
+    // ライフ制: 生き残った人 → 遅く脱落した人の順（同じなら合計点）。ラウンド制: 合計点の順
+    .sort((a, b) => (life ? (b.life - a.life) || ((b.outRound ?? 1e9) - (a.outRound ?? 1e9)) : 0) || b.total - a.total);
+  const msg = { type: "final", standings, rounds: Number.isFinite(g.rounds) ? g.rounds : g.index + 1 };
   if (g.team && g.lastResult && g.lastResult.team) msg.winner = g.lastResult.team.winner;
   broadcast(msg);
   showMultiFinal(msg);
@@ -974,19 +1050,22 @@ function showMultiFinal(msg) {
       ${i === 0 ? '<div class="crown">👑</div>' : ""}
       <div class="avatar ring"><span class="p-avatar big" style="--c:${s.color}">${escapeHtml(s.name.slice(0, 1))}</span><span class="medal">${i + 1}</span></div>
       <b class="p-name">${escapeHtml(s.name)}</b>
-      <span class="p-score">${s.total.toLocaleString()} 点</span>
+      <span class="p-score">${s.label ? escapeHtml(s.label) : `${s.total.toLocaleString()} 点`}</span>
       <div class="step"><span>${i + 1}</span></div>
     </div>`;
   }).join("");
   const rest = msg.standings.slice(3).map((s, i) => `
     <li class="${s.id === mp.me ? "me" : ""}"><span class="r-rank">${i + 4}</span>
       <span class="p-avatar" style="--c:${s.color}">${escapeHtml(s.name.slice(0, 1))}</span>
-      <span class="r-name">${escapeHtml(s.name)}</span><span class="r-score">${s.total.toLocaleString()} 点</span></li>`).join("");
+      <span class="r-name">${escapeHtml(s.name)}</span><span class="r-score">${s.label ? escapeHtml(s.label) : `${s.total.toLocaleString()} 点`}</span></li>`).join("");
   const myRank = msg.standings.findIndex((s) => s.id === mp.me) + 1;
+  const mine = msg.standings[myRank - 1] || { total: 0 };
+  // ライフ制は「生き残り」「何ラウンド目で脱落」、ラウンド制は合計点
+  const myLine = mine.label ? escapeHtml(mine.label) : `${mine.total.toLocaleString()} / ${max.toLocaleString()} 点`;
   $("result-text").innerHTML = `
-    <div class="sub">${escapeHtml(g.area.name)} ・ ${msg.rounds}ラウンド ・ ${msg.standings.length}人</div>
+    <div class="sub">${escapeHtml(g.area.name)} ・ ${g.mode === "life" ? `ライフ制 ${g.maxLife.toLocaleString()}` : `${msg.rounds}ラウンド`} ・ ${msg.standings.length}人</div>
     <div class="big">最終結果</div>
-    <div class="sub">あなたは <b>${myRank} 位</b>（${(msg.standings[myRank - 1] || { total: 0 }).total.toLocaleString()} / ${max.toLocaleString()} 点）</div>
+    <div class="sub">あなたは <b>${myRank} 位</b>（${myLine}）</div>
     <div class="podium mp-podium">${podium}</div>
     <ol class="ranking-list">${rest}</ol>`;
   $("btn-next").textContent = "ロビーに戻る";
@@ -1136,6 +1215,19 @@ function renderTeamHud(round) {
   hud.querySelector(".th-dist").hidden = !round;
   hud.querySelector(".d-red").textContent = dist("red");
   hud.querySelector(".d-blue").textContent = dist("blue");
+}
+
+// 結果の下のバーの右側（個人戦のライフ制）: 受けたダメージと残りのライフ、残っている人数
+function lifeResultSide(g, mine, msg) {
+  const left = msg.results.filter((r) => !r.out && r.life > 0).length;
+  if (mine.out) {
+    return `
+      <div class="rs-big rs-damage">💀</div>
+      <div class="rs-cap">観戦中 ・ 残り ${left} 人</div>`;
+  }
+  return `
+      <div class="rs-big rs-damage">−${(mine.damage || 0).toLocaleString()}</div>
+      <div class="rs-cap">${g.hardcore ? '<span class="rs-extra">🔥EXTRA</span>' : ""}ライフ ${lifeBar(Math.max(0, mine.life), g.maxLife)} 残り ${Math.max(0, mine.life).toLocaleString()}${mine.justOut ? "（脱落…）" : ""} ・ 残り ${left} 人</div>`;
 }
 
 // 結果の下のバーの右側: 自分のチームの得点と、与えた・受けたダメージ

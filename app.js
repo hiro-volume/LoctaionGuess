@@ -1447,7 +1447,7 @@ function lifeColor(ratio) {
 
 function renderLifeHud() {
   const g = state.game;
-  const show = !!(g && g.mode === "life" && !g.multi);
+  const show = !!(g && g.mode === "life" && !g.team);
   $("life-hud").hidden = !show;
   $("info-card").hidden = show;
   if (!show) return;
@@ -1462,7 +1462,7 @@ function renderLifeHud() {
   $("lh-extra").hidden = !g.hardcore;
   $("lh-area").textContent = g.area.name;
   $("lh-round").textContent = g.index + 1;
-  $("lh-score").textContent = g.results.reduce((s, r) => s + r.score, 0).toLocaleString();
+  $("lh-score").textContent = (g.multi ? g.total : g.results.reduce((s, r) => s + r.score, 0)).toLocaleString();
 }
 
 function renderHudLife() {

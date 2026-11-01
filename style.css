@@ -1844,3 +1844,7 @@ body.team-game #hurry-note { top: 132px; }
 @media (max-width: 720px) {
   #hurry-note { top: 176px; font-size: 12px; white-space: normal; max-width: calc(100vw - 32px); text-align: center; }
 }
+
+/* 脱落した人の行 */
+.pl-row.out { opacity: .5; cursor: default; }
+.pl-row.out .pl-watch { background: transparent; border-color: rgba(255,255,255,.2); color: var(--muted); }
