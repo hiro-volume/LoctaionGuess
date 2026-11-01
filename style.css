@@ -2079,3 +2079,13 @@ body.team-game .screen-result #team-hud.by-rounds .tg-dmg { top: 40px; font-size
 .cv-shape svg .ex { fill: rgba(255,90,78,.25); stroke: #ff5a4e; }
 .cv-shape.has-map .static-thumb mask .mask-ex, .cv-shape.has-map .static-thumb mask .mask-ex * { fill: #fff; }
 .cv-shape.has-map .thumb-exclude * { fill: none; stroke: #ff5a4e; stroke-width: 2.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+
+/* 全世界の「有名な場所だけ」 */
+#pool-tabs .tab { flex: 1; }
+.rs-landmark {
+  display: inline-flex; align-items: baseline; gap: 6px; padding: 2px 10px; border-radius: 999px;
+  color: #ffe08a; background: rgba(255,210,63,.14); border: 1px solid rgba(255,210,63,.45); font-weight: 800;
+}
+.rs-landmark small { font-size: 10px; color: var(--muted); font-weight: 600; }
+.rs-landmark { white-space: nowrap; }
+@media (max-width: 720px) { .rs-landmark small { display: none; } }

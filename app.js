@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.57";
+const APP_VERSION = "1.58";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -267,8 +267,47 @@ function nearestDistance(p, spots) {
   return spots.reduce((min, s) => Math.min(min, distanceMeters(p, s)), Infinity);
 }
 
+// 点 p のまわり m メートルの輪の上に、n 個の点を並べる
+function ringAround(p, m, n) {
+  return Array.from({ length: n }, (_, i) => {
+    const t = (i / n) * 2 * Math.PI;
+    return { lat: p.lat + (m * Math.cos(t)) / 111320, lng: p.lng + (m * Math.sin(t)) / (111320 * Math.cos((p.lat * Math.PI) / 180)) };
+  });
+}
+
+// 有名な場所のまわりから出題する（このゲームと最近のゲームで出た場所は、なるべく避ける）
+async function findFamousLocation(area, usedPanos, usedSpots) {
+  const list = window.LG_FAMOUS || [];
+  const recent = loadRecentSpots(`${area.id}-famous`);
+  const near = (p, spots) => spots.some((s) => distanceMeters(p, s) < 2000);
+  const fresh = list.filter((p) => !near(p, usedSpots) && !near(p, recent));
+  const pool = fresh.length ? fresh : list.filter((p) => !near(p, usedSpots));
+  // くじ引きの順に並べて、ストリートビューが見つかったところに決める
+  const order = (pool.length ? pool : list).map((p) => [rand(), p]).sort((a, b) => a[0] - b[0]).map(([, p]) => p);
+  for (const place of order.slice(0, 8)) {
+    // 有名な場所のちょうど上は、個人が投稿した写真が多い。まわりの道（120m・250m・450m の輪）も調べて、
+    // Google が撮影したストリートビューのうち、いちばん近いものを使う
+    const points = [place, ...ringAround(place, 120, 6), ...ringAround(place, 250, 8), ...ringAround(place, 450, 8)];
+    const found = (await Promise.all(points.map(async (q) => {
+      const url = "https://maps.googleapis.com/maps/api/streetview/metadata" +
+        `?location=${q.lat},${q.lng}&radius=80&source=outdoor&key=${encodeURIComponent(CONFIG.apiKey)}`;
+      const res = await fetch(url).then((r) => r.json()).catch(() => null);
+      addUsage("metadata");
+      if (res && res.status === "REQUEST_DENIED") throw new Error(`APIキーが拒否されました: ${res.error_message || ""}`);
+      return res && res.status === "OK" && String(res.copyright || "").includes("Google") && !usedPanos.has(res.pano_id) ? res : null;
+    }))).filter(Boolean);
+    if (!found.length) continue;
+    const res = found.sort((a, b) => distanceMeters(place, a.location) - distanceMeters(place, b.location))[0];
+    usedSpots.push({ lat: place.lat, lng: place.lng });
+    rememberSpot(`${area.id}-famous`, place);
+    return { panoId: res.pano_id, lat: res.location.lat, lng: res.location.lng, date: res.date, landmark: { name: place.name, place: place.place } };
+  }
+  throw new Error("有名な場所のストリートビューが見つかりませんでした。少し待ってから、もう一度試してください。");
+}
+
 // usedSpots: このゲームで出た場所。見つけた場所はここに足す
-async function findLocation(area, usedPanos, usedSpots = []) {
+async function findLocation(area, usedPanos, usedSpots = [], { famous = false } = {}) {
+  if (famous && area.type === "world") return findFamousLocation(area, usedPanos, usedSpots);
   const wide = area.type === "world" || !!area.iso;
   // 検索の半径が大きいと、道の少ない場所（まわりに他の道がない道）ばかり選ばれやすくなるので、広い範囲でも 5km までにする
   const radius = Math.round(Math.min(wide ? 5000 : 1000, Math.max(50, areaSizeMeters(area) / 100)));
@@ -915,6 +954,13 @@ function regionReaction(g, r) {
 
 // 設定シートの「当て方」
 function renderGuessTabs(area) {
+  // 全世界だけ: 「有名な場所だけ」を選べる
+  const world = area.type === "world";
+  $("pool-row").hidden = !world;
+  document.querySelectorAll("#pool-tabs .tab").forEach((b) => b.classList.toggle("active", (b.dataset.pool === "famous") === !!state.famous));
+  $("pool-help").textContent = state.famous
+    ? `エッフェル塔・自由の女神・渋谷スクランブル交差点など、世界の有名な場所 ${(window.LG_FAMOUS || []).length} か所のまわりから出題します。正解のあとに場所の名前がわかります。`
+    : "ストリートビューがある国の中から、どこでも出題します。";
   const modes = guessModesFor(area);
   if (!modes.includes(state.guessMode)) state.guessMode = "pin";
   $("guess-row").hidden = modes.length < 2;
@@ -928,6 +974,13 @@ function renderGuessTabs(area) {
   $("guess-tabs").querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => {
     state.guessMode = b.dataset.guess;
     renderGuessTabs(area);
+  }));
+}
+
+function bindPoolTabs() {
+  document.querySelectorAll("#pool-tabs .tab").forEach((b) => b.addEventListener("click", () => {
+    state.famous = b.dataset.pool === "famous";
+    renderGuessTabs(findArea(state.selectedAreaId));
   }));
 }
 
@@ -1076,13 +1129,16 @@ function loadScores() {
 function boardOf(g) {
   const base = g.mode === "life" ? `life-${g.difficulty}-${g.maxLife}${g.hardcore ? "-x" : ""}` : `rounds-${g.rounds}`;
   // 国・都道府県を当てたゲームは、別の部門にする（例: rounds-5@country）
-  return isRegionMode(g) ? `${base}@${g.guessMode}` : base;
+  const pool = g.famous ? "~famous" : "";
+  return isRegionMode(g) ? `${base}${pool}@${g.guessMode}` : `${base}${pool}`;
 }
 
 function boardLabel(key) {
-  const [rule, guess] = key.split("@");
+  const [rulePart, guess] = key.split("@");
+  const famous = rulePart.endsWith("~famous");
+  const rule = rulePart.replace("~famous", "");
   const [mode, a, b, x] = rule.split("-");
-  const suffix = GUESS_MODES[guess] ? `・${GUESS_MODES[guess].noun}当て` : "";
+  const suffix = (famous ? "・有名な場所" : "") + (GUESS_MODES[guess] ? `・${GUESS_MODES[guess].noun}当て` : "");
   if (mode === "rounds") return `${a}ラウンド${suffix}`;
   const label = a === "custom" ? `ライフ ${Number(b).toLocaleString()}` : `ライフ・${DIFFICULTY_NAMES[a] || a}`;
   return (x ? `${label}・🔥エクストラ` : label) + suffix;
@@ -1604,6 +1660,7 @@ function rulesText(g) {
     g.timeLimit ? `制限時間 ${g.timeLimit}秒` : null,
     g.hardcore ? "🔥エクストラ" : null,
     isRegionMode(g) ? `${GUESS_MODES[g.guessMode].noun}当て` : null,
+    g.famous ? "有名な場所だけ" : null,
   ].filter(Boolean);
   return `（${parts.join("・")}）`;
 }
@@ -2262,7 +2319,8 @@ function drawRoundResult(r, { tag, showDistance, guessPin }) {
     const mid = { lat: (r.guess.lat + r.answer.lat) / 2, lng: (r.guess.lng + r.answer.lng) / 2 };
     addOverlay(new MapLabel(mid, formatDistance(r.distance), "distance"));
   }
-  addOverlay(new MapLabel(r.answer, tag ? `${tag} 正解` : "正解", "tag answer"));
+  const name = r.answer.landmark ? ` ${escapeHtml(r.answer.landmark.name)}` : "";
+  addOverlay(new MapLabel(r.answer, tag ? `${tag} 正解${name}` : `正解${name}`, "tag answer"));
   addOverlay(new MapLabel(r.guess, tag ? `${tag} あなた` : "あなた", "tag guess"));
 }
 
@@ -2312,6 +2370,7 @@ async function startGame() {
     mode,
     difficulty: $("opt-difficulty").value,
     guessMode: state.guessMode || "pin",
+    famous: !!state.famous && findArea(state.selectedAreaId).type === "world",
     hardcore: mode === "life" && $("opt-hardcore").checked && (state.guessMode || "pin") === "pin",
     maxLife,
     life: maxLife,
@@ -2336,7 +2395,7 @@ async function replayGame() {
     return showMessage("今月の無料枠の上限に達しました（config.js の limits）。来月まで待つか、上限を見直してください。");
   }
   clearGameMarkers();
-  const keep = ["area", "move", "pan", "zoom", "timeLimit", "mode", "difficulty", "hardcore", "maxLife", "rounds", "guessMode"];
+  const keep = ["area", "move", "pan", "zoom", "timeLimit", "mode", "difficulty", "hardcore", "maxLife", "rounds", "guessMode", "famous"];
   state.game = {
     ...Object.fromEntries(keep.map((k) => [k, old[k]])),
     life: old.maxLife, index: 0, results: [], overlays: [], usedPanos: new Set(), usedSpots: [],
@@ -2382,7 +2441,7 @@ async function startRound() {
   showLoading();
   let answer;
   try {
-    answer = await findLocation(g.area, g.usedPanos, g.usedSpots);
+    answer = await findLocation(g.area, g.usedPanos, g.usedSpots, { famous: g.famous });
   } catch (e) {
     $("loading").hidden = true;
     showMessage(e.message);
@@ -2651,7 +2710,7 @@ function submitGuess(timedOut = false) {
   const roundText = g.mode === "life" ? `ラウンド ${g.index + 1}` : `ラウンド ${g.index + 1} / ${g.rounds}`;
   $("result-text").innerHTML = `
     <div class="rs-reaction"><span class="reaction${g.hardcore ? " extra" : ""}">${isRegionMode(g) ? regionReaction(g, result) : reactionFor(missed ? null : distance, g.hardcore)}</span></div>
-    <div class="rs-meta"><b>${roundText}</b>${LEGEND}${mapsLink(g.answer)}</div>
+    <div class="rs-meta"><b>${roundText}</b>${landmarkHtml(g.answer)}${LEGEND}${mapsLink(g.answer)}</div>
     <div class="rs-side rs-left">${isRegionMode(g) && !missed ? `
       <div class="rs-big ${result.correct ? "rs-correct" : "rs-wrong"}">${result.correct ? "正解！" : "はずれ"}</div>
       <div class="rs-cap">あなた: ${escapeHtml(regionName(g.guessMode, result.guessRegion))} ・ 正解: ${escapeHtml(regionName(g.guessMode, result.answerRegion))}</div>` : `
@@ -2664,6 +2723,13 @@ function submitGuess(timedOut = false) {
   setResultButtons(false, false);
   $("result").hidden = false;
   fitResults([result], { top: 70, bottom: 90, left: 60, right: 60 });
+}
+
+// 有名な場所から出題したときの、場所の名前
+function landmarkHtml(answer) {
+  return answer && answer.landmark
+    ? `<span class="rs-landmark">⭐ ${escapeHtml(answer.landmark.name)}<small>${escapeHtml(answer.landmark.place)}</small></span>`
+    : "";
 }
 
 function mapsLink(p, label = "Google マップで見る") {
@@ -3147,6 +3213,7 @@ function bindUpdateBanner() {
 
 function boot() {
   migrateScoreScale();
+  bindPoolTabs();
   bindProfile();
   bindBell();
   renderTopbar();

@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.57">
+  <link rel="stylesheet" href="style.css?v=1.58">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -253,6 +253,15 @@
               <button data-mode="life" class="tab">ライフ制</button>
             </div>
             <!-- 当て方（全世界は「国」、日本は「都道府県」も選べる） -->
+            <!-- 全世界: どこからでも出すか、有名な場所だけにするか -->
+            <div id="pool-row" hidden>
+              <h4 class="guess-title">出題する場所</h4>
+              <div class="tabs" id="pool-tabs">
+                <button class="tab" data-pool="all">🌍 世界中どこでも</button>
+                <button class="tab" data-pool="famous">⭐ 有名な場所だけ</button>
+              </div>
+              <p class="help" id="pool-help"></p>
+            </div>
             <div id="guess-row" hidden>
               <h4 class="guess-title">当て方</h4>
               <div class="tabs" id="guess-tabs"></div>
@@ -755,14 +764,14 @@
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.57"></script>
-  <script src="hiroshima-boundary.js?v=1.57"></script>
-  <script src="world-boundary.js?v=1.57"></script>
-  <script src="region-boundary.js?v=1.57"></script>
-  <script src="regions.js?v=1.57"></script>
+  <script src="config.js?v=1.58"></script>
+  <script src="hiroshima-boundary.js?v=1.58"></script>
+  <script src="world-boundary.js?v=1.58"></script>
+  <script src="region-boundary.js?v=1.58"></script>
+  <script src="regions.js?v=1.58"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="app.js?v=1.57"></script>
-  <script src="multiplayer.js?v=1.57"></script>
+  <script src="app.js?v=1.58"></script>
+  <script src="multiplayer.js?v=1.58"></script>
 </body>
 </html>

@@ -535,6 +535,7 @@ function hostStartGame() {
     pan: $("opt-pan").checked,
     zoom: $("opt-zoom").checked,
     guessMode: state.guessMode || "pin",
+    famous: !!state.famous && area.type === "world",
     timeLimit: mp.config.mode === "team"
       ? (mp.config.timer.on ? mp.config.timer.seconds : 0)
       : $("opt-timer").checked ? Number($("opt-time").value) : 0,
@@ -640,6 +641,7 @@ function prepareMultiGame(area, settings) {
     index: -1, results: [], overlays: [], usedPanos: new Set(), usedSpots: [], total: 0,
     team, myTeam,
     guessMode: settings.guessMode || "pin",
+    famous: !!settings.famous,
     // リアクションの厳しさは、自分のチームのエクストラに合わせる（国・都道府県当てでは使わない）
     hardcore: (team ? !!(myTeam && team.teams[myTeam].extra) : !!settings.hardcore) && (settings.guessMode || "pin") === "pin",
     teamLife: team ? { red: team.teams.red.life, blue: team.teams.blue.life } : null,
@@ -662,7 +664,7 @@ async function hostNextRound() {
   showLoading();
   let answer;
   try {
-    answer = await findLocation(g.area, g.usedPanos, g.usedSpots);
+    answer = await findLocation(g.area, g.usedPanos, g.usedSpots, { famous: g.famous });
   } catch (e) {
     $("loading").hidden = true;
     broadcast({ type: "error", text: `出題地点を見つけられませんでした: ${e.message}` });
@@ -813,7 +815,7 @@ function startEliminatedRound() {
 function finishMultiRound() {
   const mp = state.mp;
   const g = state.game;
-  const answer = { lat: mp.answer.lat, lng: mp.answer.lng, panoId: mp.answer.panoId };
+  const answer = { lat: mp.answer.lat, lng: mp.answer.lng, panoId: mp.answer.panoId, landmark: mp.answer.landmark || null };
   const results = mp.players.map((p) => {
     const base = { id: p.id, name: p.name, color: p.color };
     // もう脱落している人は、このラウンドには参加していない
@@ -1086,7 +1088,7 @@ function showMultiResult(msg) {
     if (shape) addOverlay(shape);
   }
   addOverlay(new google.maps.Marker({ position: answer, icon: pinIcon(ANSWER_COLOR, "answer"), title: "正解", zIndex: 10 }));
-  addOverlay(new MapLabel(answer, "正解", "tag answer"));
+  addOverlay(new MapLabel(answer, answer.landmark ? `正解 ${escapeHtml(answer.landmark.name)}` : "正解", "tag answer"));
   const bounds = new google.maps.LatLngBounds();
   bounds.extend(answer);
   msg.results.forEach((r) => {
@@ -1125,7 +1127,7 @@ function showMultiResult(msg) {
   renderTeamHud(msg.team);
   $("result-text").innerHTML = `
     ${mine ? `<div class="rs-reaction"><span class="reaction${g.hardcore ? " extra" : ""}">${isRegionMode(g) ? regionReaction(g, mine) : reactionFor(missed ? null : mine.distance, g.hardcore)}</span></div>` : ""}
-    <div class="rs-meta"><b>ラウンド ${msg.index + 1}${Number.isFinite(g.rounds) ? ` / ${g.rounds}` : ""}</b>${mapsLink(answer)}</div>
+    <div class="rs-meta"><b>ラウンド ${msg.index + 1}${Number.isFinite(g.rounds) ? ` / ${g.rounds}` : ""}</b>${landmarkHtml(answer)}${mapsLink(answer)}</div>
     <div class="rs-side rs-left">
 ${isRegionMode(g) && !missed ? `
       <div class="rs-big ${mine.correct ? "rs-correct" : "rs-wrong"}">${mine.correct ? "正解！" : "はずれ"}</div>
