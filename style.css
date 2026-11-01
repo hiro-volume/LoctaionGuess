@@ -1854,7 +1854,7 @@ body.team-game #hurry-note { top: 132px; }
 /* 画面全体を少し暗くして、数え終わるまでは地図やストリートビューを触れないようにする */
 .screen-game #round-countdown:not([hidden]) {
   position: absolute; inset: 0; z-index: 20; display: grid; place-items: center;
-  background: rgba(6, 10, 20, .45); backdrop-filter: blur(2px);
+  background: rgba(6, 10, 20, .8); backdrop-filter: blur(8px);
 }
 .rc-ring {
   width: 170px; height: 170px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
