@@ -600,14 +600,14 @@ function prepareMultiGame(area, settings) {
   state.lifeShown = null;
   document.body.classList.toggle("team-game", !!team);
   setScreen("game");
-  $("loading").hidden = false;
+  showLoading();
 }
 
 async function hostNextRound() {
   const mp = state.mp;
   const g = state.game;
   const index = g.index + 1;
-  $("loading").hidden = false;
+  showLoading();
   let answer;
   try {
     answer = await findLocation(g.area, g.usedPanos, g.usedSpots);
@@ -643,7 +643,8 @@ function beginMultiRound(msg) {
   stopSpectate(false);
   state.mp.views = new Map();
   state.mp.done = [];
-  $("loading").hidden = true;
+  // 参加者は、結果の画面からそのまま読み込み画面へ（ホストは探し始めたときから出ている）
+  showLoading();
   $("result").hidden = true;
   $("mp-wait").hidden = true;
   $("hurry-note").hidden = true;
@@ -667,13 +668,18 @@ function beginMultiRound(msg) {
   updateHeadingTape(state.pano.getPov().heading);
   $("timer-pill").hidden = true;
   const index = g.index;
-  startRoundCountdown(() => {
+  // 読み込み画面を最低 1.5 秒見せてから、3・2・1
+  hideLoadingAfterMin().then(() => {
+    if (state.game !== g || g.index !== index || app.className !== "screen-game") return;
+    startRoundCountdown(onCountdownEnd);
+  });
+  const onCountdownEnd = () => {
     if (state.game !== g || g.index !== index || app.className !== "screen-game") return;
     g.roundStartedAt = Date.now();
     startTimer();
     sendMyView();
     if (!isAlive(state.mp.me)) startEliminatedRound();
-  });
+  };
 }
 
 // submitGuess の代わり: 自分の回答をホストに送って、全員がそろうのを待つ

@@ -1338,6 +1338,23 @@ function updateTimerSettings() {
 }
 
 // ---------------------------------------------------------------- ラウンドの始まりの 3・2・1
+// ---------------------------------------------------------------- 読み込み画面（最低 1.5 秒は見せる）
+// 場所はふだん 1 秒もかからずに見つかるので、そのままだと一瞬チラッと出て消えてしまう。
+// 地球儀を見せている間に、裏でストリートビューを読み込んでおく
+const MIN_LOADING_MS = 1500;
+
+function showLoading() {
+  if ($("loading").hidden) state.loadingSince = Date.now();
+  $("loading").hidden = false;
+}
+
+// 出してから MIN_LOADING_MS たつまで待ってから消す
+async function hideLoadingAfterMin() {
+  const wait = MIN_LOADING_MS - (Date.now() - (state.loadingSince || 0));
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  $("loading").hidden = true;
+}
+
 // 新しいラウンドが始まったら 3・2・1 と数えてから、答えられるようにして制限時間を動かし始める
 // （一人で遊ぶときも、マルチプレイでも。マルチプレイでは全員の画面で同時に数える）
 const ROUND_COUNTDOWN_SECONDS = 3;
@@ -2154,7 +2171,7 @@ async function startRound() {
     return showHome();
   }
 
-  $("loading").hidden = false;
+  showLoading();
   let answer;
   try {
     answer = await findLocation(g.area, g.usedPanos, g.usedSpots);
@@ -2163,13 +2180,18 @@ async function startRound() {
     showMessage(e.message);
     return showHome();
   }
-  $("loading").hidden = true;
   // 探している間に「やめる」が押された場合は表示しない（無駄な課金を防ぐ）
-  if (state.game !== g || app.className !== "screen-game") return;
+  if (state.game !== g || app.className !== "screen-game") {
+    $("loading").hidden = true;
+    return;
+  }
   g.answer = answer;
   g.usedPanos.add(g.answer.panoId);
+  // 読み込み画面の裏でストリートビューを読み込み、最低 1.5 秒たってから見せる
   showPanorama(g.answer.panoId, g);
   updateHeadingTape(state.pano.getPov().heading);
+  await hideLoadingAfterMin();
+  if (state.game !== g || app.className !== "screen-game") return;
   startRoundCountdown(() => {
     if (state.game !== g || app.className !== "screen-game") return;
     g.roundStartedAt = Date.now();
