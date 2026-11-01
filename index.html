@@ -23,7 +23,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.50">
+  <link rel="stylesheet" href="style.css?v=1.51">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -578,6 +578,7 @@
               <button data-v="terrain">地形</button>
             </div>
           </div>
+          <p class="gs-extra-note" id="gs-extra-note" hidden>🔥 エクストラモードでは、航空写真は使えません（地図で表示しています）</p>
 
           <label class="gs-row gs-switch">
             <div class="gs-label">
@@ -626,12 +627,8 @@
         <h3 id="score-dialog-title">スコアを記録</h3>
         <div id="score-summary" class="score-summary"></div>
         <div class="avatar-picker">
-          <button id="avatar-preview" class="avatar big" title="アイコンの画像を選ぶ" aria-label="アイコンの画像を選ぶ"></button>
-          <div class="avatar-actions">
-            <button id="btn-avatar-pick" class="btn-ghost small-btn">画像を選ぶ</button>
-            <button id="btn-avatar-reset" class="link-btn">デフォルトのアイコンに戻す</button>
-          </div>
-          <input type="file" id="avatar-file" accept="image/*" hidden>
+          <span id="avatar-preview" class="avatar big"></span>
+          <div class="avatar-actions"><small class="muted">アイコンは右上のプロフィールで変えられます</small></div>
         </div>
         <div class="field">
           <label for="score-name">名前</label>
@@ -706,14 +703,6 @@
         <label>色</label>
         <div id="pf-colors" class="swatches"></div>
       </div>
-      <div class="field">
-        <label>自分の画像を使う</label>
-        <div class="pf-image">
-          <button id="btn-pf-image" class="btn-ghost small-btn">画像を選ぶ</button>
-          <button id="btn-pf-image-remove" class="link-btn" hidden>画像をやめる</button>
-          <input type="file" id="pf-file" accept="image/*" hidden>
-        </div>
-      </div>
       <div class="dialog-actions">
         <button id="pf-cancel" class="btn-ghost">キャンセル</button>
         <button id="pf-save" class="dialog-ok">保存する</button>
@@ -736,14 +725,14 @@
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.50"></script>
-  <script src="hiroshima-boundary.js?v=1.50"></script>
-  <script src="world-boundary.js?v=1.50"></script>
-  <script src="region-boundary.js?v=1.50"></script>
-  <script src="regions.js?v=1.50"></script>
+  <script src="config.js?v=1.51"></script>
+  <script src="hiroshima-boundary.js?v=1.51"></script>
+  <script src="world-boundary.js?v=1.51"></script>
+  <script src="region-boundary.js?v=1.51"></script>
+  <script src="regions.js?v=1.51"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="app.js?v=1.50"></script>
-  <script src="multiplayer.js?v=1.50"></script>
+  <script src="app.js?v=1.51"></script>
+  <script src="multiplayer.js?v=1.51"></script>
 </body>
 </html>

@@ -2006,3 +2006,7 @@ html.no-anim #mp-toast.show { animation: none; }
 /* ラウンド開始のカウントダウン: 文字を選んだり、カーソルが変わったりしないように（下の地図などにも届かない） */
 #round-countdown, #round-countdown * { user-select: none; -webkit-user-select: none; cursor: default; }
 .rc-ring { pointer-events: none; }
+
+/* エクストラモードで航空写真を選べないとき */
+.seg-pills button:disabled { opacity: .35; cursor: not-allowed; text-decoration: line-through; }
+.gs-extra-note { margin: -4px 0 8px; font-size: 12px; color: #ffb38a; }

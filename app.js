@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.50";
+const APP_VERSION = "1.51";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -343,6 +343,7 @@ function drawArea(area, fit = true) {
 function setScreen(name) {
   app.className = `screen-${name}`;
   $("topbar").hidden = !["title", "mode", "select", "lobby"].includes(name);
+  if (state.prefs) applyPrefs();
   // 古いバージョンだとわかっていたら、メニューに戻ったところで遊べないようにする
   if (state.outdated && !["game", "result"].includes(name)) $("update-gate").hidden = false;
   if ($("topbar").hidden) toggleBell(false);
@@ -1088,14 +1089,13 @@ const DEFAULT_NAME = "名無しの旅人";
 // 用意してあるアイコンと色
 const AVATAR_GLYPHS = ["🧭", "🗺️", "🌏", "📍", "🚗", "🚲", "✈️", "🚃", "🏔️", "🗼", "⛩️", "🏝️", "🐱", "🐶", "🦊", "🐧", "🐼", "🐸", "⭐", "🍙"];
 const AVATAR_COLORS = ["#2fb36b", "#3b82f6", "#a855f7", "#f97316", "#ec4899", "#14b8a6", "#f5c542", "#e5392f"];
-const MAX_AVATAR_IMAGE = 60000; // 画像は 128px に縮めて保存する（マルチプレイで送る大きさの上限）
 
 function myProfile() {
   const p = loadJSON(STORE_PROFILE, {});
   return {
     name: p.name || DEFAULT_NAME,
     avatar: {
-      icon: typeof p.icon === "string" && p.icon.startsWith("data:image/") ? p.icon : null,
+      icon: null, // 自分の画像は使わない（用意したアイコンだけ）
       glyph: AVATAR_GLYPHS.includes(p.glyph) ? p.glyph : AVATAR_GLYPHS[0],
       color: AVATAR_COLORS.includes(p.color) ? p.color : AVATAR_COLORS[1],
     },
@@ -1105,9 +1105,8 @@ function myProfile() {
 // 送られてきたアイコンを、使ってよい形だけにする（マルチプレイ）
 function cleanAvatar(a) {
   if (!a || typeof a !== "object") return null;
-  const icon = typeof a.icon === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(a.icon) && a.icon.length <= MAX_AVATAR_IMAGE ? a.icon : null;
   return {
-    icon,
+    icon: null,
     glyph: AVATAR_GLYPHS.includes(a.glyph) ? a.glyph : AVATAR_GLYPHS[0],
     color: AVATAR_COLORS.includes(a.color) ? a.color : AVATAR_COLORS[1],
   };
@@ -1146,11 +1145,10 @@ function openProfile() {
 function renderProfileForm() {
   $("pf-avatar").innerHTML = playerAvatarHtml({ name: $("pf-name").value || DEFAULT_NAME, avatar: profileForm, color: profileForm.color }, "huge");
   $("pf-glyphs").querySelectorAll(".pf-glyph").forEach((b) => {
-    b.classList.toggle("active", !profileForm.icon && b.dataset.g === profileForm.glyph);
+    b.classList.toggle("active", b.dataset.g === profileForm.glyph);
     b.style.setProperty("--c", profileForm.color);
   });
   $("pf-colors").querySelectorAll(".swatch").forEach((b) => b.classList.toggle("active", b.dataset.c === profileForm.color));
-  $("btn-pf-image-remove").hidden = !profileForm.icon;
 }
 
 function closeProfile() {
@@ -1159,7 +1157,7 @@ function closeProfile() {
 
 function saveProfile() {
   const name = $("pf-name").value.trim().slice(0, 16);
-  saveJSON(STORE_PROFILE, { ...loadJSON(STORE_PROFILE, {}), name: name || undefined, icon: profileForm.icon || null, glyph: profileForm.glyph, color: profileForm.color });
+  saveJSON(STORE_PROFILE, { ...loadJSON(STORE_PROFILE, {}), name: name || undefined, icon: null, glyph: profileForm.glyph, color: profileForm.color });
   closeProfile();
   renderTopbar();
   // マルチプレイの部屋にいるときは、みんなの画面にもすぐ反映する
@@ -1177,29 +1175,12 @@ function bindProfile() {
     const b = e.target.closest(".pf-glyph");
     if (!b) return;
     profileForm.glyph = b.dataset.g;
-    profileForm.icon = null; // 用意したアイコンを選んだら、自分の画像はやめる
     renderProfileForm();
   });
   $("pf-colors").addEventListener("click", (e) => {
     const b = e.target.closest(".swatch");
     if (!b) return;
     profileForm.color = b.dataset.c;
-    renderProfileForm();
-  });
-  $("btn-pf-image").addEventListener("click", () => $("pf-file").click());
-  $("pf-file").addEventListener("change", async () => {
-    const file = $("pf-file").files[0];
-    $("pf-file").value = "";
-    if (!file) return;
-    try {
-      profileForm.icon = await readAvatar(file);
-      renderProfileForm();
-    } catch {
-      showMessage("画像を読み込めませんでした。別の画像を選んでください。");
-    }
-  });
-  $("btn-pf-image-remove").addEventListener("click", () => {
-    profileForm.icon = null;
     renderProfileForm();
   });
   window.addEventListener("keydown", (e) => {
@@ -1277,11 +1258,10 @@ function renderSavePrompt(g) {
 
 // ---- スコアを記録するダイアログ
 
-const scoreForm = { icon: null, game: null, box: null };
+const scoreForm = { avatar: null, game: null, box: null };
 
 function openScoreDialog(g, box) {
   const profile = loadJSON(STORE_PROFILE, {});
-  scoreForm.icon = profile.icon || null;
   scoreForm.avatar = myProfile().avatar;
   scoreForm.game = g;
   scoreForm.box = box;
@@ -1292,7 +1272,7 @@ function openScoreDialog(g, box) {
     <div><span>タイム</span><b>${formatPlayTime(g.playMs || 0)}</b></div>
     <div><span>部門</span><b>${boardLabel(boardOf(g))}</b></div>`;
   $("score-name").value = profile.name || "";
-  $("avatar-preview").innerHTML = avatarHtml(scoreForm.icon || scoreForm.avatar);
+  $("avatar-preview").innerHTML = avatarHtml(scoreForm.avatar);
   $("score-dialog").hidden = false;
   $("score-name").focus();
 }
@@ -1307,7 +1287,7 @@ function saveScore() {
   const entry = {
     id: `s-${Date.now()}`,
     name,
-    icon: scoreForm.icon,
+    icon: null,
     glyph: myProfile().avatar.glyph,
     color: myProfile().avatar.color,
     score: g.results.reduce((sum, r) => sum + r.score, 0),
@@ -1325,7 +1305,7 @@ function saveScore() {
   all[g.area.id] = boards;
   saveJSON(STORE_SCORES, all);
   // 次回のために名前とアイコンを覚えておく
-  saveJSON(STORE_PROFILE, { ...loadJSON(STORE_PROFILE, {}), name, icon: scoreForm.icon });
+  saveJSON(STORE_PROFILE, { ...loadJSON(STORE_PROFILE, {}), name });
   renderTopbar();
   const rank = list.findIndex((e) => e.id === entry.id) + 1;
   g.savedRank = rank || `${MAX_SCORES_PER_BOARD}位圏外`;
@@ -1336,47 +1316,8 @@ function saveScore() {
     : `<p class="saved">記録しましたが、上位 ${MAX_SCORES_PER_BOARD} 件には入りませんでした。</p>`;
 }
 
-// 選んだ画像を 128px の正方形に切り抜いて小さくする（保存する量を減らすため）
-function readAvatar(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = reject;
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = reject;
-      img.onload = () => {
-        const size = 128;
-        const canvas = document.createElement("canvas");
-        canvas.width = canvas.height = size;
-        const side = Math.min(img.width, img.height);
-        canvas.getContext("2d").drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
-        resolve(canvas.toDataURL("image/jpeg", 0.85));
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
 
 function bindScoreDialog() {
-  const pick = () => $("avatar-file").click();
-  $("avatar-preview").addEventListener("click", pick);
-  $("btn-avatar-pick").addEventListener("click", pick);
-  $("avatar-file").addEventListener("change", async () => {
-    const file = $("avatar-file").files[0];
-    $("avatar-file").value = "";
-    if (!file) return;
-    try {
-      scoreForm.icon = await readAvatar(file);
-      $("avatar-preview").innerHTML = avatarHtml(scoreForm.icon);
-    } catch {
-      showMessage("画像を読み込めませんでした。別の画像を選んでください。");
-    }
-  });
-  $("btn-avatar-reset").addEventListener("click", () => {
-    scoreForm.icon = null;
-    $("avatar-preview").innerHTML = avatarHtml(null);
-  });
   $("btn-to-ranking").addEventListener("click", () => $("ranking").scrollIntoView({ behavior: "smooth", block: "start" }));
   $("score-save").addEventListener("click", saveScore);
   $("score-cancel").addEventListener("click", closeScoreDialog);
@@ -2934,15 +2875,28 @@ function exitGame() {
   state.game = null;
 }
 
+// エクストラモードで遊んでいる間は、航空写真（建物の形まで見えてしまう）を使えない
+function extraBlocksSatellite() {
+  const g = state.game;
+  return !!(g && g.hardcore && ["screen-game", "screen-result"].includes(app.className));
+}
+
 // 設定の値を画面に反映する（方位の表示・回答マップの種類・アニメーション）
 function applyPrefs() {
   const p = state.prefs;
   app.dataset.compass = p.compass;
   document.documentElement.classList.toggle("no-anim", !p.anim);
-  if (state.map) state.map.setMapTypeId(p.mapType);
+  const noSatellite = extraBlocksSatellite();
+  const mapType = noSatellite && p.mapType === "hybrid" ? "roadmap" : p.mapType;
+  if (state.map && state.map.getMapTypeId() !== mapType) state.map.setMapTypeId(mapType);
+  const shown = { ...p, mapType };
   document.querySelectorAll(".seg-pills").forEach((group) => {
-    group.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.v === p[group.dataset.pref]));
+    group.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.v === shown[group.dataset.pref]));
   });
+  const hybrid = document.querySelector('.seg-pills[data-pref="mapType"] [data-v="hybrid"]');
+  hybrid.disabled = noSatellite;
+  hybrid.title = noSatellite ? "エクストラモードでは航空写真は使えません" : "";
+  $("gs-extra-note").hidden = !noSatellite;
   $("pref-anim").checked = p.anim;
   applyDock();
 }
@@ -2950,6 +2904,7 @@ function applyPrefs() {
 function bindPrefs() {
   document.querySelectorAll(".seg-pills").forEach((group) => {
     group.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+      if (b.disabled) return;
       state.prefs[group.dataset.pref] = b.dataset.v;
       saveJSON(STORE_PREFS, state.prefs);
       applyPrefs();
