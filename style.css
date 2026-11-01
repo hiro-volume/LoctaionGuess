@@ -1793,3 +1793,6 @@ body:has(#mp-social:not([hidden])) #mp-wait { left: 68px; max-width: min(360px, 
   body.team-game .screen-game #heading-tape { top: 96px; }
   body.team-game .screen-game #timer-pill { top: 138px; }
 }
+
+/* ライフは左から右へ減る（中身を右に寄せて、減った分だけ左があく） */
+.lh-fill, .tg-fill, .red .tg-fill, .blue .tg-fill { left: auto; right: 0; }
