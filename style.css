@@ -5,9 +5,9 @@
   --line: #27324b;
   --text: #eef1f6;
   --muted: #8f9bb4;
-  --accent: #f5a524;
-  --accent-2: #ff7a45;
-  --accent-text: #1d1203;
+  --accent: #38bdf8;
+  --accent-2: #22d3ee;
+  --accent-text: #04202e;
   /* ボタンは緑基調 */
   --btn: #2fb36b;
   --btn-hi: #6be39a;
@@ -68,7 +68,7 @@ html, body {
 .pill {
   display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em;
   padding: 3px 10px; border-radius: 999px; background: rgba(11,17,32,.7); color: var(--accent);
-  border: 1px solid rgba(245,165,36,.45); backdrop-filter: blur(4px);
+  border: 1px solid rgba(56,189,248,.45); backdrop-filter: blur(4px);
 }
 
 /* ---------- タイトル画面 ---------- */
@@ -107,7 +107,7 @@ html, body {
   position: absolute; inset: 0; flex-direction: column; overflow-y: auto;
   padding: 28px clamp(16px, 4vw, 56px) 40px;
   background:
-    radial-gradient(1200px 500px at 15% -10%, rgba(245,165,36,.10), transparent 60%),
+    radial-gradient(1200px 500px at 15% -10%, rgba(56,189,248,.10), transparent 60%),
     radial-gradient(900px 500px at 100% 0%, rgba(80,120,255,.10), transparent 60%),
     var(--bg);
 }
@@ -133,8 +133,8 @@ html, body {
   outline: none;
 }
 .map-card:hover, .map-card:focus-visible {
-  transform: translateY(-4px); border-color: rgba(245,165,36,.8);
-  box-shadow: 0 16px 36px rgba(0,0,0,.45), 0 0 0 3px rgba(245,165,36,.25);
+  transform: translateY(-4px); border-color: rgba(56,189,248,.8);
+  box-shadow: 0 16px 36px rgba(0,0,0,.45), 0 0 0 3px rgba(56,189,248,.25);
 }
 .map-card-img { position: absolute; inset: 0; background-size: cover; background-position: center; transition: transform .5s; }
 .map-card:hover .map-card-img { transform: scale(1.06); }
@@ -150,7 +150,7 @@ html, body {
     radial-gradient(circle at 30% 20%, #23345a, #121a2c 70%);
 }
 .map-card-img.shape svg { width: 70%; height: 80%; }
-.map-card-img.shape svg *, .hero-shape svg * { fill: rgba(245,165,36,.22); stroke: var(--accent); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.map-card-img.shape svg *, .hero-shape svg * { fill: rgba(56,189,248,.22); stroke: var(--accent); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
 .map-card .pill { position: absolute; top: 12px; left: 12px; z-index: 1; }
 .map-card-info { position: absolute; left: 16px; right: 16px; bottom: 14px; z-index: 1; display: flex; flex-direction: column; gap: 3px; }
 .map-card-info b { font-size: 22px; font-weight: 900; letter-spacing: .02em; text-shadow: 0 2px 10px rgba(0,0,0,.6); }
@@ -205,12 +205,12 @@ html, body {
 .pm-tools .dock-btn { font-size: 16px; font-weight: 700; }
 .legend-hint { opacity: .7; }
 .lv-0 { fill: #23304d; }
-.lv-1 { fill: #7a5a2a; }
-.lv-2 { fill: #c9851f; }
-.lv-3 { fill: #f5a524; }
-#world-map .played-dot { fill: #fff3d6; opacity: .9; }
+.lv-1 { fill: #1d4a6b; }
+.lv-2 { fill: #2387c0; }
+.lv-3 { fill: #38bdf8; }
+#world-map .played-dot { fill: #e0f6ff; opacity: .9; }
 #world-map .map-marker { fill: none; stroke: var(--accent); }
-#world-map .map-marker.played { fill: rgba(245,165,36,.45); }
+#world-map .map-marker.played { fill: rgba(56,189,248,.45); }
 .progress-legend {
   position: absolute; left: 10px; bottom: 8px; display: flex; flex-wrap: wrap; gap: 4px 12px;
   font-size: 11px; color: var(--muted); background: rgba(11,17,32,.7); padding: 4px 10px; border-radius: 8px;
@@ -218,10 +218,10 @@ html, body {
 .progress-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
 .sw-0 { background: #23304d; }
-.sw-1 { background: #7a5a2a; }
-.sw-2 { background: #c9851f; }
-.sw-3 { background: #f5a524; }
-.sw.dot { border-radius: 50%; width: 7px; height: 7px; background: #fff3d6; }
+.sw-1 { background: #1d4a6b; }
+.sw-2 { background: #2387c0; }
+.sw-3 { background: #38bdf8; }
+.sw.dot { border-radius: 50%; width: 7px; height: 7px; background: #e0f6ff; }
 .progress-stats { display: flex; flex-direction: column; align-items: center; gap: 14px; justify-content: center; }
 .ring {
   width: 116px; height: 116px; border-radius: 50%; display: grid; place-items: center;
@@ -414,7 +414,7 @@ input[type=number] {
 .score-line { margin-top: 8px; color: var(--muted); font-size: 13px; }
 .score-line b { color: var(--accent); font-size: 20px; }
 .scorebar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 6px auto 0; max-width: 280px; }
-.scorebar > div { height: 100%; background: linear-gradient(90deg, #f2a541, #4cc38a); border-radius: 4px; }
+.scorebar > div { height: 100%; background: linear-gradient(90deg, #38bdf8, #4cc38a); border-radius: 4px; }
 
 .legend { display: flex; justify-content: center; gap: 16px; font-size: 12px; color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
@@ -1649,3 +1649,44 @@ html.no-anim .tg.hit .tg-bar { animation: none; }
 .team-timer .switch-row small { font-size: 11px; color: var(--muted); }
 .team-timer .row input[type=range] { flex: 1; }
 .team-timer input:disabled { opacity: .7; }
+
+/* ================================================================ 残り 15 秒: 画面の 4 辺が赤く光る */
+#danger-edge {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  box-shadow: inset 0 0 90px 30px rgba(255, 40, 40, .55), inset 0 0 220px 60px rgba(255, 40, 40, .25);
+}
+#danger-edge[hidden] { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.no-anim) #danger-edge { animation: dangerPulse 1s ease-in-out infinite; }
+}
+@keyframes dangerPulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+
+/* ================================================================ シングルのライフ制: 右上のライフのバー */
+#life-hud { display: none; }
+.screen-game #life-hud:not([hidden]) {
+  display: flex; flex-direction: column; gap: 6px; position: absolute; top: 12px; right: 12px; z-index: 5;
+  width: min(40vw, 420px);
+}
+.lh-bar {
+  position: relative; height: 30px; border-radius: 9px; overflow: hidden;
+  background: rgba(20, 16, 50, .85); border: 2px solid rgba(160,140,255,.55); box-shadow: 0 4px 14px rgba(0,0,0,.45);
+}
+.lh-fill { position: absolute; top: 0; bottom: 0; left: 0; transition: width .9s cubic-bezier(.2,.8,.2,1), background .9s; }
+.lh-life {
+  position: absolute; inset: 0; display: grid; place-items: center; font-size: 15px; font-weight: 900; color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.7); font-variant-numeric: tabular-nums;
+}
+.lh-meta {
+  align-self: flex-end; display: flex; align-items: center; gap: 10px; padding: 4px 12px; border-radius: 999px;
+  font-size: 12px; color: var(--muted); background: rgba(17, 21, 28, .82); border: 1px solid rgba(255,255,255,.15);
+}
+.lh-meta b { color: #fff; }
+.lh-meta > b { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 720px) {
+  .screen-game #life-hud:not([hidden]) { width: calc(100vw - 24px); }
+}
+@media (max-width: 720px) {
+  /* 細い画面では、ライフのバーの下に方位と残り時間を並べる */
+  #stage:has(#life-hud:not([hidden])) #heading-tape { top: 86px; }
+  #stage:has(#life-hud:not([hidden])) #timer-pill { top: 128px; }
+}

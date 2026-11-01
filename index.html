@@ -124,14 +124,14 @@
               <div class="team-col red">
                 <header><span class="tg-badge">赤</span><b>チーム赤</b><span class="count" id="team-red-count"></span></header>
                 <ul class="team-members" id="team-red-members"></ul>
-                <label class="row">ライフ <input type="number" id="team-red-life" min="500" max="50000" step="500" value="6000"></label>
+                <label class="row">ライフ <input type="number" id="team-red-life" min="1000" max="100000" step="1000" value="10000"></label>
                 <label class="switch-row"><span>🔥 エクストラモード</span><input type="checkbox" id="team-red-extra" class="switch"></label>
                 <button class="btn-ghost small-btn join-team" data-team="red">赤チームに入る</button>
               </div>
               <div class="team-col blue">
                 <header><span class="tg-badge">青</span><b>チーム青</b><span class="count" id="team-blue-count"></span></header>
                 <ul class="team-members" id="team-blue-members"></ul>
-                <label class="row">ライフ <input type="number" id="team-blue-life" min="500" max="50000" step="500" value="6000"></label>
+                <label class="row">ライフ <input type="number" id="team-blue-life" min="1000" max="100000" step="1000" value="10000"></label>
                 <label class="switch-row"><span>🔥 エクストラモード</span><input type="checkbox" id="team-blue-extra" class="switch"></label>
                 <button class="btn-ghost small-btn join-team" data-team="blue">青チームに入る</button>
               </div>
@@ -221,27 +221,27 @@
             <div id="life-row" hidden>
               <label class="row">ライフの量
                 <select id="opt-difficulty">
-                  <option value="easy">多め（10000）</option>
-                  <option value="normal" selected>ふつう（5000）</option>
-                  <option value="hard">少なめ（2500）</option>
+                  <option value="easy">多め（50000）</option>
+                  <option value="normal" selected>ふつう（25000）</option>
+                  <option value="hard">少なめ（12500）</option>
                   <option value="custom">カスタム</option>
                 </select>
               </label>
               <label class="row" id="custom-life-row" hidden>ライフ
-                <input type="number" id="opt-life" min="100" max="100000" step="100" value="5000">
+                <input type="number" id="opt-life" min="500" max="500000" step="500" value="25000">
               </label>
-              <p class="help">遠く外すほどライフが大きく減ります（1回で最大 1000）。ライフが 0 になったら終了です。</p>
+              <p class="help">遠く外すほどライフが大きく減ります（1回で最大 5000）。ライフが 0 になったら終了です。</p>
               <label class="switch-row hardcore-row">
                 <span><b>🔥 エクストラモード</b><small>数メートルのずれも見逃さない・上級者向け</small></span>
                 <input type="checkbox" id="opt-hardcore" class="switch">
               </label>
               <div class="hardcore-help" id="hardcore-help">
-                <p>ライフの量とは別に、<b>ずれの判定</b>を厳しくします。ふつうは 25m 以内なら減りませんが、エクストラモードでは<b>5m 以上ずれるとライフが減ります</b>（5m 未満は 0、5m で −2）。
+                <p>ライフの量とは別に、<b>ずれの判定</b>を厳しくします。ふつうは 25m 以内なら減りませんが、エクストラモードでは<b>5m 以上ずれるとライフが減ります</b>（5m 未満は 0、5m で −12）。
                 近いほど減る量は少なく、遠いほど大きく減ります。広い範囲でも、街角まで当てるくらいの厳しさで判定します（ふつうより減る量が少なくなることはありません）。</p>
                 <table>
                   <tr><th>ずれ</th><td>5 m 未満</td><td>5 m</td><td>100 m</td><td>500 m</td><td>1 km</td><td>5 km</td></tr>
-                  <tr><th>ふつう（広島県）</th><td>0</td><td>0</td><td>−8</td><td>−40</td><td>−78</td><td>−335</td></tr>
-                  <tr><th>エクストラ</th><td>0</td><td>−2</td><td>−49</td><td>−221</td><td>−393</td><td>−918</td></tr>
+                  <tr><th>ふつう（広島県）</th><td>0</td><td>0</td><td>−41</td><td>−200</td><td>−391</td><td>−1674</td></tr>
+                  <tr><th>エクストラ</th><td>0</td><td>−12</td><td>−244</td><td>−1106</td><td>−1967</td><td>−4590</td></tr>
                 </table>
                 <p>道の角や建物の位置までよく知っている場所で挑戦するのがおすすめです。ランキングはエクストラモードだけで別に集計します。</p>
               </div>
@@ -392,6 +392,16 @@
       <div id="heading-tape" aria-label="方位">
         <div id="heading-strip"></div>
         <div class="heading-marker"></div>
+      </div>
+      <!-- 残り 15 秒になると、画面の 4 辺が赤く光る -->
+      <div id="danger-edge" hidden></div>
+      <!-- シングルのライフ制: 右上にライフのバー（その下にエリア・ラウンド・スコア） -->
+      <div id="life-hud" hidden>
+        <div class="lh-bar"><i class="lh-fill"></i><b class="lh-life" id="lh-life">0</b></div>
+        <div class="lh-meta">
+          <span class="tg-extra" id="lh-extra" hidden>🔥EXTRA</span>
+          <b id="lh-area"></b><span>ラウンド <b id="lh-round"></b></span><span>スコア <b id="lh-score"></b></span>
+        </div>
       </div>
       <!-- 残り時間（上の真ん中に独立して出す） -->
       <div id="timer-pill" hidden>

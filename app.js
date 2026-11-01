@@ -206,11 +206,15 @@ function formatDistance(m) {
   return `${Math.round(m / 1000)} km`;
 }
 
-// 1ラウンド最大1000点。範囲が広いほどゆるく、狭いほど厳しく減点する
+// 1ラウンド最大 5000 点。範囲が広いほどゆるく、狭いほど厳しく減点する
+const MAX_SCORE = 5000;
+// 範囲の線の色（出題範囲・範囲エディタ）
+const AREA_LINE_COLOR = "#38bdf8";
+
 function scoreFor(distance, area) {
-  if (distance <= 25) return 1000;
+  if (distance <= 25) return MAX_SCORE;
   const decay = areaSizeMeters(area) * 0.07;
-  return Math.round(1000 * Math.exp(-distance / decay));
+  return Math.round(MAX_SCORE * Math.exp(-distance / decay));
 }
 
 // ---------------------------------------------------------------- 出題地点の検索（無料の Metadata API）
@@ -259,8 +263,8 @@ function drawArea(area, fit = true) {
     return;
   }
   const style = {
-    map: state.map, strokeColor: "#f2a541", strokeOpacity: 0.9, strokeWeight: 2,
-    fillColor: "#f2a541", fillOpacity: 0.08, clickable: false,
+    map: state.map, strokeColor: AREA_LINE_COLOR, strokeOpacity: 0.9, strokeWeight: 2,
+    fillColor: AREA_LINE_COLOR, fillOpacity: 0.08, clickable: false,
   };
   const circles = areaCircles(area);
   if (circles) {
@@ -825,7 +829,7 @@ function renderProgress(cat) {
       <div><b>${regionCounts.size}</b><span>訪れた区画（県・州など）</span></div>
       <div><b>${games}</b><span>ゲーム数</span></div>
       <div><b>${h.rounds.length}</b><span>ラウンド数</span></div>
-      <div><b>${avg}<small> / 1000</small></b><span>平均スコア</span></div>
+      <div><b>${avg.toLocaleString()}<small> / ${MAX_SCORE.toLocaleString()}</small></b><span>平均スコア</span></div>
     </div>`;
 }
 
@@ -926,7 +930,7 @@ function saveScore() {
     name,
     icon: scoreForm.icon,
     score: g.results.reduce((sum, r) => sum + r.score, 0),
-    max: g.results.length * 1000,
+    max: g.results.length * MAX_SCORE,
     rounds: g.results.length,
     timeMs: g.playMs || 0,
     date: Date.now(),
@@ -1151,6 +1155,7 @@ function startTimer() {
     shown = left;
     $("timer-text").textContent = formatTime(left);
     pill.classList.toggle("urgent", left <= 10);
+    $("danger-edge").hidden = left > 15 || left <= 0;
     // 残り10秒からは、1秒減るたびにビクッと動かす（アニメーションを最初からやり直す）
     if (left <= 10) {
       pill.classList.remove("beat");
@@ -1167,6 +1172,7 @@ function startTimer() {
 }
 
 function stopTimer() {
+  $("danger-edge").hidden = true;
   clearInterval(state.timer);
   state.timer = null;
 }
@@ -1185,7 +1191,7 @@ function rulesText(g) {
 
 // ---------------------------------------------------------------- ライフ制
 
-const LIFE_PRESETS = { easy: 10000, normal: 5000, hard: 2500 };
+const LIFE_PRESETS = { easy: 50000, normal: 25000, hard: 12500 };
 const DIFFICULTY_NAMES = { easy: "多め", normal: "ふつう", hard: "少なめ", custom: "カスタム" };
 
 function setMode(mode) {
@@ -1200,29 +1206,57 @@ function selectedLife() {
   const d = $("opt-difficulty").value;
   if (d !== "custom") return LIFE_PRESETS[d];
   const v = Math.round(Number($("opt-life").value));
-  return Number.isFinite(v) ? Math.min(100000, Math.max(100, v)) : 5000;
+  return Number.isFinite(v) ? Math.min(500000, Math.max(500, v)) : 25000;
 }
 
-// 外した度合いに応じて減るライフ。得点の裏返しなので、近ければ少し・遠ければ最大 1000
+// 外した度合いに応じて減るライフ。得点の裏返しなので、近ければ少し・遠ければ最大 5000
 const HARDCORE_DECAY = 2000;
 
-// エクストラモード: 5m 未満は減らさず、5m からは最低でも 2 減る。範囲の広さに関係なく 2km を目安に減らし、数メートルのずれでも少し減る。
+// エクストラモード: 5m 未満は減らさず、5m からは最低でも 10 減る。範囲の広さに関係なく 2km を目安に減らし、数メートルのずれでも少し減る。
 // 狭い範囲ではふつうの方が厳しいこともあるので、ふつうより減る量が少なくならないようにする
 function damageFor(score, distance, hardcore) {
-  const normal = 1000 - score;
+  const normal = MAX_SCORE - score;
   if (!hardcore) return normal;
-  if (distance == null) return 1000; // 時間切れ
+  if (distance == null) return MAX_SCORE; // 時間切れ
   if (distance < 5) return normal;
-  const strict = Math.max(2, Math.round(1000 * (1 - Math.exp(-distance / HARDCORE_DECAY))));
+  const strict = Math.max(10, Math.round(MAX_SCORE * (1 - Math.exp(-distance / HARDCORE_DECAY))));
   return Math.max(normal, strict);
 }
 
 function lifeBar(life, max) {
-  return `<span class="lifebar"><span style="width:${(life / max) * 100}%"></span></span>`;
+  return `<span class="lifebar"><span style="width:${(life / max) * 100}%;background:${lifeColor(life / max)}"></span></span>`;
+}
+
+// ライフのバーの色: 40% までは緑、20% あたりで黄色、10% を切ると赤（間はなめらかに変える）
+function lifeColor(ratio) {
+  const p = Math.max(0, Math.min(1, ratio)) * 100;
+  const hue = p >= 40 ? 130 : p >= 20 ? 50 + ((p - 20) / 20) * 80 : p >= 10 ? ((p - 10) / 10) * 50 : 0;
+  return `linear-gradient(180deg, hsl(${hue} 85% 60%), hsl(${hue} 80% 42%))`;
+}
+
+function renderLifeHud() {
+  const g = state.game;
+  const show = !!(g && g.mode === "life" && !g.multi);
+  $("life-hud").hidden = !show;
+  $("info-card").hidden = show;
+  if (!show) return;
+  const fill = document.querySelector("#life-hud .lh-fill");
+  const ratio = g.life / g.maxLife;
+  const from = state.lifeShown != null && state.lifeShown >= g.life ? state.lifeShown : g.life;
+  fill.style.width = `${ratio * 100}%`;
+  fill.style.background = lifeColor(ratio);
+  if (from !== g.life && typeof countNumber === "function") countNumber($("lh-life"), from, g.life);
+  else $("lh-life").textContent = g.life.toLocaleString();
+  state.lifeShown = g.life;
+  $("lh-extra").hidden = !g.hardcore;
+  $("lh-area").textContent = g.area.name;
+  $("lh-round").textContent = g.index + 1;
+  $("lh-score").textContent = g.results.reduce((s, r) => s + r.score, 0).toLocaleString();
 }
 
 function renderHudLife() {
   const g = state.game;
+  renderLifeHud();
   // エクストラモード中は、右上のカードに目立つ印を出す
   $("info-extra").hidden = !g.hardcore;
   $("info-card").classList.toggle("extra", !!g.hardcore);
@@ -1300,7 +1334,7 @@ function bindAreaForm(prefix) {
 
 // ---------------------------------------------------------------- 範囲エディタ
 
-const EDIT_COLOR = "#f2a541";
+const EDIT_COLOR = AREA_LINE_COLOR;
 const EDIT_ERROR_COLOR = "#ff5a4e";
 
 // editId を渡すと、保存してある自作の範囲を読み込んで編集する（形も見た目も変えられる）
@@ -1801,6 +1835,7 @@ async function startGame() {
     overlays: [],
     usedPanos: new Set(),
   };
+  state.lifeShown = null;
   setScreen("game");
   await startRound();
 }
@@ -1819,6 +1854,7 @@ async function replayGame() {
     ...Object.fromEntries(keep.map((k) => [k, old[k]])),
     life: old.maxLife, index: 0, results: [], overlays: [], usedPanos: new Set(),
   };
+  state.lifeShown = null;
   $("result").hidden = true;
   setScreen("game");
   await startRound();
@@ -2094,7 +2130,7 @@ function submitGuess(timedOut = false) {
     ? `<div class="rs-big rs-damage">−${result.damage.toLocaleString()}</div>
        <div class="rs-cap">${g.hardcore ? '<span class="rs-extra">🔥EXTRA</span>' : ""}ライフ ${lifeBar(g.life, g.maxLife)} 残り ${g.life.toLocaleString()} / ${g.maxLife.toLocaleString()}${g.life <= 0 ? "（ライフ切れ）" : ""}</div>`
     : `<div class="rs-big rs-score">${score.toLocaleString()}</div>
-       <div class="rs-cap">1,000 点のうち</div>`;
+       <div class="rs-cap">${MAX_SCORE.toLocaleString()} 点のうち</div>`;
   const roundText = g.mode === "life" ? `ラウンド ${g.index + 1}` : `ラウンド ${g.index + 1} / ${g.rounds}`;
   $("result-text").innerHTML = `
     <div class="rs-reaction"><span class="reaction${g.hardcore ? " extra" : ""}">${reactionFor(missed ? null : distance, g.hardcore)}</span></div>
@@ -2157,8 +2193,8 @@ function showFinal() {
     const ended = played < g.rounds ? `（${g.rounds}ラウンド中 ${played} で終了）` : "";
     header = `
       <div class="sub">${escapeHtml(g.area.name)} ・ ${played}ラウンド${ended}${move}</div>
-      <div class="big">${total.toLocaleString()} / ${(played * 1000).toLocaleString()} 点</div>
-      ${scoreBar(total, Math.max(1, played * 1000))}`;
+      <div class="big">${total.toLocaleString()} / ${(played * MAX_SCORE).toLocaleString()} 点</div>
+      ${scoreBar(total, Math.max(1, played * MAX_SCORE))}`;
   }
   $("result-text").innerHTML = `
     ${header}
@@ -2444,7 +2480,49 @@ function bindStaticUi() {
   bindShapeList();
 }
 
+// 1ラウンド 1000 点満点だったころの記録・ランキング・設定を、5000 点満点に合わせて直す（1回だけ）
+const STORE_SCALE = "lg.scale";
+function migrateScoreScale() {
+  try {
+    if (localStorage.getItem(STORE_SCALE) === String(MAX_SCORE)) return;
+  } catch {
+    return;
+  }
+  const x5 = (n) => Math.round((Number(n) || 0) * 5);
+  const h = loadJSON(STORE_HISTORY, null);
+  if (h) {
+    (h.rounds || []).forEach((r) => { r.score = x5(r.score); });
+    Object.values(h.games || {}).forEach((st) => { st.bestAvg = x5(st.bestAvg); });
+    saveJSON(STORE_HISTORY, h);
+  }
+  const all = loadJSON(STORE_SCORES, null);
+  if (all) {
+    for (const areaId of Object.keys(all)) {
+      const boards = {};
+      for (const [key, list] of Object.entries(all[areaId] || {})) {
+        // ライフ制の部門名には最初のライフが入っているので、それも 5 倍にする
+        const parts = key.split("-");
+        if (parts[0] === "life" && parts[2]) parts[2] = String(x5(parts[2]));
+        boards[parts.join("-")] = list.map((e) => ({ ...e, score: x5(e.score), max: x5(e.max) }));
+      }
+      all[areaId] = boards;
+    }
+    saveJSON(STORE_SCORES, all);
+  }
+  const s = loadJSON(STORE_SETTINGS, null);
+  if (s && s.customLife) {
+    s.customLife = String(x5(s.customLife));
+    saveJSON(STORE_SETTINGS, s);
+  }
+  try {
+    localStorage.setItem(STORE_SCALE, String(MAX_SCORE));
+  } catch {
+    // 保存できなくても遊ぶのには困らない
+  }
+}
+
 function boot() {
+  migrateScoreScale();
   const s = loadJSON(STORE_SETTINGS, {});
   if (s.areaId && allAreas().some((a) => a.id === s.areaId)) state.selectedAreaId = s.areaId;
   if (s.rounds) $("opt-rounds").value = s.rounds;

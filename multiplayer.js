@@ -855,7 +855,7 @@ function showMultiResult(msg) {
     </div>
     <div class="rs-side rs-right">${g.team && msg.team ? teamResultSide(msg.team) : `
       <div class="rs-big rs-score">${mine ? mine.score.toLocaleString() : 0}</div>
-      <div class="rs-cap">1,000 点のうち ・ 合計 ${mine ? mine.total.toLocaleString() : 0}</div>`}
+      <div class="rs-cap">${MAX_SCORE.toLocaleString()} 点のうち ・ 合計 ${mine ? mine.total.toLocaleString() : 0}</div>`}
     </div>
     <table class="mp-table rs-board">${rows.map((r, i) => `
       <tr class="${r.id === mp.me ? "me" : ""}">
@@ -910,7 +910,7 @@ function showMultiFinal(msg) {
   g.finished = true;
   setScreen("final");
   if (g.team) return showTeamFinal(msg);
-  const max = msg.rounds * 1000;
+  const max = msg.rounds * MAX_SCORE;
   const medals = ["gold", "silver", "bronze"];
   const podium = [1, 0, 2].map((i) => {
     const s = msg.standings[i];
@@ -965,19 +965,19 @@ async function exitMultiGame() {
 
 // ---------------------------------------------------------------- チーム戦
 // 毎ラウンド、各チームでいちばん正解に近かった人の得点を比べ、点差 × 倍率を相手チームのライフから引く。
-// エクストラモードのチームは、ずれを厳しく判定した得点（1000 − エクストラのダメージ）で比べる。
+// エクストラモードのチームは、ずれを厳しく判定した得点（5000 − エクストラのダメージ）で比べる。
 
 const TEAMS = {
   red: { name: "チーム赤", short: "赤", color: "#e5392f" },
   blue: { name: "チーム青", short: "青", color: "#3b82f6" },
 };
-const TEAM_LIFE_MIN = 500;
-const TEAM_LIFE_MAX = 50000;
+const TEAM_LIFE_MIN = 1000;
+const TEAM_LIFE_MAX = 100000;
 
 function defaultMatchConfig() {
   return {
     mode: "solo",
-    teams: { red: { life: 6000, extra: false }, blue: { life: 6000, extra: false } },
+    teams: { red: { life: 10000, extra: false }, blue: { life: 10000, extra: false } },
     timer: { on: false, seconds: 60 }, // チーム戦の制限時間（両チーム共通）
   };
 }
@@ -1001,7 +1001,7 @@ function hostTeamRound(results) {
     const best = results
       .filter((r) => g.team.members[r.id] === t && r.guess)
       .sort((a, b) => a.distance - b.distance)[0];
-    const points = best ? Math.max(0, 1000 - damageFor(scoreFor(best.distance, g.area), best.distance, g.team.teams[t].extra)) : 0;
+    const points = best ? Math.max(0, MAX_SCORE - damageFor(scoreFor(best.distance, g.area), best.distance, g.team.teams[t].extra)) : 0;
     teams[t] = { points, best: best ? { id: best.id, name: best.name, distance: best.distance } : null, before: g.teamLife[t] };
   }
   const diff = teams.red.points - teams.blue.points;
@@ -1043,6 +1043,7 @@ function renderTeamHud(round) {
     const num = el.querySelector(".tg-life");
     fill.style.transition = "none";
     fill.style.width = `${(from / max) * 100}%`;
+    fill.style.background = lifeColor(from / max);
     num.textContent = from.toLocaleString();
     el.querySelector(".tg-points").textContent = round ? round.teams[t].points.toLocaleString() : "";
     const dmg = el.querySelector(".tg-dmg");
@@ -1052,6 +1053,7 @@ function renderTeamHud(round) {
       setTimeout(() => {
         fill.style.transition = "";
         fill.style.width = `${(now / max) * 100}%`;
+        fill.style.background = lifeColor(now / max);
         countNumber(num, from, now);
         dmg.classList.add("show");
         el.classList.remove("hit");
@@ -1168,8 +1170,8 @@ function bindMatchCard() {
   document.querySelectorAll("#match-mode .tab").forEach((b) => b.addEventListener("click", hostOnly((cfg) => { cfg.mode = b.dataset.m; })));
   for (const t of Object.keys(TEAMS)) {
     $(`team-${t}-life`).addEventListener("change", hostOnly((cfg) => {
-      const v = Math.round(Number($(`team-${t}-life`).value) / 100) * 100;
-      cfg.teams[t].life = Number.isFinite(v) ? Math.min(TEAM_LIFE_MAX, Math.max(TEAM_LIFE_MIN, v)) : 6000;
+      const v = Math.round(Number($(`team-${t}-life`).value) / 500) * 500;
+      cfg.teams[t].life = Number.isFinite(v) ? Math.min(TEAM_LIFE_MAX, Math.max(TEAM_LIFE_MIN, v)) : 10000;
       $(`team-${t}-life`).value = cfg.teams[t].life;
     }));
     $(`team-${t}-extra`).addEventListener("change", hostOnly((cfg) => { cfg.teams[t].extra = $(`team-${t}-extra`).checked; }));
