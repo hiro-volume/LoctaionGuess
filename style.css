@@ -1917,3 +1917,23 @@ html.no-anim #mp-toast.show { animation: none; }
 }
 /* バージョン表記とクレジットが重ならないよう、クレジットを少し上げる */
 .title-foot { padding-bottom: 24px; }
+
+/* ================================================================ 新しいバージョンのお知らせ */
+#update-banner {
+  position: fixed; left: 0; right: 0; bottom: 18px; margin: 0 auto; width: fit-content; z-index: 70;
+  display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 24px);
+  padding: 10px 10px 10px 16px; border-radius: 16px; font-size: 13px; line-height: 1.5; color: #fff;
+  background: rgba(17, 24, 40, .96); border: 2px solid rgba(56,189,248,.8);
+  box-shadow: 0 12px 34px rgba(0,0,0,.5), 0 0 24px rgba(56,189,248,.3);
+}
+#update-banner[hidden] { display: none; }
+.ub-icon { font-size: 20px; }
+.ub-text { flex: 1; min-width: 0; }
+#btn-update { flex: none; padding: 8px 18px; border-radius: 999px; font-weight: 800; }
+.ub-close { flex: none; width: 28px; height: 28px; padding: 0; border-radius: 50%; background: transparent; border: none; color: var(--muted); font-size: 18px; }
+.ub-close:hover { color: #fff; background: rgba(255,255,255,.08); }
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.no-anim) #update-banner:not([hidden]) { animation: fadeUp .4s cubic-bezier(.2,.8,.2,1) both; }
+}
+.ub-text { display: flex; flex-direction: column; }
+.ub-text small { font-size: 11px; color: var(--muted); }

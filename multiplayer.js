@@ -982,7 +982,7 @@ function applySpectateView(view) {
     if (!state.spectateMarker) {
       state.spectateMarker = new google.maps.Marker({ map: state.map, clickable: false, zIndex: 3 });
     }
-    state.spectateMarker.setIcon(pinIcon(p.color, "guess"));
+    state.spectateMarker.setIcon(pinIcon(teamPinColor(p.id, p.color), "guess"));
     state.spectateMarker.setPosition(view.guess);
     state.spectateMarker.setMap(state.map);
   } else if (state.spectateMarker) {
@@ -1048,8 +1048,9 @@ function showMultiResult(msg) {
   msg.results.forEach((r) => {
     if (!r.guess) return;
     bounds.extend(r.guess);
-    addOverlay(new google.maps.Polyline({ path: [r.guess, answer], strokeColor: r.color, strokeOpacity: 0.85, strokeWeight: 3, zIndex: 1 }));
-    addOverlay(new google.maps.Marker({ position: r.guess, icon: pinIcon(r.color, "guess"), title: r.name, zIndex: 5 }));
+    const color = teamPinColor(r.id, r.color);
+    addOverlay(new google.maps.Polyline({ path: [r.guess, answer], strokeColor: color, strokeOpacity: 0.85, strokeWeight: 3, zIndex: 1 }));
+    addOverlay(new google.maps.Marker({ position: r.guess, icon: pinIcon(color, "guess"), title: r.name, zIndex: 5 }));
     addOverlay(new MapLabel(r.guess, escapeHtml(r.name), "tag player"));
   });
   setScreen("result");
@@ -1226,6 +1227,13 @@ function defaultMatchConfig() {
 }
 
 // 人数の少ないチームに入れる（同じなら赤）
+// チーム戦では、ピンの色をチームの色にする（赤チームは赤、青チームは青）
+function teamPinColor(id, fallback) {
+  const g = state.game;
+  const t = g && g.team ? g.team.members[id] : null;
+  return TEAMS[t] ? TEAMS[t].color : fallback;
+}
+
 function smallerTeam() {
   const count = (t) => state.mp.players.filter((p) => p.team === t).length;
   return count("blue") < count("red") ? "blue" : "red";

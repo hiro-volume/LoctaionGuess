@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.47";
+const APP_VERSION = "1.48";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -2263,6 +2263,8 @@ function showPanorama(panoId, { move, pan, zoom }) {
 
 function placeGuess(latLng) {
   const g = state.game;
+  // チーム戦では、自分のピンも自分のチームの色にする
+  const pinColor = g.multi && g.team ? teamPinColor(state.mp.me, GUESS_COLOR) : GUESS_COLOR;
   let picked = null;
   if (isRegionMode(g)) {
     picked = regionAt(g.guessMode, latLng.lat(), latLng.lng());
@@ -2272,19 +2274,19 @@ function placeGuess(latLng) {
     }
     // 選んだ区画を塗って、どこを選んだかひと目でわかるようにする
     if (g.pickShape) g.pickShape.setMap(null);
-    g.pickShape = regionPolygon(g.guessMode, picked, GUESS_COLOR, 0.3);
+    g.pickShape = regionPolygon(g.guessMode, picked, pinColor, 0.3);
     if (g.pickShape) g.pickShape.setMap(state.map);
   }
   g.guess = { lat: latLng.lat(), lng: latLng.lng() };
   // 刺し直すたびに作り直して、毎回その場にポンと出す
   if (g.guessMarker) g.guessMarker.setMap(null);
   g.guessMarker = new google.maps.Marker({
-    map: state.map, position: g.guess, icon: pinIcon(GUESS_COLOR, "guess", state.prefs.anim ? 0.35 : 1), title: "あなたのピン", zIndex: 2,
+    map: state.map, position: g.guess, icon: pinIcon(pinColor, "guess", state.prefs.anim ? 0.35 : 1), title: "あなたのピン", zIndex: 2,
     // ピンの絵が上に重なっていても、クリックは地図に届けて刺し直せるようにする
     clickable: false,
   });
   if (state.prefs.anim) {
-    popPin(g.guessMarker, GUESS_COLOR, "guess");
+    popPin(g.guessMarker, pinColor, "guess");
     showPinRipple(g.guess);
   }
   $("btn-guess").disabled = false;
@@ -2869,8 +2871,58 @@ function migrateScoreScale() {
   }
 }
 
+// ---------------------------------------------------------------- 新しいバージョンのお知らせ
+// 公開ページの version.json を時々見に行き、いま開いているページより新しければ「更新する」を出す
+const UPDATE_CHECK_MS = 10 * 60 * 1000;
+
+function versionNumber(v) {
+  return String(v || "0").split(".").map((n) => Number(n) || 0);
+}
+
+function isNewer(remote, local) {
+  const a = versionNumber(remote);
+  const b = versionNumber(local);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+  }
+  return false;
+}
+
+async function checkForUpdate() {
+  try {
+    const res = await fetch(`version.json?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return;
+    const { version } = await res.json();
+    if (!isNewer(version, APP_VERSION) || state.dismissedUpdate === version) return;
+    $("update-text").innerHTML = `<b>新しいバージョン v${escapeHtml(version)} があります</b><small>いまは v${APP_VERSION}</small>`;
+    $("update-banner").dataset.version = version;
+    $("update-banner").hidden = false;
+  } catch {
+    // オフラインなどで確かめられないときは何もしない
+  }
+}
+
+function bindUpdateBanner() {
+  $("btn-update").addEventListener("click", async () => {
+    // 部屋に入っている間は、ひとこと確認してから（更新すると部屋から抜けるため）
+    if (state.mp) {
+      const ok = await askConfirm({ title: "更新しますか？", text: "ページを読み込み直すので、いまの部屋からは抜けます。", okText: "更新する" });
+      if (!ok) return;
+    }
+    location.reload();
+  });
+  $("btn-update-close").addEventListener("click", () => {
+    state.dismissedUpdate = $("update-banner").dataset.version;
+    $("update-banner").hidden = true;
+  });
+  checkForUpdate();
+  setInterval(checkForUpdate, UPDATE_CHECK_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate(); });
+}
+
 function boot() {
   migrateScoreScale();
+  bindUpdateBanner();
   const s = loadJSON(STORE_SETTINGS, {});
   if (s.areaId && allAreas().some((a) => a.id === s.areaId)) state.selectedAreaId = s.areaId;
   if (s.rounds) $("opt-rounds").value = s.rounds;
