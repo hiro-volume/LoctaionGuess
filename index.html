@@ -23,7 +23,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.55">
+  <link rel="stylesheet" href="style.css?v=1.56">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -356,6 +356,12 @@
             <svg viewBox="0 0 24 24" width="20" height="20"><path d="M5 7l8-3 7 6-3 9-11-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
             <span><b>多角形</b><small>形を自由に囲む</small></span>
           </button>
+        </div>
+
+        <!-- 出題する範囲に足すか、そこから除外するか -->
+        <div class="seg kind-seg" id="kind-tabs">
+          <button data-kind="add" class="tab active"><span><b>＋ 出題する範囲</b><small>ここから出題する</small></span></button>
+          <button data-kind="exclude" class="tab"><span><b>⛔ 除外する範囲</b><small>ここは出さない（円）</small></span></button>
         </div>
 
         <ol id="editor-help" class="steps"></ol>
@@ -744,14 +750,14 @@
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.55"></script>
-  <script src="hiroshima-boundary.js?v=1.55"></script>
-  <script src="world-boundary.js?v=1.55"></script>
-  <script src="region-boundary.js?v=1.55"></script>
-  <script src="regions.js?v=1.55"></script>
+  <script src="config.js?v=1.56"></script>
+  <script src="hiroshima-boundary.js?v=1.56"></script>
+  <script src="world-boundary.js?v=1.56"></script>
+  <script src="region-boundary.js?v=1.56"></script>
+  <script src="regions.js?v=1.56"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="app.js?v=1.55"></script>
-  <script src="multiplayer.js?v=1.55"></script>
+  <script src="app.js?v=1.56"></script>
+  <script src="multiplayer.js?v=1.56"></script>
 </body>
 </html>

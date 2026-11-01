@@ -2067,3 +2067,15 @@ input, textarea, [contenteditable="true"] { user-select: text; -webkit-user-sele
 /* ラウンド制のチーム戦: 結果では「+得点」だけを大きく出す（同じ数字を2回出さない） */
 #team-hud.by-rounds .tg-points { display: none !important; }
 body.team-game .screen-result #team-hud.by-rounds .tg-dmg { top: 40px; font-size: 30px; }
+
+/* ================================================================ 範囲エディタ: 除外する範囲 */
+.kind-seg { margin-top: 10px; }
+.kind-seg .tab { text-align: left; }
+.kind-seg .tab span { display: flex; flex-direction: column; gap: 2px; }
+.kind-seg .tab small { font-size: 11px; color: var(--muted); font-weight: 500; }
+.kind-seg .tab[data-kind="exclude"].active { border-color: #ff5a4e; background: rgba(255,90,78,.14); color: #ffb3ab; }
+.shape-list li.ex .sl-pick { border-color: rgba(255,90,78,.5); background: rgba(255,90,78,.08); }
+.shape-list li.ex.sel .sl-pick { border-color: #fff; }
+.cv-shape svg .ex { fill: rgba(255,90,78,.25); stroke: #ff5a4e; }
+.cv-shape.has-map .static-thumb mask .mask-ex, .cv-shape.has-map .static-thumb mask .mask-ex * { fill: #fff; }
+.cv-shape.has-map .thumb-exclude * { fill: none; stroke: #ff5a4e; stroke-width: 2.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }

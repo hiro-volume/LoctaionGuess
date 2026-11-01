@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.55";
+const APP_VERSION = "1.56";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -149,6 +149,8 @@ function pointInRing(lat, lng, ring) {
 function areaContains(area, lat, lng) {
   // 全世界: 見つかった場所ならどこでもよい
   if (area.type === "world") return true;
+  // 除外する範囲（円）の中は出題しない
+  if (area.exclude && area.exclude.some((c) => distanceMeters(c.center, { lat, lng }) <= c.radius)) return false;
   const circles = areaCircles(area);
   if (circles) return circles.some((c) => distanceMeters(c.center, { lat, lng }) <= c.radius);
   if (area.rings.some((ring) => pointInRing(lat, lng, ring))) return true;
@@ -345,6 +347,9 @@ function drawArea(area, fit = true) {
       ...style, paths: area.rings.map((ring) => ring.map(([lat, lng]) => ({ lat, lng }))),
     })];
   }
+  (area.exclude || []).forEach((c) => state.areaOverlays.push(new google.maps.Circle({
+    ...style, strokeColor: EXCLUDE_COLOR, fillColor: EXCLUDE_COLOR, fillOpacity: 0.22, center: c.center, radius: c.radius,
+  })));
   if (fit) {
     const b = areaBounds(area);
     state.map.fitBounds(b, 20);
@@ -628,8 +633,9 @@ function areaPlaceName(area) {
 
 function areaShapeKind(area) {
   const circles = areaCircles(area);
-  if (circles) return `円 ${circles.length} 個`;
-  return `多角形 ${area.rings[0].length} 点`;
+  const ex = area.exclude && area.exclude.length ? ` ・ 除外 ${area.exclude.length}` : "";
+  if (circles) return `円 ${circles.length} 個${ex}`;
+  return `多角形 ${area.rings[0].length} 点${ex}`;
 }
 
 // 写真のない自作の範囲は、「範囲の地図」の小窓で見せる
@@ -686,12 +692,18 @@ function staticThumb(area) {
       return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(ci.radius / metersPerPx).toFixed(1)}"/>`;
     }).join("")
     : area.rings.map((ring) => `<polygon points="${ring.map(([lat, lng]) => px(lat, lng).map((v) => v.toFixed(1)).join(",")).join(" ")}"/>`).join("");
+  const excludes = (area.exclude || []).map((ci) => {
+    const [x, y] = px(ci.center.lat, ci.center.lng);
+    const metersPerPx = (40075016.686 * Math.cos((ci.center.lat * Math.PI) / 180)) / (256 * 2 ** z);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(ci.radius / metersPerPx).toFixed(1)}"/>`;
+  }).join("");
   const id = `thumb-mask-${++thumbSeq}`;
   return `<svg class="static-thumb" viewBox="0 0 ${THUMB} ${THUMB}">
-    <defs><mask id="${id}"><rect width="${THUMB}" height="${THUMB - THUMB_FOOTER}" fill="#fff"/><g fill="#000">${shapes}</g></mask></defs>
+    <defs><mask id="${id}"><rect width="${THUMB}" height="${THUMB - THUMB_FOOTER}" fill="#fff"/><g fill="#000">${shapes}</g><g class="mask-ex" fill="#fff">${excludes}</g></mask></defs>
     <image href="${url}" width="${THUMB}" height="${THUMB}"/>
     <rect class="thumb-dim" width="${THUMB}" height="${THUMB}" mask="url(#${id})"/>
     <g class="thumb-outline">${shapes}</g>
+    <g class="thumb-exclude">${excludes}</g>
   </svg>`;
 }
 
@@ -727,7 +739,11 @@ function areaShapeSvg(area) {
   } else {
     shapes = area.rings.map((ring) => `<polygon points="${ring.map(([lat, lng]) => xy(lat, lng).join(",")).join(" ")}"/>`).join("");
   }
-  return `<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">${shapes}</svg>`;
+  const excludes = (area.exclude || []).map((c) => {
+    const [x, y] = xy(c.center.lat, c.center.lng);
+    return `<circle class="ex" cx="${x}" cy="${y}" r="${(c.radius / 111320) * scale}"/>`;
+  }).join("");
+  return `<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">${shapes}${excludes}</svg>`;
 }
 
 // ---------------------------------------------------------------- プレイ記録
@@ -1739,13 +1755,15 @@ function bindAreaForm(prefix) {
 
 const EDIT_COLOR = AREA_LINE_COLOR;
 const EDIT_ERROR_COLOR = "#ff5a4e";
+// 除外する範囲の色
+const EXCLUDE_COLOR = "#ff5a4e";
 
 // editId を渡すと、保存してある自作の範囲を読み込んで編集する（形も見た目も変えられる）
 function openEditor(editId) {
   if (!ensureMap()) return;
   closeSettings();
   const editing = typeof editId === "string" ? loadJSON(STORE_AREAS, []).find((a) => a.id === editId) : null;
-  state.editor = { tool: "circle", circles: [], polygon: null, added: [], selected: null, editingId: editing ? editing.id : null };
+  state.editor = { tool: "circle", kind: "add", circles: [], polygon: null, added: [], excludes: [], selected: null, editingId: editing ? editing.id : null };
   setScreen("editor");
   $("editor-eyebrow").textContent = editing ? "EDIT" : "CREATE";
   $("editor-title").textContent = editing ? "範囲を編集" : "範囲を作る";
@@ -1764,7 +1782,31 @@ function openEditor(editId) {
   clearOverlay();
   state.map.setOptions({ draggableCursor: "crosshair" });
   setTool(editing && editing.type === "polygons" ? "polygon" : "circle");
+  setKind("add");
   if (editing) loadEditorShapes(editing);
+}
+
+// 「出題する範囲」を描くか、「除外する範囲」（円）を置くかを切り替える
+function setKind(kind) {
+  const ed = state.editor;
+  ed.kind = kind;
+  document.querySelectorAll("#kind-tabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.kind === kind));
+  $("editor-panel").classList.toggle("excluding", kind === "exclude");
+  // 除外は円なので、多角形を描いているときも半径のスライダーを出す
+  $("radius-row").hidden = ed.tool !== "circle" && kind !== "exclude";
+  updateEditorStatus();
+}
+
+function addExcludeCircle(center, radius) {
+  const circle = new google.maps.Circle({
+    ...editorShapeOptions(), center, radius, strokeColor: EXCLUDE_COLOR, fillColor: EXCLUDE_COLOR, fillOpacity: 0.25, zIndex: 3,
+  });
+  circle.isExclude = true;
+  circle.addListener("click", () => selectShape(circle));
+  ["center_changed", "radius_changed"].forEach((ev) => circle.addListener(ev, updateEditorStatus));
+  bindShapeHover(circle);
+  state.editor.excludes.push(circle);
+  selectShape(circle);
 }
 
 // 保存してある範囲の図形を、エディタで動かせる図形として置き直す
@@ -1778,12 +1820,17 @@ function loadEditorShapes(area) {
     area.rings[0].forEach(([lat, lng]) => path.push(new google.maps.LatLng(lat, lng)));
     ed.selected = ed.polygon;
   }
+  (area.exclude || []).forEach((c) => addExcludeCircle(new google.maps.LatLng(c.center.lat, c.center.lng), c.radius));
   state.map.fitBounds(areaBounds(area), 40);
   updateEditorStatus();
 }
 
-function clearEditorShapes() {
+function clearEditorShapes(withExcludes = true) {
   const ed = state.editor;
+  if (withExcludes) {
+    (ed.excludes || []).forEach((c) => c.setMap(null));
+    ed.excludes = [];
+  }
   ed.circles.forEach((c) => c.setMap(null));
   if (ed.polygon) ed.polygon.setMap(null);
   ed.circles = [];
@@ -1794,10 +1841,10 @@ function clearEditorShapes() {
 
 function setTool(tool) {
   const ed = state.editor;
-  clearEditorShapes();
+  clearEditorShapes(false);
   ed.tool = tool;
-  document.querySelectorAll("#editor-panel .tab").forEach((t) => t.classList.toggle("active", t.dataset.tool === tool));
-  $("radius-row").hidden = tool !== "circle";
+  document.querySelectorAll("#tool-tabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.tool === tool));
+  $("radius-row").hidden = tool !== "circle" && ed.kind !== "exclude";
   $("btn-undo").title = tool === "circle" ? "最後の円を消す" : "最後の点を消す";
   const steps = tool === "circle"
     ? ["地図をクリックして円を置く", "スライダーで大きさを決める", "円の中をドラッグで移動、縁の白い点で大きさを調整", "消すときは下の一覧の「削除」か、円を選んで Delete キー"]
@@ -1824,7 +1871,9 @@ function editorShapeOptions() {
 function editorClick(latLng) {
   const ed = state.editor;
   if (Date.now() < (ed.suppressClickUntil || 0)) return;
-  if (ed.tool === "circle") {
+  if (ed.kind === "exclude") {
+    addExcludeCircle(latLng, Number($("radius").value));
+  } else if (ed.tool === "circle") {
     addEditorCircle(latLng, Number($("radius").value));
   } else {
     addPolygonPoint(latLng);
@@ -1834,7 +1883,7 @@ function editorClick(latLng) {
 
 function addEditorCircle(center, radius) {
   const circle = new google.maps.Circle({ ...editorShapeOptions(), center, radius });
-  circle.addListener("click", () => selectShape(circle));
+  circle.addListener("click", (e) => (state.editor.kind === "exclude" ? editorClick(e.latLng) : selectShape(circle)));
   ["center_changed", "radius_changed"].forEach((ev) => circle.addListener(ev, updateEditorStatus));
   bindShapeHover(circle);
   state.editor.circles.push(circle);
@@ -1886,7 +1935,12 @@ function addPolygonPoint(latLng) {
 
 function undoEditor() {
   const ed = state.editor;
-  if (ed.tool === "circle") {
+  if (ed.kind === "exclude") {
+    const c = ed.excludes.pop();
+    if (c) c.setMap(null);
+    ed.selected = null;
+    highlightSelected();
+  } else if (ed.tool === "circle") {
     const c = ed.circles.pop();
     if (c) c.setMap(null);
     ed.selected = ed.circles[ed.circles.length - 1] || null;
@@ -1948,17 +2002,21 @@ function updateEditorStatus() {
     ok = pts.length >= 3 && !crossed;
     text = crossed ? "⚠ 線が交差しています。白い点をドラッグして直してください" : `頂点: ${pts.length} 個`;
   }
+  if (ed.excludes.length) text += ` ・ 除外: ${ed.excludes.length} 個`;
   const error = text.startsWith("⚠");
   $("editor-status").textContent = error ? text.slice(2) : text;
   $("editor-status-card").classList.toggle("error", error);
   $("editor-status-card").classList.toggle("ready", ok);
   $("editor-status-icon").textContent = error ? "!" : ok ? "✓" : "…";
   $("editor-size").textContent = ok ? editorSizeText() : ed.tool === "circle" ? "まだ円がありません" : "頂点が3つ以上必要です";
-  $("editor-hint").textContent = ed.tool === "circle"
+  $("editor-hint").textContent = ed.kind === "exclude"
+    ? "地図をクリックして、出題しない場所に赤い円を置こう"
+    : ed.tool === "circle"
     ? (ed.circles.length ? "続けてクリックすると円を追加できます" : "地図をクリックして円を置こう")
     : (pts.length >= 3 ? "白い点をドラッグして形を整えられます" : `地図をクリックして頂点を置こう（あと ${3 - pts.length} 点）`);
   $("btn-save-area").disabled = !ok;
-  $("btn-undo").disabled = ed.tool === "circle" ? !ed.circles.length : !(ed.polygon && ed.polygon.getPath().getLength());
+  $("btn-undo").disabled = ed.kind === "exclude" ? !ed.excludes.length
+    : ed.tool === "circle" ? !ed.circles.length : !(ed.polygon && ed.polygon.getPath().getLength());
   // 図形が動いたり大きさが変わったりしたら、一覧の表示も直す
   renderShapeList();
 }
@@ -1978,6 +2036,9 @@ function saveEditor() {
     if (pts.length < 3) return showMessage("頂点を3つ以上置いてください。");
     if (polygonSelfIntersects(pts)) return showMessage("線が交差しているので保存できません。白い点をドラッグして直してください。");
     area = { type: "polygons", rings: [pts.map((p) => [p.lat(), p.lng()])] };
+  }
+  if (ed.excludes.length) {
+    area.exclude = ed.excludes.map((c) => ({ center: { lat: c.getCenter().lat(), lng: c.getCenter().lng() }, radius: Math.round(c.getRadius()) }));
   }
   const category = $("area-category").value;
   area = {
@@ -2004,7 +2065,7 @@ function saveEditor() {
 function editorShapes() {
   const ed = state.editor;
   if (!ed) return [];
-  return ed.tool === "circle" ? ed.circles : ed.polygon ? [ed.polygon] : [];
+  return [...(ed.tool === "circle" ? ed.circles : ed.polygon ? [ed.polygon] : []), ...ed.excludes];
 }
 
 function renderShapeList() {
@@ -2013,9 +2074,9 @@ function renderShapeList() {
   const shapes = editorShapes();
   $("shape-list").innerHTML = shapes.map((s, i) => {
     const circle = s instanceof google.maps.Circle;
-    const label = circle ? `円 ${i + 1}` : "多角形";
+    const label = s.isExclude ? `⛔ 除外 ${ed.excludes.indexOf(s) + 1}` : circle ? `円 ${i + 1}` : "多角形";
     const sub = circle ? `半径 ${formatDistance(s.getRadius())}` : `頂点 ${s.getPath().getLength()} 個`;
-    return `<li class="${s === ed.selected ? "sel" : ""}">
+    return `<li class="${s === ed.selected ? "sel" : ""}${s.isExclude ? " ex" : ""}">
       <button class="sl-pick" data-i="${i}" title="この図形を選ぶ"><b>${label}</b><small>${sub}</small></button>
       <button class="sl-del" data-i="${i}" title="${label}を削除" aria-label="${label}を削除">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>削除
@@ -2055,10 +2116,15 @@ function selectShape(shape) {
 
 function highlightSelected() {
   const ed = state.editor;
-  if (!ed || ed.tool !== "circle") return;
-  ed.circles.forEach((c) => c.setOptions(c === ed.selected
-    ? { strokeWeight: 4, strokeColor: "#ffffff", fillOpacity: 0.28, zIndex: 2 }
-    : { strokeWeight: 2, strokeColor: EDIT_COLOR, fillOpacity: 0.15, zIndex: 1 }));
+  if (!ed) return;
+  if (ed.tool === "circle") {
+    ed.circles.forEach((c) => c.setOptions(c === ed.selected
+      ? { strokeWeight: 4, strokeColor: "#ffffff", fillOpacity: 0.28, zIndex: 2 }
+      : { strokeWeight: 2, strokeColor: EDIT_COLOR, fillOpacity: 0.15, zIndex: 1 }));
+  }
+  ed.excludes.forEach((c) => c.setOptions(c === ed.selected
+    ? { strokeWeight: 4, strokeColor: "#ffffff", fillOpacity: 0.35, zIndex: 4 }
+    : { strokeWeight: 2, strokeColor: EXCLUDE_COLOR, fillOpacity: 0.25, zIndex: 3 }));
 }
 
 function bindShapeHover(shape) {
@@ -2070,7 +2136,9 @@ function bindShapeHover(shape) {
 function deleteShape(shape) {
   const ed = state.editor;
   if (!ed || !shape) return;
-  if (shape instanceof google.maps.Circle) {
+  if (shape.isExclude) {
+    ed.excludes = ed.excludes.filter((c) => c !== shape);
+  } else if (shape instanceof google.maps.Circle) {
     ed.circles = ed.circles.filter((c) => c !== shape);
   } else if (shape === ed.polygon) {
     ed.polygon = null;
@@ -2683,7 +2751,8 @@ function initApp() {
     const target = ed && ed.selected instanceof google.maps.Circle ? ed.selected : null;
     if (target) target.setRadius(Number($("radius").value));
   });
-  document.querySelectorAll("#editor-panel .tab").forEach((t) => t.addEventListener("click", () => setTool(t.dataset.tool)));
+  document.querySelectorAll("#tool-tabs .tab").forEach((t) => t.addEventListener("click", () => setTool(t.dataset.tool)));
+  document.querySelectorAll("#kind-tabs .tab").forEach((t) => t.addEventListener("click", () => setKind(t.dataset.kind)));
   $("btn-guess").addEventListener("click", () => submitGuess());
   $("btn-map-zoom-in").addEventListener("click", () => state.map && state.map.setZoom(state.map.getZoom() + 1));
   $("btn-map-zoom-out").addEventListener("click", () => state.map && state.map.setZoom(state.map.getZoom() - 1));
