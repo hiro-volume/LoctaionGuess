@@ -262,7 +262,7 @@ function leaveRoom() {
     // 閉じるときのエラーは気にしない
   }
   state.mp = null;
-  stopAutoNext();
+  stopRoundCountdown();
   if (state.game && state.game.multi) state.game = null;
   resetSocial();
   document.body.classList.remove("team-game");
@@ -291,7 +291,7 @@ function inviteLink(code) {
 function showLobby() {
   closeSettings();
   stopTimer();
-  stopAutoNext();
+  stopRoundCountdown();
   $("result").hidden = true;
   setScreen("lobby");
   renderLobby();
@@ -571,7 +571,7 @@ async function hostNextRound() {
 function beginMultiRound(msg) {
   const g = state.game;
   if (!g || !g.multi) return;
-  stopAutoNext();
+  stopRoundCountdown();
   stopTimer();
   clearGameMarkers();
   g.index = msg.index;
@@ -605,10 +605,15 @@ function beginMultiRound(msg) {
     state.pano.setPov(state.lockPov);
   }
   updateHeadingTape(state.pano.getPov().heading);
-  g.roundStartedAt = Date.now();
-  startTimer();
-  sendMyView();
-  if (!isAlive(state.mp.me)) startEliminatedRound();
+  $("timer-pill").hidden = true;
+  const index = g.index;
+  startRoundCountdown(() => {
+    if (state.game !== g || g.index !== index || app.className !== "screen-game") return;
+    g.roundStartedAt = Date.now();
+    startTimer();
+    sendMyView();
+    if (!isAlive(state.mp.me)) startEliminatedRound();
+  });
 }
 
 // submitGuess の代わり: 自分の回答をホストに送って、全員がそろうのを待つ
@@ -997,51 +1002,41 @@ ${isRegionMode(g) && !missed ? `
   $("btn-end").hidden = true;
   setResultButtons(false, false);
   $("result").hidden = false;
-  startAutoNext(msg);
 }
 
-// ---------------------------------------------------------------- 結果のあと、自動で次のラウンドへ
-// 結果（ライフの減り方や正解の場所）を 5 秒見せてから、5・4・3・2・1 と数えて次のラウンドを始める。
-// 数えるのは全員の画面で、次のラウンドを始めるのはホスト（ホストは「次のラウンドへ」で早めることもできる）
-const RESULT_VIEW_SECONDS = 5;
-const COUNTDOWN_SECONDS = 5;
+// ---------------------------------------------------------------- ラウンドの始まりの 3・2・1
+// 結果からはホストが「次のラウンドへ」で進める。新しいラウンドが始まったら、全員の画面で
+// 3・2・1 と数えてから、答えられるようにして制限時間を動かし始める
+const ROUND_COUNTDOWN_SECONDS = 3;
 
-function startAutoNext(msg) {
-  stopAutoNext();
-  if (msg.last) return;
-  const mp = state.mp;
-  const host = mp.role === "host";
-  const endAt = Date.now() + (RESULT_VIEW_SECONDS + COUNTDOWN_SECONDS) * 1000;
+function startRoundCountdown(onDone) {
+  stopRoundCountdown();
   const box = $("round-countdown");
+  const endAt = Date.now() + ROUND_COUNTDOWN_SECONDS * 1000;
   let shown = null;
+  box.hidden = false;
   const tick = () => {
-    const g = state.game;
-    if (!g || g.index !== msg.index || app.className !== "screen-result") return stopAutoNext();
     const left = Math.ceil((endAt - Date.now()) / 1000);
     if (left === shown) return;
     shown = left;
     if (left <= 0) {
-      stopAutoNext();
-      if (host && state.mp === mp) hostNextRound();
+      stopRoundCountdown();
+      onDone();
       return;
     }
-    if (!host) $("btn-next").textContent = `次のラウンドまで ${left} 秒`;
-    if (left <= COUNTDOWN_SECONDS) {
-      box.hidden = false;
-      $("round-countdown-num").textContent = left;
-      // 数字が変わるたびに、ポンと出し直す
-      box.classList.remove("tick");
-      void box.offsetWidth;
-      box.classList.add("tick");
-    }
+    $("round-countdown-num").textContent = left;
+    // 数字が変わるたびに、ポンと出し直す
+    box.classList.remove("tick");
+    void box.offsetWidth;
+    box.classList.add("tick");
   };
   tick();
-  state.autoNext = setInterval(tick, 200);
+  state.roundCountdown = setInterval(tick, 100);
 }
 
-function stopAutoNext() {
-  clearInterval(state.autoNext);
-  state.autoNext = null;
+function stopRoundCountdown() {
+  clearInterval(state.roundCountdown);
+  state.roundCountdown = null;
   $("round-countdown").hidden = true;
 }
 
@@ -1056,7 +1051,6 @@ function multiNext() {
     return showLobby();
   }
   if (mp.role !== "host") return;
-  stopAutoNext();
   if (g.lastResult && g.lastResult.last) return hostFinal();
   hostNextRound();
 }
