@@ -166,17 +166,26 @@ function randomWorldPoint() {
     });
   }
   const total = coverageCountries.reduce((s, c) => s + c.weight, 0);
-  let r = Math.random() * total;
+  let r = rand() * total;
   const pick = coverageCountries.find((c) => (r -= c.weight) <= 0) || coverageCountries[0];
   return randomPointIn(pick.area);
+}
+
+// 0 以上 1 未満の乱数。ブラウザの暗号用の乱数を使い、偏りやくり返しを減らす
+function rand() {
+  try {
+    return crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+  } catch {
+    return Math.random();
+  }
 }
 
 function randomPointIn(area) {
   if (area.type === "world") return randomWorldPoint();
   const b = areaBounds(area);
   for (let i = 0; i < 5000; i++) {
-    const lat = b.south + Math.random() * (b.north - b.south);
-    const lng = b.west + Math.random() * (b.east - b.west);
+    const lat = b.south + rand() * (b.north - b.south);
+    const lng = b.west + rand() * (b.east - b.west);
     if (areaContains(area, lat, lng)) return { lat, lng };
   }
   return null;
@@ -219,9 +228,41 @@ function scoreFor(distance, area) {
 
 // ---------------------------------------------------------------- 出題地点の検索（無料の Metadata API）
 
-async function findLocation(area, usedPanos) {
+// 最近のゲームで出た場所（マップごとに新しいものだけ残す）。次のゲームでその近くを避けるのに使う
+const STORE_RECENT = "lg.recent";
+const MAX_RECENT_SPOTS = 150;
+
+function loadRecentSpots(areaId) {
+  return (loadJSON(STORE_RECENT, {})[areaId] || []).map(([lat, lng]) => ({ lat, lng }));
+}
+
+function rememberSpot(areaId, p) {
+  const all = loadJSON(STORE_RECENT, {});
+  const list = [...(all[areaId] || []), [Math.round(p.lat * 1e5) / 1e5, Math.round(p.lng * 1e5) / 1e5]];
+  all[areaId] = list.slice(-MAX_RECENT_SPOTS);
+  saveJSON(STORE_RECENT, all);
+}
+
+function nearestDistance(p, spots) {
+  return spots.reduce((min, s) => Math.min(min, distanceMeters(p, s)), Infinity);
+}
+
+// usedSpots: このゲームで出た場所。見つけた場所はここに足す
+async function findLocation(area, usedPanos, usedSpots = []) {
   const wide = area.type === "world" || !!area.iso;
-  const radius = Math.round(Math.min(wide ? 20000 : 1000, Math.max(50, areaSizeMeters(area) / 100)));
+  // 検索の半径が大きいと、道の少ない場所（まわりに他の道がない道）ばかり選ばれやすくなるので、広い範囲でも 5km までにする
+  const radius = Math.round(Math.min(wide ? 5000 : 1000, Math.max(50, areaSizeMeters(area) / 100)));
+  const size = areaSizeMeters(area);
+  // 同じゲームの中では、前の出題から範囲の 6% ほど離れた場所を選ぶ
+  const gameGap = Math.max(60, size * 0.06);
+  // 最近のゲームで出た場所の近く（範囲の 1.5% ほど）も避ける
+  const recent = loadRecentSpots(area.id);
+  const recentGap = Math.max(30, size * 0.015);
+  const accept = (spot) => {
+    usedSpots.push({ lat: spot.lat, lng: spot.lng });
+    rememberSpot(area.id, spot);
+    return spot;
+  };
   const tries = wide ? 200 : MAX_LOCATION_TRIES;
   const batch = wide ? 6 : 3;
   const ask = async (p) => {
@@ -239,12 +280,20 @@ async function findLocation(area, usedPanos) {
     if (!areaContains(area, res.location.lat, res.location.lng)) return null;
     return { panoId: res.pano_id, lat: res.location.lat, lng: res.location.lng, date: res.date };
   };
+  // 離れた場所が見つからなかったときのために、いちばん離れていた候補を覚えておく
+  let fallback = null;
+  let fallbackRoom = -1;
   for (let i = 0; i < tries; i += batch) {
     const points = Array.from({ length: batch }, () => randomPointIn(area)).filter(Boolean);
     if (!points.length) break;
-    const found = (await Promise.all(points.map(ask))).find(Boolean);
-    if (found) return found;
+    const found = (await Promise.all(points.map(ask))).filter(Boolean);
+    for (const spot of found) {
+      const room = Math.min(nearestDistance(spot, usedSpots) / gameGap, nearestDistance(spot, recent) / recentGap);
+      if (room >= 1) return accept(spot);
+      if (room > fallbackRoom) { fallback = spot; fallbackRoom = room; }
+    }
   }
+  if (fallback) return accept(fallback);
   throw new Error("この範囲ではストリートビューが見つかりませんでした。範囲を広げるか、道路のある場所を選んでください。");
 }
 
@@ -1845,6 +1894,7 @@ async function startGame() {
     results: [],
     overlays: [],
     usedPanos: new Set(),
+    usedSpots: [],
   };
   state.lifeShown = null;
   setScreen("game");
@@ -1863,7 +1913,7 @@ async function replayGame() {
   const keep = ["area", "move", "pan", "zoom", "timeLimit", "mode", "difficulty", "hardcore", "maxLife", "rounds"];
   state.game = {
     ...Object.fromEntries(keep.map((k) => [k, old[k]])),
-    life: old.maxLife, index: 0, results: [], overlays: [], usedPanos: new Set(),
+    life: old.maxLife, index: 0, results: [], overlays: [], usedPanos: new Set(), usedSpots: [],
   };
   state.lifeShown = null;
   $("result").hidden = true;
@@ -1905,7 +1955,7 @@ async function startRound() {
   $("loading").hidden = false;
   let answer;
   try {
-    answer = await findLocation(g.area, g.usedPanos);
+    answer = await findLocation(g.area, g.usedPanos, g.usedSpots);
   } catch (e) {
     $("loading").hidden = true;
     showMessage(e.message);

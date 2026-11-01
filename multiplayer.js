@@ -513,7 +513,7 @@ function prepareMultiGame(area, settings) {
   state.game = {
     area, multi: true, mode: "rounds", rounds: team ? Infinity : settings.rounds,
     move: settings.move, pan: settings.pan, zoom: settings.zoom, timeLimit: settings.timeLimit,
-    index: -1, results: [], overlays: [], usedPanos: new Set(), total: 0,
+    index: -1, results: [], overlays: [], usedPanos: new Set(), usedSpots: [], total: 0,
     team, myTeam,
     // リアクションの厳しさは、自分のチームのエクストラに合わせる
     hardcore: !!(team && myTeam && team.teams[myTeam].extra),
@@ -532,7 +532,7 @@ async function hostNextRound() {
   $("loading").hidden = false;
   let answer;
   try {
-    answer = await findLocation(g.area, g.usedPanos);
+    answer = await findLocation(g.area, g.usedPanos, g.usedSpots);
   } catch (e) {
     $("loading").hidden = true;
     broadcast({ type: "error", text: `出題地点を見つけられませんでした: ${e.message}` });
