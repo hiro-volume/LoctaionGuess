@@ -488,7 +488,38 @@
         <button id="btn-guess" class="primary" disabled>ピンをマップに配置する</button>
       </div>
       <div id="editor-hint" class="editor-hint"></div>
-      <div id="loading" hidden>場所を探しています…</div>
+      <!-- 次の場所を探している間の全画面の読み込み（地球儀がくるくる回る） -->
+      <div id="loading" hidden>
+        <div class="ld-box">
+          <svg class="ld-globe" viewBox="0 0 120 120" aria-hidden="true">
+            <defs>
+              <clipPath id="ld-clip"><circle cx="60" cy="60" r="40"/></clipPath>
+              <radialGradient id="ld-sea" cx=".38" cy=".32" r=".75">
+                <stop offset="0" stop-color="#6fd6ff"/><stop offset=".6" stop-color="#2489d6"/><stop offset="1" stop-color="#0f3f7d"/>
+              </radialGradient>
+              <radialGradient id="ld-shade" cx=".35" cy=".3" r=".8">
+                <stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".45"/>
+              </radialGradient>
+            </defs>
+            <g class="ld-orbit"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(56,189,248,.45)" stroke-width="1.5" stroke-dasharray="3 6"/><circle cx="60" cy="6" r="4" fill="#ffd23f"/></g>
+            <circle cx="60" cy="60" r="40" fill="url(#ld-sea)"/>
+            <g clip-path="url(#ld-clip)">
+              <g class="ld-land" fill="#6be39a" opacity=".92">
+                <g transform="translate(-20 0)"><path d="M8 38c6-6 16-8 22-3 4 4 2 10 6 13 5 3 3 10-3 12-6 2-8 8-14 7-7-1-8-9-12-14-4-5-5-11 1-15z"/><path d="M44 26c8-4 20-3 26 2 4 4 0 9 4 12 6 4 10 1 14 5 3 4-1 10-7 10-5 0-8 5-14 4-6-1-6-7-11-9-6-3-12-1-15-6-3-6-1-14 3-18z"/><path d="M58 70c5-3 12-1 14 4 2 6-2 12-1 18 1 5-4 9-9 7-5-2-4-8-7-12-3-5-3-14 3-17z"/><path d="M100 32c9-5 22-4 30 2 5 4 3 10 8 12 5 3 3 9-3 10-7 1-9 7-16 6-6-1-6-8-12-9-7-1-12-4-12-10 0-4 2-8 5-11z"/><path d="M118 70c6-2 13 1 14 7 1 5-4 9-9 9-6 0-10-4-10-9 0-3 2-6 5-7z"/><path d="M22 80c5-2 10 1 11 6 1 6-3 12-9 12-5 0-8-5-7-10 0-4 2-7 5-8z"/></g>
+                <g transform="translate(140 0)"><path d="M8 38c6-6 16-8 22-3 4 4 2 10 6 13 5 3 3 10-3 12-6 2-8 8-14 7-7-1-8-9-12-14-4-5-5-11 1-15z"/><path d="M44 26c8-4 20-3 26 2 4 4 0 9 4 12 6 4 10 1 14 5 3 4-1 10-7 10-5 0-8 5-14 4-6-1-6-7-11-9-6-3-12-1-15-6-3-6-1-14 3-18z"/><path d="M58 70c5-3 12-1 14 4 2 6-2 12-1 18 1 5-4 9-9 7-5-2-4-8-7-12-3-5-3-14 3-17z"/><path d="M100 32c9-5 22-4 30 2 5 4 3 10 8 12 5 3 3 9-3 10-7 1-9 7-16 6-6-1-6-8-12-9-7-1-12-4-12-10 0-4 2-8 5-11z"/><path d="M118 70c6-2 13 1 14 7 1 5-4 9-9 9-6 0-10-4-10-9 0-3 2-6 5-7z"/><path d="M22 80c5-2 10 1 11 6 1 6-3 12-9 12-5 0-8-5-7-10 0-4 2-7 5-8z"/></g>
+              </g>
+              <g fill="none" stroke="rgba(255,255,255,.28)" stroke-width="1">
+                <ellipse cx="60" cy="60" rx="40" ry="14"/><line x1="20" y1="60" x2="100" y2="60"/>
+                <ellipse cx="60" cy="60" rx="16" ry="40"/><line x1="60" y1="20" x2="60" y2="100"/>
+              </g>
+              <circle cx="60" cy="60" r="40" fill="url(#ld-shade)"/>
+            </g>
+            <circle cx="60" cy="60" r="40" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.5"/>
+          </svg>
+          <b class="ld-text">次の場所を探しています<span class="ld-dots"><i>.</i><i>.</i><i>.</i></span></b>
+          <small>ストリートビューを読み込んでいます</small>
+        </div>
+      </div>
       <div id="mp-wait" hidden>
         <b id="mp-wait-title"></b>
         <p class="mp-wait-hint">「👀 見る」を押すと、その人がいま見ている画面に切り替わります</p>

@@ -551,7 +551,7 @@ input[type=number] {
 .map-label.tag.guess { background: #e5392f; color: #fff; }
 .map-label.tag.answer { background: #2fae6e; color: #fff; }
 
-#loading, #message {
+#message {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   background: rgba(17, 21, 28, .92); padding: 16px 24px; border-radius: 10px; z-index: 10;
   max-width: 560px; line-height: 1.7;
@@ -742,11 +742,6 @@ button:active:not(:disabled), .chip:active { transform: scale(.96); }
   #result-text .big { animation: popIn .5s .15s cubic-bezier(.2,1.4,.4,1) both; }
   .status-card.ready .status-icon { animation: popIn .35s cubic-bezier(.2,1.6,.4,1); }
   #loading { animation: fadeIn .3s both; }
-  #loading::before {
-    content: ""; display: inline-block; width: 14px; height: 14px; margin-right: 10px; vertical-align: -2px;
-    border: 2px solid rgba(255,255,255,.25); border-top-color: var(--btn-hi); border-radius: 50%;
-    animation: spin .8s linear infinite;
-  }
 }
 
 /* ================================================================ ロゴ: 「Guess」は黄色に白いふち */
@@ -1887,4 +1882,29 @@ html.no-anim #mp-toast.show { animation: none; }
 #btn-replay:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(.6); }
 @media (max-width: 720px) {
   #mp-toast { white-space: normal; max-width: calc(100vw - 32px); text-align: center; }
+}
+
+/* ================================================================ 次の場所を探している間の全画面の読み込み */
+#loading {
+  position: absolute; inset: 0; z-index: 25; display: grid; place-items: center;
+  background: radial-gradient(1200px 700px at 50% 40%, #13254a, #070c18 70%);
+}
+.ld-box { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; padding: 16px; }
+.ld-globe { width: 170px; height: 170px; filter: drop-shadow(0 0 30px rgba(56,189,248,.35)); }
+.ld-text { font-size: 20px; font-weight: 900; letter-spacing: .06em; color: #fff; }
+.ld-box small { font-size: 12px; color: var(--muted); }
+.ld-dots i { font-style: normal; }
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.no-anim) .ld-land { animation: ldSpin 5s linear infinite; }
+  html:not(.no-anim) .ld-orbit { animation: spin 3.2s linear infinite; transform-origin: 60px 60px; }
+  html:not(.no-anim) .ld-dots i { animation: ldDot 1.2s ease-in-out infinite; }
+  html:not(.no-anim) .ld-dots i:nth-child(2) { animation-delay: .2s; }
+  html:not(.no-anim) .ld-dots i:nth-child(3) { animation-delay: .4s; }
+}
+/* 大陸の帯を横に流して、地球が回っているように見せる（帯の幅 160 で一周） */
+@keyframes ldSpin { from { transform: translateX(0); } to { transform: translateX(-160px); } }
+@keyframes ldDot { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
+@media (max-width: 720px) {
+  .ld-globe { width: 130px; height: 130px; }
+  .ld-text { font-size: 16px; }
 }
