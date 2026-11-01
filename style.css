@@ -1796,3 +1796,21 @@ body:has(#mp-social:not([hidden])) #mp-wait { left: 68px; max-width: min(360px, 
 
 /* ライフは左から右へ減る（中身を右に寄せて、減った分だけ左があく） */
 .lh-fill, .tg-fill, .red .tg-fill, .blue .tg-fill { left: auto; right: 0; }
+
+/* ================================================================ タイトルの「クイックプレイ」 */
+.btn-quick {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 12px;
+  padding: 10px 34px; border-radius: 999px; cursor: pointer; color: #fff; font-family: var(--font);
+  background: linear-gradient(180deg, rgba(56,189,248,.35), rgba(56,189,248,.15));
+  border: 2px solid rgba(56,189,248,.75); box-shadow: 0 8px 22px rgba(0,0,0,.35);
+  transition: transform .15s, background .15s, box-shadow .15s;
+}
+.btn-quick b { font-size: 16px; font-weight: 900; letter-spacing: .06em; }
+.btn-quick small { font-size: 11px; color: #cdeefe; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn-quick:hover { transform: translateY(-2px); background: linear-gradient(180deg, rgba(56,189,248,.5), rgba(56,189,248,.25)); box-shadow: 0 0 0 4px rgba(56,189,248,.2), 0 12px 28px rgba(0,0,0,.4); }
+.btn-quick:active { transform: translateY(1px); }
+.btn-quick + .btn-ghost { margin-top: 12px; }
+
+/* ================================================================ 回答マップ: マウスを乗せていないときは半透明に */
+.screen-game #map-dock { transition: width .2s, height .2s, opacity .2s; }
+.screen-game #map-dock:not(.open):not(.pinned) { opacity: .55; }

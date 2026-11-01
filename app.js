@@ -404,6 +404,32 @@ function showTitle() {
   closeSettings();
   setScreen("title");
   renderUsage();
+  $("quick-map").textContent = findArea(state.selectedAreaId).name;
+}
+
+// タイトルの「クイックプレイ」: 前に選んだマップで、ラウンド制 5 ラウンド・制限時間 2 分ですぐ始める
+const QUICK_ROUNDS = 5;
+const QUICK_TIME_LIMIT = 120;
+
+async function startQuickGame() {
+  if (!ensureMap()) return;
+  closeSettings();
+  if (remainingStreetView() < QUICK_ROUNDS) {
+    return showMessage("今月の無料枠の上限に達しました（config.js の limits）。来月まで待つか、上限を見直してください。");
+  }
+  state.mode = "rounds";
+  state.game = {
+    area: findArea(state.selectedAreaId),
+    move: true, pan: true, zoom: true,
+    timeLimit: QUICK_TIME_LIMIT,
+    mode: "rounds", difficulty: "normal", hardcore: false,
+    maxLife: LIFE_PRESETS.normal, life: LIFE_PRESETS.normal,
+    rounds: QUICK_ROUNDS,
+    index: 0, results: [], overlays: [], usedPanos: new Set(), usedSpots: [],
+  };
+  state.lifeShown = null;
+  setScreen("game");
+  await startRound();
 }
 
 // タイトルの背景は、プリセットの写真をゆっくり切り替えて見せる
@@ -2513,6 +2539,7 @@ function bindStaticUi() {
   document.addEventListener("pointerdown", addRipple);
   bindProgressMap();
   $("btn-play").addEventListener("click", () => showMode());
+  $("btn-quick").addEventListener("click", startQuickGame);
   $("btn-title-create").addEventListener("click", () => { showSelect(); openEditor(); });
   $("btn-back-title").addEventListener("click", () => (state.mp && state.mp.role === "host" ? hostBackToLobby() : showMode()));
   $("btn-sheet-close").addEventListener("click", closeSettings);
