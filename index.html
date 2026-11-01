@@ -474,12 +474,16 @@
       <div id="loading" hidden>場所を探しています…</div>
       <div id="mp-wait" hidden>
         <b id="mp-wait-title"></b>
-        <p class="mp-wait-hint">名前を押すと、その人の画面を見られます</p>
+        <p class="mp-wait-hint">「👀 見る」を押すと、その人がいま見ている画面に切り替わります</p>
         <div id="mp-wait-list" class="mp-wait-list"></div>
       </div>
+      <!-- 観戦中: 画面のふちをその人の色で囲み、上に「誰の画面か」を大きく出す -->
+      <div id="spectate-frame" hidden></div>
       <div id="spectate-bar" hidden>
-        <span>👀 <b id="spectate-name"></b> の画面 <small id="spectate-state"></small></span>
-        <button id="btn-spectate-stop" class="secondary">自分の画面に戻る</button>
+        <span class="sp-live"><i></i>観戦中</span>
+        <span id="spectate-avatar" class="p-avatar"></span>
+        <span class="sp-text"><b id="spectate-name"></b> さんの画面<small id="spectate-state"></small></span>
+        <button id="btn-spectate-stop" class="primary">↩ 自分の画面に戻る</button>
       </div>
 
       <div id="game-settings" hidden>

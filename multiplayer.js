@@ -656,14 +656,22 @@ function renderWaiting(done) {
   const set = new Set(done);
   mp.done = [...set];
   $("mp-wait").hidden = false;
-  $("mp-wait-title").textContent = `他のプレイヤーを待っています（${set.size} / ${mp.players.length}）`;
+  $("mp-wait-title").textContent = `回答しました！ 他の人を待っています（${set.size} / ${mp.players.length}）`;
+  // 1人ずつの行: 色つきのアイコン・名前・回答したかどうか・「見る」ボタン
   $("mp-wait-list").innerHTML = mp.players.map((p) => {
     const me = p.id === mp.me;
-    const cls = ["pl-chip", set.has(p.id) ? "done" : "", me ? "me" : "", state.spectating === p.id ? "watching" : ""].join(" ");
+    const done = set.has(p.id);
+    const watching = state.spectating === p.id;
+    const teamId = g.team ? g.team.members[p.id] : null;
+    const cls = ["pl-row", done ? "done" : "", me ? "me" : "", watching ? "watching" : ""].join(" ");
     return `<button class="${cls}" data-id="${escapeHtml(p.id)}" style="--c:${p.color}" ${me ? "disabled" : ""}>
-      <i></i>${set.has(p.id) ? "✓" : "…"} ${escapeHtml(p.name || "?")}${me ? "（あなた）" : ""}</button>`;
+      <span class="p-avatar" style="--c:${p.color}">${escapeHtml((p.name || "?").slice(0, 1))}</span>
+      <span class="pl-name">${TEAMS[teamId] ? `<i class="pl-team ${teamId}">${TEAMS[teamId].short}</i>` : ""}${escapeHtml(p.name || "?")}</span>
+      <span class="pl-state">${done ? "✓ 回答済み" : '<i class="dots">考え中</i>'}</span>
+      <span class="pl-watch">${me ? "あなた" : watching ? "👀 見ています" : "👀 見る"}</span>
+    </button>`;
   }).join("");
-  $("mp-wait-list").querySelectorAll(".pl-chip:not(.me)").forEach((b) => b.addEventListener("click", () => startSpectate(b.dataset.id)));
+  $("mp-wait-list").querySelectorAll(".pl-row:not(.me)").forEach((b) => b.addEventListener("click", () => startSpectate(b.dataset.id)));
   if (state.spectating) renderSpectateBar();
 }
 
@@ -783,9 +791,13 @@ function renderSpectateBar() {
   if (!p) return stopSpectate(true);
   const done = (mp.done || []).includes(p.id);
   $("spectate-bar").hidden = false;
+  $("spectate-frame").hidden = false;
   $("spectate-bar").style.setProperty("--c", p.color);
+  $("spectate-frame").style.setProperty("--c", p.color);
+  $("spectate-avatar").style.setProperty("--c", p.color);
+  $("spectate-avatar").textContent = (p.name || "?").slice(0, 1);
   $("spectate-name").textContent = p.name || "?";
-  $("spectate-state").textContent = done ? "（回答済み）" : "（考え中…）";
+  $("spectate-state").textContent = done ? "回答済み" : "考え中…";
 }
 
 function stopSpectate(restore) {
@@ -793,6 +805,7 @@ function stopSpectate(restore) {
   state.spectating = null;
   state.mySpot = null;
   $("spectate-bar").hidden = true;
+  $("spectate-frame").hidden = true;
   if (state.spectateMarker) {
     state.spectateMarker.setMap(null);
     state.spectateMarker = null;
