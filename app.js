@@ -2397,7 +2397,19 @@ function ensureMap() {
   });
   state.map.addListener("idle", () => { if (state.game && state.game.multi) sendMyView(); });
   bindDockOpen();
+  // 地図の大きさが変わるたびに（回答マップを広げたときなど）、引ける限界を合わせる
+  new ResizeObserver(fitMinZoom).observe($("map"));
+  fitMinZoom();
   return true;
+}
+
+// 一番引いたときに、世界地図が横に何枚も並んだり、上下に灰色が出たりしないようにする。
+// 世界地図の幅（256px × 2^ズーム）が、地図の枠の大きさとだいたい同じになるところを下限にする
+function fitMinZoom() {
+  const el = $("map");
+  if (!state.map || !el.clientWidth) return;
+  const z = Math.max(1, Math.round(Math.log2(Math.max(el.clientWidth, el.clientHeight) / 256)));
+  if (state.map.get("minZoom") !== z) state.map.setOptions({ minZoom: z });
 }
 
 // 回答マップは、マウスを乗せている間・ドラッグしている間は広げたままにする。
