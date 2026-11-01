@@ -39,6 +39,7 @@ function peerAvailable() {
 }
 
 function hostRoom() {
+  if (state.outdated) return showUpdateGateIfIdle();
   if (!peerAvailable()) return;
   leaveRoom();
   const code = randomRoomCode();
@@ -186,6 +187,7 @@ function broadcastLobby() {
 // ---------------------------------------------------------------- 部屋に入る（参加者）
 
 function joinRoom(code) {
+  if (state.outdated) return showUpdateGateIfIdle();
   if (!peerAvailable()) return;
   leaveRoom();
   const profile = loadJSON(STORE_PROFILE, {});

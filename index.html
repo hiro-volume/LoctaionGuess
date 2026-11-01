@@ -23,7 +23,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.49">
+  <link rel="stylesheet" href="style.css?v=1.50">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -722,25 +722,28 @@
   </div>
 
   <!-- 新しいバージョンが公開されたときのお知らせ -->
-  <div id="update-banner" hidden role="status">
-    <span class="ub-icon">✨</span>
-    <span id="update-text" class="ub-text"></span>
-    <button id="btn-update" class="primary">更新する</button>
-    <button id="btn-update-close" class="ub-close" aria-label="閉じる">×</button>
+  <!-- 古いバージョンのままでは遊べないので、更新するまで画面全体をふさぐ -->
+  <div id="update-gate" hidden>
+    <div class="ug-card" role="alertdialog" aria-modal="true" aria-labelledby="ug-title">
+      <div class="ug-icon">✨</div>
+      <h3 id="ug-title">新しいバージョンが公開されています</h3>
+      <p id="update-text"></p>
+      <button id="btn-update" class="btn-hero small">今すぐ更新する</button>
+    </div>
   </div>
   <!-- マルチプレイ: 誰かが退出したときのお知らせ -->
   <div id="mp-toast" hidden></div>
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.49"></script>
-  <script src="hiroshima-boundary.js?v=1.49"></script>
-  <script src="world-boundary.js?v=1.49"></script>
-  <script src="region-boundary.js?v=1.49"></script>
-  <script src="regions.js?v=1.49"></script>
+  <script src="config.js?v=1.50"></script>
+  <script src="hiroshima-boundary.js?v=1.50"></script>
+  <script src="world-boundary.js?v=1.50"></script>
+  <script src="region-boundary.js?v=1.50"></script>
+  <script src="regions.js?v=1.50"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="app.js?v=1.49"></script>
-  <script src="multiplayer.js?v=1.49"></script>
+  <script src="app.js?v=1.50"></script>
+  <script src="multiplayer.js?v=1.50"></script>
 </body>
 </html>

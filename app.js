@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.49";
+const APP_VERSION = "1.50";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -343,6 +343,8 @@ function drawArea(area, fit = true) {
 function setScreen(name) {
   app.className = `screen-${name}`;
   $("topbar").hidden = !["title", "mode", "select", "lobby"].includes(name);
+  // 古いバージョンだとわかっていたら、メニューに戻ったところで遊べないようにする
+  if (state.outdated && !["game", "result"].includes(name)) $("update-gate").hidden = false;
   if ($("topbar").hidden) toggleBell(false);
   if (name !== "game") $("game-settings").hidden = true;
 }
@@ -419,6 +421,7 @@ const QUICK_ROUNDS = 5;
 const QUICK_TIME_LIMIT = 120;
 
 async function startQuickGame() {
+  if (state.outdated) return showUpdateGateIfIdle();
   if (!ensureMap()) return;
   closeSettings();
   if (remainingStreetView() < QUICK_ROUNDS) {
@@ -2267,6 +2270,7 @@ const LEGEND = `<div class="legend">
 </div>`;
 
 async function startGame() {
+  if (state.outdated) return showUpdateGateIfIdle();
   if (state.mp && state.mp.role === "host") return hostStartGame();
   if (!ensureMap()) return;
   closeSettings();
@@ -3072,36 +3076,34 @@ async function checkForUpdate() {
     const res = await fetch(`version.json?t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return;
     const { version } = await res.json();
-    if (!isNewer(version, APP_VERSION) || state.dismissedUpdate === version) return;
-    $("update-text").innerHTML = `<b>新しいバージョン v${escapeHtml(version)} があります</b><small>いまは v${APP_VERSION}</small>`;
-    $("update-banner").dataset.version = version;
-    $("update-banner").hidden = false;
+    if (!isNewer(version, APP_VERSION)) return;
+    state.outdated = version;
+    $("update-text").innerHTML = `このページは古いバージョン（v${APP_VERSION}）です。<br>最新の <b>v${escapeHtml(version)}</b> に更新してから遊んでください。`;
+    addNotice({
+      id: `update-${version}`, title: `新しいバージョン v${version}`,
+      text: `更新するまで遊べません（いまは v${APP_VERSION}）。`, actionLabel: "更新する", action: updateNow,
+    });
+    showUpdateGateIfIdle();
   } catch {
     // オフラインなどで確かめられないときは何もしない
   }
 }
 
-async function updateNow() {
-  // 部屋に入っている間は、ひとこと確認してから（更新すると部屋から抜けるため）
-  if (state.mp) {
-    const ok = await askConfirm({ title: "更新しますか？", text: "ページを読み込み直すので、いまの部屋からは抜けます。", okText: "更新する" });
-    if (!ok) return;
-  }
+function updateNow() {
   location.reload();
+}
+
+// 古いバージョンなら、画面全体をふさいで遊べないようにする。
+// ゲームの途中（ラウンド・結果の画面）で見つかったときは、そのゲームが終わってメニューに戻ったときにふさぐ
+function showUpdateGateIfIdle() {
+  if (!state.outdated) return;
+  const playing = ["game", "result"].includes(app.className.replace("screen-", ""));
+  if (playing) return;
+  $("update-gate").hidden = false;
 }
 
 function bindUpdateBanner() {
   $("btn-update").addEventListener("click", updateNow);
-  // 閉じたら、右上のベルのお知らせに入れておく（あとからでも更新できる）
-  $("btn-update-close").addEventListener("click", () => {
-    const version = $("update-banner").dataset.version;
-    state.dismissedUpdate = version;
-    $("update-banner").hidden = true;
-    addNotice({
-      id: `update-${version}`, title: `新しいバージョン v${version}`,
-      text: `更新すると、最新の機能で遊べます（いまは v${APP_VERSION}）。`, actionLabel: "更新する", action: updateNow,
-    });
-  });
   checkForUpdate();
   setInterval(checkForUpdate, UPDATE_CHECK_MS);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate(); });

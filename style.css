@@ -1918,25 +1918,23 @@ html.no-anim #mp-toast.show { animation: none; }
 /* バージョン表記とクレジットが重ならないよう、クレジットを少し上げる */
 .title-foot { padding-bottom: 24px; }
 
-/* ================================================================ 新しいバージョンのお知らせ */
-#update-banner {
-  position: fixed; left: 0; right: 0; bottom: 18px; margin: 0 auto; width: fit-content; z-index: 70;
-  display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 24px);
-  padding: 10px 10px 10px 16px; border-radius: 16px; font-size: 13px; line-height: 1.5; color: #fff;
-  background: rgba(17, 24, 40, .96); border: 2px solid rgba(56,189,248,.8);
-  box-shadow: 0 12px 34px rgba(0,0,0,.5), 0 0 24px rgba(56,189,248,.3);
+/* ================================================================ 古いバージョンのときは、更新するまで画面全体をふさぐ */
+#update-gate {
+  position: fixed; inset: 0; z-index: 95; display: grid; place-items: center; padding: 16px;
+  background: rgba(5, 8, 16, .88); backdrop-filter: blur(10px);
 }
-#update-banner[hidden] { display: none; }
-.ub-icon { font-size: 20px; }
-.ub-text { flex: 1; min-width: 0; }
-#btn-update { flex: none; padding: 8px 18px; border-radius: 999px; font-weight: 800; }
-.ub-close { flex: none; width: 28px; height: 28px; padding: 0; border-radius: 50%; background: transparent; border: none; color: var(--muted); font-size: 18px; }
-.ub-close:hover { color: #fff; background: rgba(255,255,255,.08); }
+#update-gate[hidden] { display: none; }
+.ug-card {
+  width: min(440px, 100%); padding: 28px 24px 24px; border-radius: 22px; text-align: center;
+  background: #111828; border: 2px solid rgba(56,189,248,.7); box-shadow: 0 20px 50px rgba(0,0,0,.6), 0 0 40px rgba(56,189,248,.25);
+}
+.ug-icon { font-size: 44px; }
+.ug-card h3 { margin: 6px 0 10px; font-size: 20px; }
+.ug-card p { margin: 0 0 20px; font-size: 14px; line-height: 1.8; color: #c9d6ee; }
+.ug-card p b { color: #fff; }
 @media (prefers-reduced-motion: no-preference) {
-  html:not(.no-anim) #update-banner:not([hidden]) { animation: fadeUp .4s cubic-bezier(.2,.8,.2,1) both; }
+  html:not(.no-anim) #update-gate:not([hidden]) .ug-card { animation: popIn .45s cubic-bezier(.2,1.4,.4,1) both; }
 }
-.ub-text { display: flex; flex-direction: column; }
-.ub-text small { font-size: 11px; color: var(--muted); }
 
 /* ================================================================ 右上: お知らせとプロフィール */
 #topbar { position: fixed; top: 14px; right: 16px; z-index: 45; display: flex; align-items: center; gap: 10px; }
@@ -2004,3 +2002,7 @@ html.no-anim #mp-toast.show { animation: none; }
 .pf-glyph.active { background: var(--c); border-color: #fff; }
 .pf-image { display: flex; align-items: center; gap: 12px; }
 @media (max-width: 480px) { .pf-glyphs { grid-template-columns: repeat(5, 1fr); } }
+
+/* ラウンド開始のカウントダウン: 文字を選んだり、カーソルが変わったりしないように（下の地図などにも届かない） */
+#round-countdown, #round-countdown * { user-select: none; -webkit-user-select: none; cursor: default; }
+.rc-ring { pointer-events: none; }
