@@ -1848,3 +1848,22 @@ body.team-game #hurry-note { top: 132px; }
 /* 脱落した人の行 */
 .pl-row.out { opacity: .5; cursor: default; }
 .pl-row.out .pl-watch { background: transparent; border-color: rgba(255,255,255,.2); color: var(--muted); }
+
+/* ================================================================ マルチプレイ: 次のラウンドまでのカウントダウン */
+#round-countdown { display: none; }
+.screen-result #round-countdown:not([hidden]) {
+  position: absolute; left: 50%; top: calc(50% - var(--rbar, 112px) / 2 + var(--tbar, 0px) / 2); translate: -50% -50%; z-index: 7;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none;
+  width: 150px; height: 150px; border-radius: 50%; justify-content: center;
+  background: radial-gradient(circle, rgba(11,17,32,.88) 60%, rgba(11,17,32,.6));
+  border: 3px solid rgba(56,189,248,.8); box-shadow: 0 0 40px rgba(56,189,248,.35), 0 10px 30px rgba(0,0,0,.5);
+}
+#round-countdown small { font-size: 12px; font-weight: 700; color: #cdeefe; }
+#round-countdown b { font-size: 64px; font-weight: 900; line-height: 1; color: #fff; text-shadow: 0 0 20px rgba(56,189,248,.8); }
+#round-countdown.tick b { animation: countPop .6s cubic-bezier(.2,1.6,.4,1); }
+@keyframes countPop { 0% { transform: scale(1.8); opacity: 0; } 40% { opacity: 1; } 100% { transform: scale(1); } }
+html.no-anim #round-countdown.tick b { animation: none; }
+@media (max-width: 720px) {
+  .screen-result #round-countdown:not([hidden]) { width: 110px; height: 110px; }
+  #round-countdown b { font-size: 46px; }
+}

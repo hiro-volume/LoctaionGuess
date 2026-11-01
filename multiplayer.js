@@ -262,6 +262,7 @@ function leaveRoom() {
     // 閉じるときのエラーは気にしない
   }
   state.mp = null;
+  stopAutoNext();
   if (state.game && state.game.multi) state.game = null;
   resetSocial();
   document.body.classList.remove("team-game");
@@ -290,6 +291,7 @@ function inviteLink(code) {
 function showLobby() {
   closeSettings();
   stopTimer();
+  stopAutoNext();
   $("result").hidden = true;
   setScreen("lobby");
   renderLobby();
@@ -569,6 +571,7 @@ async function hostNextRound() {
 function beginMultiRound(msg) {
   const g = state.game;
   if (!g || !g.multi) return;
+  stopAutoNext();
   stopTimer();
   clearGameMarkers();
   g.index = msg.index;
@@ -994,6 +997,52 @@ ${isRegionMode(g) && !missed ? `
   $("btn-end").hidden = true;
   setResultButtons(false, false);
   $("result").hidden = false;
+  startAutoNext(msg);
+}
+
+// ---------------------------------------------------------------- 結果のあと、自動で次のラウンドへ
+// 結果（ライフの減り方や正解の場所）を 5 秒見せてから、5・4・3・2・1 と数えて次のラウンドを始める。
+// 数えるのは全員の画面で、次のラウンドを始めるのはホスト（ホストは「次のラウンドへ」で早めることもできる）
+const RESULT_VIEW_SECONDS = 5;
+const COUNTDOWN_SECONDS = 5;
+
+function startAutoNext(msg) {
+  stopAutoNext();
+  if (msg.last) return;
+  const mp = state.mp;
+  const host = mp.role === "host";
+  const endAt = Date.now() + (RESULT_VIEW_SECONDS + COUNTDOWN_SECONDS) * 1000;
+  const box = $("round-countdown");
+  let shown = null;
+  const tick = () => {
+    const g = state.game;
+    if (!g || g.index !== msg.index || app.className !== "screen-result") return stopAutoNext();
+    const left = Math.ceil((endAt - Date.now()) / 1000);
+    if (left === shown) return;
+    shown = left;
+    if (left <= 0) {
+      stopAutoNext();
+      if (host && state.mp === mp) hostNextRound();
+      return;
+    }
+    if (!host) $("btn-next").textContent = `次のラウンドまで ${left} 秒`;
+    if (left <= COUNTDOWN_SECONDS) {
+      box.hidden = false;
+      $("round-countdown-num").textContent = left;
+      // 数字が変わるたびに、ポンと出し直す
+      box.classList.remove("tick");
+      void box.offsetWidth;
+      box.classList.add("tick");
+    }
+  };
+  tick();
+  state.autoNext = setInterval(tick, 200);
+}
+
+function stopAutoNext() {
+  clearInterval(state.autoNext);
+  state.autoNext = null;
+  $("round-countdown").hidden = true;
 }
 
 // 結果画面の「次へ」（ホストだけが押せる）
@@ -1007,6 +1056,7 @@ function multiNext() {
     return showLobby();
   }
   if (mp.role !== "host") return;
+  stopAutoNext();
   if (g.lastResult && g.lastResult.last) return hostFinal();
   hostNextRound();
 }
