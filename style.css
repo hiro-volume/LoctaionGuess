@@ -2089,3 +2089,8 @@ body.team-game .screen-result #team-hud.by-rounds .tg-dmg { top: 40px; font-size
 .rs-landmark small { font-size: 10px; color: var(--muted); font-weight: 600; }
 .rs-landmark { white-space: nowrap; }
 @media (max-width: 720px) { .rs-landmark small { display: none; } }
+
+/* 円をつなげた形の線画（塗りはまとめて半透明、線は外側だけ） */
+.cv-shape svg .u-fill { opacity: .22; }
+.cv-shape svg .u-fill * { fill: #6be39a; stroke: none; }
+.cv-shape svg .u-line { fill: none; }

@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.58";
+const APP_VERSION = "1.59";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -211,6 +211,61 @@ function randomPointIn(area) {
   return null;
 }
 
+// ---------------------------------------------------------------- 重なった円を、ひとつの形として描く
+
+// 中心から bearing 度の向きへ m メートル進んだ点
+function offsetPoint(center, m, bearing) {
+  const t = (bearing * Math.PI) / 180;
+  return {
+    lat: center.lat + (m * Math.cos(t)) / 111320,
+    lng: center.lng + (m * Math.sin(t)) / (111320 * Math.cos((center.lat * Math.PI) / 180)),
+  };
+}
+
+// 円のふちの点（いつも同じ向きに回るので、重ねて塗ると、重なった部分も同じ濃さで塗られる）
+function circlePoints(c, steps = 120) {
+  return Array.from({ length: steps }, (_, j) => offsetPoint(c.center, c.radius, (j / steps) * 360));
+}
+
+// 円をつなげた形の、外側のふちの線だけ（それぞれの円の、ほかの円の中に入っていない部分）
+function circleUnionArcs(circles, steps = 120) {
+  const arcs = [];
+  circles.forEach((c, i) => {
+    const pts = circlePoints(c, steps);
+    const out = pts.map((p) => !circles.some((o, k) => k !== i && distanceMeters(o.center, p) < o.radius - 0.5));
+    if (out.every(Boolean)) {
+      arcs.push([...pts, pts[0]]);
+      return;
+    }
+    // 一周を「ほかの円の外に出ている区間」ごとに分ける（ほかの円の中にある点から数え始める）
+    const start = out.indexOf(false);
+    let run = [];
+    for (let n = 1; n <= steps; n++) {
+      const j = (start + n) % steps;
+      if (out[j]) run.push(pts[j]);
+      else if (run.length) {
+        arcs.push(run);
+        run = [];
+      }
+    }
+    if (run.length) arcs.push(run);
+  });
+  return arcs.filter((a) => a.length > 1);
+}
+
+// 地図に「円をつなげた形」を描く（塗りはひとつの多角形、ふちは外側の線だけ）
+function unionOverlays(circles, style) {
+  const fill = new google.maps.Polygon({
+    map: style.map, paths: circles.map((c) => circlePoints(c)), strokeOpacity: 0, strokeWeight: 0,
+    fillColor: style.fillColor, fillOpacity: style.fillOpacity, clickable: false, zIndex: style.zIndex || 0,
+  });
+  const lines = circleUnionArcs(circles).map((path) => new google.maps.Polyline({
+    map: style.map, path, strokeColor: style.strokeColor, strokeOpacity: style.strokeOpacity ?? 0.9,
+    strokeWeight: style.strokeWeight || 2, clickable: false, zIndex: (style.zIndex || 0) + 1,
+  }));
+  return [fill, ...lines];
+}
+
 // 範囲の対角線の長さ（m）。得点の基準と検索半径に使う
 function areaSizeMeters(area) {
   const b = areaBounds(area);
@@ -380,7 +435,7 @@ function drawArea(area, fit = true) {
   };
   const circles = areaCircles(area);
   if (circles) {
-    state.areaOverlays = circles.map((c) => new google.maps.Circle({ ...style, center: c.center, radius: c.radius }));
+    state.areaOverlays = unionOverlays(circles, style);
   } else {
     state.areaOverlays = [new google.maps.Polygon({
       ...style, paths: area.rings.map((ring) => ring.map(([lat, lng]) => ({ lat, lng }))),
@@ -731,6 +786,10 @@ function staticThumb(area) {
       return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(ci.radius / metersPerPx).toFixed(1)}"/>`;
     }).join("")
     : area.rings.map((ring) => `<polygon points="${ring.map(([lat, lng]) => px(lat, lng).map((v) => v.toFixed(1)).join(",")).join(" ")}"/>`).join("");
+  // 円は、つなげた形の外側のふちだけを線にする
+  const outline = circles
+    ? circleUnionArcs(circles, 90).map((arc) => `<polyline points="${arc.map((p) => px(p.lat, p.lng).map((v) => v.toFixed(1)).join(",")).join(" ")}"/>`).join("")
+    : shapes;
   const excludes = (area.exclude || []).map((ci) => {
     const [x, y] = px(ci.center.lat, ci.center.lng);
     const metersPerPx = (40075016.686 * Math.cos((ci.center.lat * Math.PI) / 180)) / (256 * 2 ** z);
@@ -741,7 +800,7 @@ function staticThumb(area) {
     <defs><mask id="${id}"><rect width="${THUMB}" height="${THUMB - THUMB_FOOTER}" fill="#fff"/><g fill="#000">${shapes}</g><g class="mask-ex" fill="#fff">${excludes}</g></mask></defs>
     <image href="${url}" width="${THUMB}" height="${THUMB}"/>
     <rect class="thumb-dim" width="${THUMB}" height="${THUMB}" mask="url(#${id})"/>
-    <g class="thumb-outline">${shapes}</g>
+    <g class="thumb-outline">${outline}</g>
     <g class="thumb-exclude">${excludes}</g>
   </svg>`;
 }
@@ -771,10 +830,14 @@ function areaShapeSvg(area) {
   const circles = areaCircles(area);
   let shapes;
   if (circles) {
-    shapes = circles.map((c) => {
+    // 塗りはまとめて半透明にし（重なっても濃くならない）、線はつなげた形の外側だけ
+    const fills = circles.map((c) => {
       const [x, y] = xy(c.center.lat, c.center.lng);
       return `<circle cx="${x}" cy="${y}" r="${(c.radius / 111320) * scale}"/>`;
     }).join("");
+    const lines = circleUnionArcs(circles, 90)
+      .map((arc) => `<polyline class="u-line" points="${arc.map((p) => xy(p.lat, p.lng).join(",")).join(" ")}"/>`).join("");
+    shapes = `<g class="u-fill">${fills}</g>${lines}`;
   } else {
     shapes = area.rings.map((ring) => `<polygon points="${ring.map(([lat, lng]) => xy(lat, lng).join(",")).join(" ")}"/>`).join("");
   }
@@ -1884,6 +1947,8 @@ function loadEditorShapes(area) {
 
 function clearEditorShapes(withExcludes = true) {
   const ed = state.editor;
+  (ed.union || []).forEach((o) => o.setMap(null));
+  ed.union = [];
   if (withExcludes) {
     (ed.excludes || []).forEach((c) => c.setMap(null));
     ed.excludes = [];
@@ -2074,8 +2139,9 @@ function updateEditorStatus() {
   $("btn-save-area").disabled = !ok;
   $("btn-undo").disabled = ed.kind === "exclude" ? !ed.excludes.length
     : ed.tool === "circle" ? !ed.circles.length : !(ed.polygon && ed.polygon.getPath().getLength());
-  // 図形が動いたり大きさが変わったりしたら、一覧の表示も直す
+  // 図形が動いたり大きさが変わったりしたら、一覧の表示と、つなげた形も直す
   renderShapeList();
+  refreshEditorUnion();
 }
 
 function saveEditor() {
@@ -2175,13 +2241,25 @@ function highlightSelected() {
   const ed = state.editor;
   if (!ed) return;
   if (ed.tool === "circle") {
+    // 円そのものは線も塗りも消して、つなげた形（refreshEditorUnion）で見せる。選んでいる円だけ白い線で示す
     ed.circles.forEach((c) => c.setOptions(c === ed.selected
-      ? { strokeWeight: 4, strokeColor: "#ffffff", fillOpacity: 0.28, zIndex: 2 }
-      : { strokeWeight: 2, strokeColor: EDIT_COLOR, fillOpacity: 0.15, zIndex: 1 }));
+      ? { strokeWeight: 3, strokeColor: "#ffffff", strokeOpacity: 1, fillOpacity: 0, zIndex: 2 }
+      : { strokeWeight: 0, strokeOpacity: 0, fillOpacity: 0, zIndex: 1 }));
   }
   ed.excludes.forEach((c) => c.setOptions(c === ed.selected
     ? { strokeWeight: 4, strokeColor: "#ffffff", fillOpacity: 0.35, zIndex: 4 }
     : { strokeWeight: 2, strokeColor: EXCLUDE_COLOR, fillOpacity: 0.25, zIndex: 3 }));
+}
+
+// 範囲エディタの円をつなげた形（円を動かすたびに描き直す）
+function refreshEditorUnion() {
+  const ed = state.editor;
+  if (!ed) return;
+  (ed.union || []).forEach((o) => o.setMap(null));
+  ed.union = [];
+  if (ed.tool !== "circle" || !ed.circles.length) return;
+  const circles = ed.circles.map((c) => ({ center: { lat: c.getCenter().lat(), lng: c.getCenter().lng() }, radius: c.getRadius() }));
+  ed.union = unionOverlays(circles, { map: state.map, strokeColor: EDIT_COLOR, fillColor: EDIT_COLOR, fillOpacity: 0.15, strokeWeight: 2.5 });
 }
 
 function bindShapeHover(shape) {
