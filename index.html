@@ -23,7 +23,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.48">
+  <link rel="stylesheet" href="style.css?v=1.49">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -678,6 +678,49 @@
       </form>
     </section>
   </div>
+  <!-- 右上: お知らせ（ベル）と、自分のアイコン（押すとプロフィールを編集） -->
+  <div id="topbar" hidden>
+    <button id="btn-bell" class="tb-bell" aria-label="お知らせ" aria-expanded="false"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span id="bell-badge" class="tb-badge" hidden>0</span></button>
+    <button id="btn-profile" class="tb-user" title="プロフィールを編集"><span id="tb-avatar"></span><span id="tb-name" class="tb-name"></span></button>
+    <section id="bell-panel" class="bell-panel" hidden aria-label="お知らせ">
+      <h4>お知らせ</h4>
+      <ul id="bell-list" class="bell-list"></ul>
+    </section>
+  </div>
+
+  <!-- プロフィール（名前とアイコン）。マルチプレイの部屋でも、この名前とアイコンが使われる -->
+  <div id="profile-dialog" hidden>
+    <div class="dialog-backdrop"></div>
+    <div class="dialog profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+      <h3 id="profile-title">プロフィール</h3>
+      <div class="pf-preview"><span id="pf-avatar"></span></div>
+      <div class="field">
+        <label for="pf-name">名前</label>
+        <input type="text" id="pf-name" maxlength="16" placeholder="名無しの旅人">
+      </div>
+      <div class="field">
+        <label>アイコン</label>
+        <div id="pf-glyphs" class="pf-glyphs"></div>
+      </div>
+      <div class="field">
+        <label>色</label>
+        <div id="pf-colors" class="swatches"></div>
+      </div>
+      <div class="field">
+        <label>自分の画像を使う</label>
+        <div class="pf-image">
+          <button id="btn-pf-image" class="btn-ghost small-btn">画像を選ぶ</button>
+          <button id="btn-pf-image-remove" class="link-btn" hidden>画像をやめる</button>
+          <input type="file" id="pf-file" accept="image/*" hidden>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button id="pf-cancel" class="btn-ghost">キャンセル</button>
+        <button id="pf-save" class="dialog-ok">保存する</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 新しいバージョンが公開されたときのお知らせ -->
   <div id="update-banner" hidden role="status">
     <span class="ub-icon">✨</span>
@@ -690,14 +733,14 @@
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.48"></script>
-  <script src="hiroshima-boundary.js?v=1.48"></script>
-  <script src="world-boundary.js?v=1.48"></script>
-  <script src="region-boundary.js?v=1.48"></script>
-  <script src="regions.js?v=1.48"></script>
+  <script src="config.js?v=1.49"></script>
+  <script src="hiroshima-boundary.js?v=1.49"></script>
+  <script src="world-boundary.js?v=1.49"></script>
+  <script src="region-boundary.js?v=1.49"></script>
+  <script src="regions.js?v=1.49"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="app.js?v=1.48"></script>
-  <script src="multiplayer.js?v=1.48"></script>
+  <script src="app.js?v=1.49"></script>
+  <script src="multiplayer.js?v=1.49"></script>
 </body>
 </html>

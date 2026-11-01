@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.48";
+const APP_VERSION = "1.49";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -342,6 +342,8 @@ function drawArea(area, fit = true) {
 
 function setScreen(name) {
   app.className = `screen-${name}`;
+  $("topbar").hidden = !["title", "mode", "select", "lobby"].includes(name);
+  if ($("topbar").hidden) toggleBell(false);
   if (name !== "game") $("game-settings").hidden = true;
 }
 
@@ -1069,8 +1071,181 @@ function formatPlayTime(ms) {
   return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
 }
 
-function avatarHtml(icon) {
-  return icon ? `<img src="${icon}" alt="">` : DEFAULT_AVATAR;
+// アイコンの中身。icon は画像（data URL の文字列）か、{ icon, glyph, color } のどちらでもよい
+function avatarHtml(a) {
+  if (typeof a === "string") return `<img src="${escapeHtml(a)}" alt="">`;
+  if (a && a.icon) return `<img src="${escapeHtml(a.icon)}" alt="">`;
+  if (a && a.glyph) return `<span class="av-glyph" style="--av:${escapeHtml(a.color || AVATAR_COLORS[1])}">${escapeHtml(a.glyph)}</span>`;
+  return DEFAULT_AVATAR;
+}
+
+// ---------------------------------------------------------------- プロフィール（名前とアイコン）
+
+const DEFAULT_NAME = "名無しの旅人";
+// 用意してあるアイコンと色
+const AVATAR_GLYPHS = ["🧭", "🗺️", "🌏", "📍", "🚗", "🚲", "✈️", "🚃", "🏔️", "🗼", "⛩️", "🏝️", "🐱", "🐶", "🦊", "🐧", "🐼", "🐸", "⭐", "🍙"];
+const AVATAR_COLORS = ["#2fb36b", "#3b82f6", "#a855f7", "#f97316", "#ec4899", "#14b8a6", "#f5c542", "#e5392f"];
+const MAX_AVATAR_IMAGE = 60000; // 画像は 128px に縮めて保存する（マルチプレイで送る大きさの上限）
+
+function myProfile() {
+  const p = loadJSON(STORE_PROFILE, {});
+  return {
+    name: p.name || DEFAULT_NAME,
+    avatar: {
+      icon: typeof p.icon === "string" && p.icon.startsWith("data:image/") ? p.icon : null,
+      glyph: AVATAR_GLYPHS.includes(p.glyph) ? p.glyph : AVATAR_GLYPHS[0],
+      color: AVATAR_COLORS.includes(p.color) ? p.color : AVATAR_COLORS[1],
+    },
+  };
+}
+
+// 送られてきたアイコンを、使ってよい形だけにする（マルチプレイ）
+function cleanAvatar(a) {
+  if (!a || typeof a !== "object") return null;
+  const icon = typeof a.icon === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(a.icon) && a.icon.length <= MAX_AVATAR_IMAGE ? a.icon : null;
+  return {
+    icon,
+    glyph: AVATAR_GLYPHS.includes(a.glyph) ? a.glyph : AVATAR_GLYPHS[0],
+    color: AVATAR_COLORS.includes(a.color) ? a.color : AVATAR_COLORS[1],
+  };
+}
+
+// マルチプレイのプレイヤーの丸いアイコン（アイコンが無ければ、名前の 1 文字目）。
+// 外側の輪はプレイヤーの色（ピンの色と同じ）
+function playerAvatarHtml(p, extraClass = "") {
+  const a = p.avatar;
+  const ring = `--pc:${escapeHtml(p.color || "#fff")}`;
+  if (a && a.icon) return `<span class="p-avatar has-img ${extraClass}" style="--c:${escapeHtml(p.color || "#2b3a5c")};${ring}"><img src="${escapeHtml(a.icon)}" alt=""></span>`;
+  if (a && a.glyph) return `<span class="p-avatar glyph ${extraClass}" style="--c:${escapeHtml(a.color)};${ring}">${escapeHtml(a.glyph)}</span>`;
+  return `<span class="p-avatar ${extraClass}" style="--c:${escapeHtml(p.color || "#2b3a5c")};${ring}">${escapeHtml((p.name || "?").slice(0, 1))}</span>`;
+}
+
+// 右上の自分のアイコンと名前
+function renderTopbar() {
+  const me = myProfile();
+  $("tb-avatar").innerHTML = playerAvatarHtml({ name: me.name, avatar: me.avatar, color: me.avatar.color });
+  $("tb-name").textContent = me.name;
+}
+
+const profileForm = { icon: null, glyph: AVATAR_GLYPHS[0], color: AVATAR_COLORS[1] };
+
+function openProfile() {
+  const me = myProfile();
+  Object.assign(profileForm, me.avatar);
+  $("pf-name").value = loadJSON(STORE_PROFILE, {}).name || "";
+  $("pf-glyphs").innerHTML = AVATAR_GLYPHS.map((g) => `<button class="pf-glyph" data-g="${g}" aria-label="${g}">${g}</button>`).join("");
+  $("pf-colors").innerHTML = AVATAR_COLORS.map((c) => `<button class="swatch" data-c="${c}" style="--c:${c}" aria-label="色 ${c}"></button>`).join("");
+  renderProfileForm();
+  $("profile-dialog").hidden = false;
+  $("pf-name").focus();
+}
+
+function renderProfileForm() {
+  $("pf-avatar").innerHTML = playerAvatarHtml({ name: $("pf-name").value || DEFAULT_NAME, avatar: profileForm, color: profileForm.color }, "huge");
+  $("pf-glyphs").querySelectorAll(".pf-glyph").forEach((b) => {
+    b.classList.toggle("active", !profileForm.icon && b.dataset.g === profileForm.glyph);
+    b.style.setProperty("--c", profileForm.color);
+  });
+  $("pf-colors").querySelectorAll(".swatch").forEach((b) => b.classList.toggle("active", b.dataset.c === profileForm.color));
+  $("btn-pf-image-remove").hidden = !profileForm.icon;
+}
+
+function closeProfile() {
+  $("profile-dialog").hidden = true;
+}
+
+function saveProfile() {
+  const name = $("pf-name").value.trim().slice(0, 16);
+  saveJSON(STORE_PROFILE, { ...loadJSON(STORE_PROFILE, {}), name: name || undefined, icon: profileForm.icon || null, glyph: profileForm.glyph, color: profileForm.color });
+  closeProfile();
+  renderTopbar();
+  // マルチプレイの部屋にいるときは、みんなの画面にもすぐ反映する
+  if (state.mp && typeof sendMyProfile === "function") sendMyProfile();
+}
+
+function bindProfile() {
+  $("btn-profile").addEventListener("click", openProfile);
+  $("pf-cancel").addEventListener("click", closeProfile);
+  $("pf-save").addEventListener("click", saveProfile);
+  $("profile-dialog").querySelector(".dialog-backdrop").addEventListener("click", closeProfile);
+  $("pf-name").addEventListener("input", renderProfileForm);
+  $("pf-name").addEventListener("keydown", (e) => { if (e.key === "Enter") saveProfile(); });
+  $("pf-glyphs").addEventListener("click", (e) => {
+    const b = e.target.closest(".pf-glyph");
+    if (!b) return;
+    profileForm.glyph = b.dataset.g;
+    profileForm.icon = null; // 用意したアイコンを選んだら、自分の画像はやめる
+    renderProfileForm();
+  });
+  $("pf-colors").addEventListener("click", (e) => {
+    const b = e.target.closest(".swatch");
+    if (!b) return;
+    profileForm.color = b.dataset.c;
+    renderProfileForm();
+  });
+  $("btn-pf-image").addEventListener("click", () => $("pf-file").click());
+  $("pf-file").addEventListener("change", async () => {
+    const file = $("pf-file").files[0];
+    $("pf-file").value = "";
+    if (!file) return;
+    try {
+      profileForm.icon = await readAvatar(file);
+      renderProfileForm();
+    } catch {
+      showMessage("画像を読み込めませんでした。別の画像を選んでください。");
+    }
+  });
+  $("btn-pf-image-remove").addEventListener("click", () => {
+    profileForm.icon = null;
+    renderProfileForm();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$("profile-dialog").hidden) {
+      e.stopPropagation();
+      closeProfile();
+    }
+  }, true);
+}
+
+// ---------------------------------------------------------------- お知らせ（右上のベル）
+
+const notices = [];
+
+function addNotice(n) {
+  if (notices.some((x) => x.id === n.id)) return;
+  notices.unshift({ ...n, unread: true });
+  renderBell();
+}
+
+function renderBell() {
+  const unread = notices.filter((n) => n.unread).length;
+  $("bell-badge").hidden = !unread;
+  $("bell-badge").textContent = unread > 9 ? "9+" : unread;
+  $("bell-list").innerHTML = notices.map((n, i) => `<li>
+      <b>${escapeHtml(n.title)}</b><span>${escapeHtml(n.text)}</span>
+      ${n.actionLabel ? `<button class="primary small-btn" data-i="${i}">${escapeHtml(n.actionLabel)}</button>` : ""}
+    </li>`).join("") || '<li class="empty">お知らせはありません</li>';
+}
+
+function toggleBell(open = $("bell-panel").hidden) {
+  $("bell-panel").hidden = !open;
+  $("btn-bell").setAttribute("aria-expanded", String(open));
+  if (open) {
+    notices.forEach((n) => { n.unread = false; });
+    $("bell-badge").hidden = true;
+  }
+}
+
+function bindBell() {
+  $("btn-bell").addEventListener("click", () => toggleBell());
+  $("bell-list").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-i]");
+    if (b && notices[Number(b.dataset.i)]) notices[Number(b.dataset.i)].action();
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (!$("bell-panel").hidden && !e.target.closest("#topbar")) toggleBell(false);
+  });
+  renderBell();
 }
 
 // 最後まで遊んだゲームだけランキングに残せる（途中でやめたものは条件が揃わないため）
@@ -1104,6 +1279,7 @@ const scoreForm = { icon: null, game: null, box: null };
 function openScoreDialog(g, box) {
   const profile = loadJSON(STORE_PROFILE, {});
   scoreForm.icon = profile.icon || null;
+  scoreForm.avatar = myProfile().avatar;
   scoreForm.game = g;
   scoreForm.box = box;
   const total = g.results.reduce((sum, r) => sum + r.score, 0);
@@ -1113,7 +1289,7 @@ function openScoreDialog(g, box) {
     <div><span>タイム</span><b>${formatPlayTime(g.playMs || 0)}</b></div>
     <div><span>部門</span><b>${boardLabel(boardOf(g))}</b></div>`;
   $("score-name").value = profile.name || "";
-  $("avatar-preview").innerHTML = avatarHtml(scoreForm.icon);
+  $("avatar-preview").innerHTML = avatarHtml(scoreForm.icon || scoreForm.avatar);
   $("score-dialog").hidden = false;
   $("score-name").focus();
 }
@@ -1129,6 +1305,8 @@ function saveScore() {
     id: `s-${Date.now()}`,
     name,
     icon: scoreForm.icon,
+    glyph: myProfile().avatar.glyph,
+    color: myProfile().avatar.color,
     score: g.results.reduce((sum, r) => sum + r.score, 0),
     max: g.results.length * MAX_SCORE,
     rounds: g.results.length,
@@ -1144,7 +1322,8 @@ function saveScore() {
   all[g.area.id] = boards;
   saveJSON(STORE_SCORES, all);
   // 次回のために名前とアイコンを覚えておく
-  saveJSON(STORE_PROFILE, { name, icon: scoreForm.icon });
+  saveJSON(STORE_PROFILE, { ...loadJSON(STORE_PROFILE, {}), name, icon: scoreForm.icon });
+  renderTopbar();
   const rank = list.findIndex((e) => e.id === entry.id) + 1;
   g.savedRank = rank || `${MAX_SCORES_PER_BOARD}位圏外`;
   closeScoreDialog();
@@ -1234,7 +1413,7 @@ function renderRanking(areaId, key) {
     if (!e) return `<div class="podium-slot empty ${medals[i]}"></div>`;
     return `<div class="podium-slot ${medals[i]}" style="--d:${i}">
       ${i === 0 ? '<div class="crown">👑</div>' : ""}
-      <div class="avatar ring">${avatarHtml(e.icon)}<span class="medal">${i + 1}</span></div>
+      <div class="avatar ring">${avatarHtml(e.icon || (e.glyph ? { glyph: e.glyph, color: e.color } : null))}<span class="medal">${i + 1}</span></div>
       <b class="p-name">${escapeHtml(e.name)}</b>
       <span class="p-score">${main(e)}</span>
       <span class="p-time">${sub(e)}</span>
@@ -1246,7 +1425,7 @@ function renderRanking(areaId, key) {
   $("ranking-list").innerHTML = list.slice(3).map((e, i) => `
     <li style="--d:${i}">
       <span class="r-rank">${i + 4}</span>
-      <span class="avatar small">${avatarHtml(e.icon)}</span>
+      <span class="avatar small">${avatarHtml(e.icon || (e.glyph ? { glyph: e.glyph, color: e.color } : null))}</span>
       <span class="r-name">${escapeHtml(e.name)}</span>
       <span class="r-score">${main(e)}</span>
       <span class="r-time">${sub(e)}</span>
@@ -2902,18 +3081,26 @@ async function checkForUpdate() {
   }
 }
 
+async function updateNow() {
+  // 部屋に入っている間は、ひとこと確認してから（更新すると部屋から抜けるため）
+  if (state.mp) {
+    const ok = await askConfirm({ title: "更新しますか？", text: "ページを読み込み直すので、いまの部屋からは抜けます。", okText: "更新する" });
+    if (!ok) return;
+  }
+  location.reload();
+}
+
 function bindUpdateBanner() {
-  $("btn-update").addEventListener("click", async () => {
-    // 部屋に入っている間は、ひとこと確認してから（更新すると部屋から抜けるため）
-    if (state.mp) {
-      const ok = await askConfirm({ title: "更新しますか？", text: "ページを読み込み直すので、いまの部屋からは抜けます。", okText: "更新する" });
-      if (!ok) return;
-    }
-    location.reload();
-  });
+  $("btn-update").addEventListener("click", updateNow);
+  // 閉じたら、右上のベルのお知らせに入れておく（あとからでも更新できる）
   $("btn-update-close").addEventListener("click", () => {
-    state.dismissedUpdate = $("update-banner").dataset.version;
+    const version = $("update-banner").dataset.version;
+    state.dismissedUpdate = version;
     $("update-banner").hidden = true;
+    addNotice({
+      id: `update-${version}`, title: `新しいバージョン v${version}`,
+      text: `更新すると、最新の機能で遊べます（いまは v${APP_VERSION}）。`, actionLabel: "更新する", action: updateNow,
+    });
   });
   checkForUpdate();
   setInterval(checkForUpdate, UPDATE_CHECK_MS);
@@ -2922,6 +3109,9 @@ function bindUpdateBanner() {
 
 function boot() {
   migrateScoreScale();
+  bindProfile();
+  bindBell();
+  renderTopbar();
   bindUpdateBanner();
   const s = loadJSON(STORE_SETTINGS, {});
   if (s.areaId && allAreas().some((a) => a.id === s.areaId)) state.selectedAreaId = s.areaId;

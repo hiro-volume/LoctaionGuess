@@ -1937,3 +1937,70 @@ html.no-anim #mp-toast.show { animation: none; }
 }
 .ub-text { display: flex; flex-direction: column; }
 .ub-text small { font-size: 11px; color: var(--muted); }
+
+/* ================================================================ 右上: お知らせとプロフィール */
+#topbar { position: fixed; top: 14px; right: 16px; z-index: 45; display: flex; align-items: center; gap: 10px; }
+#topbar[hidden] { display: none; }
+.tb-bell {
+  position: relative; width: 44px; height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  background: rgba(17, 24, 40, .82); border: 1px solid rgba(255,255,255,.18); box-shadow: 0 4px 14px rgba(0,0,0,.35); backdrop-filter: blur(6px);
+}
+.tb-bell:hover, .tb-bell[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+.tb-badge {
+  position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
+  display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #fff; background: #e5392f; border: 2px solid var(--bg);
+}
+.tb-user {
+  display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px 0 5px; border-radius: 999px; color: #fff;
+  background: rgba(17, 24, 40, .82); border: 1px solid rgba(255,255,255,.18); box-shadow: 0 4px 14px rgba(0,0,0,.35); backdrop-filter: blur(6px);
+}
+.tb-user:hover { border-color: var(--accent); }
+.tb-user .p-avatar { width: 34px; height: 34px; }
+.tb-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 800; }
+.bell-panel {
+  position: absolute; top: 54px; right: 0; width: min(340px, calc(100vw - 32px)); padding: 12px; border-radius: 16px;
+  background: #111828; border: 1px solid rgba(255,255,255,.18); box-shadow: 0 14px 36px rgba(0,0,0,.55);
+}
+.bell-panel h4 { margin: 2px 4px 10px; font-size: 14px; }
+.bell-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto; }
+.bell-list li { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.bell-list li b { font-size: 13px; color: #fff; }
+.bell-list li button { margin-top: 4px; padding: 6px 14px; border-radius: 999px; font-size: 12px; }
+.bell-list li.empty { align-items: center; }
+@media (max-width: 720px) {
+  .tb-name { display: none; }
+  .tb-user { padding: 0 5px; }
+}
+
+/* プレイヤーの丸いアイコン（プロフィールのアイコン） */
+.p-avatar { box-shadow: 0 0 0 2px var(--pc, rgba(255,255,255,.12)); }
+.p-avatar.has-img { overflow: hidden; padding: 0; }
+.p-avatar.has-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.p-avatar.glyph { font-size: 18px; text-shadow: none; }
+.p-avatar.big.glyph { font-size: 38px; }
+.p-avatar.mini { width: 18px; height: 18px; font-size: 10px; box-shadow: none; }
+.p-avatar.mini.glyph { font-size: 11px; }
+.p-avatar.huge { width: 96px; height: 96px; font-size: 40px; box-shadow: 0 0 0 4px rgba(255,255,255,.2); }
+.p-avatar.huge.glyph { font-size: 52px; }
+.tg-member .p-avatar.mini { width: 18px; height: 18px; }
+.av-glyph { width: 100%; height: 100%; display: grid; place-items: center; border-radius: 50%; background: var(--av); font-size: 20px; }
+.avatar.big .av-glyph { font-size: 44px; }
+.avatar.ring .av-glyph { font-size: 30px; }
+.avatar.small .av-glyph { font-size: 17px; }
+
+/* プロフィールのダイアログ */
+#profile-dialog { position: fixed; inset: 0; z-index: 55; display: grid; place-items: center; padding: 16px; }
+#profile-dialog[hidden] { display: none; }
+.profile-dialog { text-align: left; max-height: calc(100vh - 32px); overflow-y: auto; width: min(440px, 100%); }
+.profile-dialog h3 { text-align: center; }
+.pf-preview { display: grid; place-items: center; margin: 4px 0 14px; }
+.profile-dialog .field input[type=text] { width: 100%; padding: 10px 12px; border-radius: 10px; background: var(--bg-2); color: var(--text); border: 1px solid var(--line); font: inherit; }
+.pf-glyphs { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; }
+.pf-glyph {
+  aspect-ratio: 1; padding: 0; border-radius: 50%; font-size: 18px; display: grid; place-items: center;
+  background: var(--bg-2); border: 2px solid transparent;
+}
+.pf-glyph:hover { border-color: rgba(255,255,255,.4); }
+.pf-glyph.active { background: var(--c); border-color: #fff; }
+.pf-image { display: flex; align-items: center; gap: 12px; }
+@media (max-width: 480px) { .pf-glyphs { grid-template-columns: repeat(5, 1fr); } }

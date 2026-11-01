@@ -46,7 +46,7 @@ function hostRoom() {
   const profile = loadJSON(STORE_PROFILE, {});
   state.mp = {
     role: "host", code, peer, conns: new Map(), me: "host", phase: "lobby", connecting: true,
-    players: [{ id: "host", name: profile.name || "", ready: false, color: MP_COLORS[0], isHost: true, team: "red" }],
+    players: [{ id: "host", name: profile.name || "", ready: false, color: MP_COLORS[0], isHost: true, team: "red", avatar: myProfile().avatar }],
     config: defaultMatchConfig(),
   };
   showLobby();
@@ -135,7 +135,13 @@ function hostOnMessage(id, msg) {
   if (!player.version) return rejectForVersion(mp.conns.get(id), null);
   if (msg.type === "name") {
     player.name = String(msg.name || "").trim().slice(0, 16) || "名無しの旅人";
+    if (msg.avatar) player.avatar = cleanAvatar(msg.avatar);
     player.ready = true;
+    broadcastLobby();
+  } else if (msg.type === "profile") {
+    // プロフィール（アイコン・名前）を変えたとき。準備OKの人は名前も変える
+    player.avatar = cleanAvatar(msg.avatar);
+    if (player.ready && msg.name) player.name = String(msg.name).trim().slice(0, 16) || player.name;
     broadcastLobby();
   } else if (msg.type === "unready") {
     player.ready = false;
@@ -166,7 +172,7 @@ function broadcast(msg) {
 }
 
 function publicPlayers() {
-  return state.mp.players.map(({ id, name, ready, color, isHost, team }) => ({ id, name, ready, color, isHost, team }));
+  return state.mp.players.map(({ id, name, ready, color, isHost, team, avatar }) => ({ id, name, ready, color, isHost, team, avatar }));
 }
 
 function broadcastLobby() {
@@ -195,6 +201,7 @@ function joinRoom(code) {
     conn.on("open", () => {
       state.mp.connecting = false;
       conn.send({ type: "hello", version: APP_VERSION });
+      conn.send({ type: "profile", avatar: myProfile().avatar });
       renderLobby();
     });
     conn.on("data", guestOnMessage);
@@ -373,7 +380,7 @@ function renderLobby() {
   $("player-count").textContent = `${mp.players.length} / ${MP_MAX_PLAYERS}`;
   $("player-list").innerHTML = mp.players.map((p) => `
     <li class="${p.id === mp.me ? "me" : ""}">
-      <span class="p-avatar" style="--c:${p.color}">${escapeHtml((p.name || "?").slice(0, 1))}</span>
+      ${playerAvatarHtml(p)}
       <span class="p-name">${p.name ? escapeHtml(p.name) : '<i class="typing">名前を入力中…</i>'}${p.id === mp.me ? '<small>あなた</small>' : ""}</span>
       ${p.isHost ? '<span class="tag host">ホスト</span>' : ""}
       ${mp.config.mode === "team" && TEAMS[p.team] ? `<span class="tag team-${p.team}">${TEAMS[p.team].short}</span>` : ""}
@@ -383,7 +390,7 @@ function renderLobby() {
   // 自分の名前の欄（決定すると準備OK）
   const ready = !!(me && me.ready);
   const nameInput = $("my-name");
-  if (document.activeElement !== nameInput && !ready) nameInput.value = (me && me.name) || mp.myName || loadJSON(STORE_PROFILE, {}).name || "";
+  if (document.activeElement !== nameInput && !ready) nameInput.value = (me && me.name) || mp.myName || myProfile().name;
   if (ready) nameInput.value = me.name;
   nameInput.disabled = ready || mp.connecting || (!host && !me);
   $("btn-ready").textContent = ready ? "名前を変更" : "決定";
@@ -425,13 +432,14 @@ function submitMyName() {
   }
   // 次回のために名前を覚えておく
   saveJSON(STORE_PROFILE, { ...loadJSON(STORE_PROFILE, {}), name: name || (me && me.name) });
+  renderTopbar();
   if (mp.role === "host") {
     me.name = name || me.name;
     me.ready = !ready;
     broadcastLobby();
   } else {
     mp.myName = name;
-    guestSend(ready ? { type: "unready" } : { type: "name", name });
+    guestSend(ready ? { type: "unready" } : { type: "name", name, avatar: myProfile().avatar });
   }
 }
 
@@ -871,7 +879,7 @@ function renderWaiting(done) {
     const out = !isAlive(p.id);
     const cls = ["pl-row", done ? "done" : "", me ? "me" : "", watching ? "watching" : "", out ? "out" : ""].join(" ");
     return `<button class="${cls}" data-id="${escapeHtml(p.id)}" style="--c:${p.color}" ${me || out ? "disabled" : ""}>
-      <span class="p-avatar" style="--c:${p.color}">${escapeHtml((p.name || "?").slice(0, 1))}</span>
+      ${playerAvatarHtml(p)}
       <span class="pl-name">${TEAMS[teamId] ? `<i class="pl-team ${teamId}">${TEAMS[teamId].short}</i>` : ""}${escapeHtml(p.name || "?")}</span>
       <span class="pl-state">${out ? "💀 脱落" : done ? "✓ 回答済み" : '<i class="dots">考え中</i>'}</span>
       <span class="pl-watch">${me ? "あなた" : out ? "—" : watching ? "👀 見ています" : "👀 見る"}</span>
@@ -1000,8 +1008,7 @@ function renderSpectateBar() {
   $("spectate-frame").hidden = false;
   $("spectate-bar").style.setProperty("--c", p.color);
   $("spectate-frame").style.setProperty("--c", p.color);
-  $("spectate-avatar").style.setProperty("--c", p.color);
-  $("spectate-avatar").textContent = (p.name || "?").slice(0, 1);
+  $("spectate-avatar").outerHTML = playerAvatarHtml(p).replace('class="p-avatar', 'id="spectate-avatar" class="p-avatar');
   $("spectate-name").textContent = p.name || "?";
   $("spectate-state").textContent = done ? "回答済み" : "考え中…";
 }
@@ -1126,7 +1133,7 @@ function hostFinal() {
   const life = g.mode === "life" && !g.team;
   const standings = mp.players
     .map((p) => {
-      const s = { id: p.id, name: p.name, color: p.color, total: mp.totals.get(p.id) || 0 };
+      const s = { id: p.id, name: p.name, color: p.color, avatar: p.avatar, total: mp.totals.get(p.id) || 0 };
       if (!life) return s;
       s.life = mp.lives.get(p.id) || 0;
       s.outRound = mp.outRound.has(p.id) ? mp.outRound.get(p.id) : null;
@@ -1157,7 +1164,7 @@ function showMultiFinal(msg) {
     if (!s) return `<div class="podium-slot empty ${medals[i]}"><div class="step"></div></div>`;
     return `<div class="podium-slot ${medals[i]}" style="--d:${i}">
       ${i === 0 ? '<div class="crown">👑</div>' : ""}
-      <div class="avatar ring"><span class="p-avatar big" style="--c:${s.color}">${escapeHtml(s.name.slice(0, 1))}</span><span class="medal">${i + 1}</span></div>
+      <div class="avatar ring">${playerAvatarHtml(s, "big")}<span class="medal">${i + 1}</span></div>
       <b class="p-name">${escapeHtml(s.name)}</b>
       <span class="p-score">${s.label ? escapeHtml(s.label) : `${s.total.toLocaleString()} 点`}</span>
       <div class="step"><span>${i + 1}</span></div>
@@ -1165,7 +1172,7 @@ function showMultiFinal(msg) {
   }).join("");
   const rest = msg.standings.slice(3).map((s, i) => `
     <li class="${s.id === mp.me ? "me" : ""}"><span class="r-rank">${i + 4}</span>
-      <span class="p-avatar" style="--c:${s.color}">${escapeHtml(s.name.slice(0, 1))}</span>
+      ${playerAvatarHtml(s)}
       <span class="r-name">${escapeHtml(s.name)}</span><span class="r-score">${s.label ? escapeHtml(s.label) : `${s.total.toLocaleString()} 点`}</span></li>`).join("");
   const myRank = msg.standings.findIndex((s) => s.id === mp.me) + 1;
   const mine = msg.standings[myRank - 1] || { total: 0 };
@@ -1234,6 +1241,22 @@ function teamPinColor(id, fallback) {
   return TEAMS[t] ? TEAMS[t].color : fallback;
 }
 
+// プロフィールを変えたら、部屋のみんなにも知らせる
+function sendMyProfile() {
+  const mp = state.mp;
+  if (!mp) return;
+  const me = myProfile();
+  if (mp.role === "host") {
+    const p = mp.players.find((x) => x.id === "host");
+    if (!p) return;
+    p.avatar = me.avatar;
+    if (p.ready) p.name = me.name;
+    broadcastLobby();
+  } else {
+    guestSend({ type: "profile", avatar: me.avatar, name: me.name });
+  }
+}
+
 function smallerTeam() {
   const count = (t) => state.mp.players.filter((p) => p.team === t).length;
   return count("blue") < count("red") ? "blue" : "red";
@@ -1298,7 +1321,7 @@ function renderTeamHud(round) {
     const mp = state.mp;
     el.querySelector(".tg-members").innerHTML = (mp ? mp.players : [])
       .filter((p) => g.team.members[p.id] === t)
-      .map((p) => `<span class="tg-member${p.id === mp.me ? " me" : ""}" style="--c:${p.color}"><i>${escapeHtml((p.name || "?").slice(0, 1))}</i>${escapeHtml(p.name || "?")}</span>`)
+      .map((p) => `<span class="tg-member${p.id === mp.me ? " me" : ""}" style="--c:${p.color}">${playerAvatarHtml(p, "mini")}${escapeHtml(p.name || "?")}</span>`)
       .join("");
     const fill = el.querySelector(".tg-fill");
     const num = el.querySelector(".tg-life");
@@ -1365,7 +1388,7 @@ function showTeamFinal(msg) {
   const g = state.game;
   const win = msg.winner || (g.teamLife.red >= g.teamLife.blue ? "red" : "blue");
   const members = (t) => mp.players.filter((p) => g.team.members[p.id] === t)
-    .map((p) => `<li class="${p.id === mp.me ? "me" : ""}"><span class="p-avatar" style="--c:${p.color}">${escapeHtml((p.name || "?").slice(0, 1))}</span>${escapeHtml(p.name || "?")}</li>`).join("");
+    .map((p) => `<li class="${p.id === mp.me ? "me" : ""}">${playerAvatarHtml(p)}${escapeHtml(p.name || "?")}</li>`).join("");
   const side = (t) => `
     <div class="tf-team ${t}${t === win ? " won" : ""}">
       <header><span class="tg-badge">${TEAMS[t].short}</span><b>${TEAMS[t].name}</b>${g.team.teams[t].extra ? '<span class="tg-extra">🔥EXTRA</span>' : ""}</header>
@@ -1416,7 +1439,7 @@ function renderMatchCard() {
     const list = mp.players.filter((p) => p.team === t);
     $(`team-${t}-count`).textContent = `${list.length}人`;
     $(`team-${t}-members`).innerHTML = list.map((p) => `<li class="${p.id === mp.me ? "me" : ""}">
-      <span class="p-avatar" style="--c:${p.color}">${escapeHtml((p.name || "?").slice(0, 1))}</span>${p.name ? escapeHtml(p.name) : "名前を入力中…"}${p.id === mp.me ? "<small>あなた</small>" : ""}</li>`).join("")
+      ${playerAvatarHtml(p)}${p.name ? escapeHtml(p.name) : "名前を入力中…"}${p.id === mp.me ? "<small>あなた</small>" : ""}</li>`).join("")
       || '<li class="empty">まだ誰もいません</li>';
     const life = $(`team-${t}-life`);
     if (document.activeElement !== life) life.value = cfg.teams[t].life;
