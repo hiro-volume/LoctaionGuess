@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.54";
+const APP_VERSION = "1.55";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -183,13 +183,28 @@ function rand() {
   }
 }
 
+// 自作の範囲では、真ん中ほど選ばれやすくする（ふちに近いほど、選ぶ確率を最大 75% 下げる）。
+// 均等に選ぶと、外側の輪の方が面積が広いぶん、ふちの近くばかり出ているように感じるため
+const CENTER_WEIGHT = 0.75;
+
+// 範囲の真ん中からの近さ（0 = 真ん中、1 = ふち）。円はいちばん近い円の中心から、多角形は範囲の中心から測る
+function edgeness(area, lat, lng) {
+  const circles = areaCircles(area);
+  if (circles) return Math.min(...circles.map((c) => distanceMeters(c.center, { lat, lng }) / c.radius));
+  const b = areaBounds(area);
+  const center = { lat: (b.south + b.north) / 2, lng: (b.west + b.east) / 2 };
+  return Math.min(1, distanceMeters(center, { lat, lng }) / (areaSizeMeters(area) / 2));
+}
+
 function randomPointIn(area) {
   if (area.type === "world") return randomWorldPoint();
   const b = areaBounds(area);
   for (let i = 0; i < 5000; i++) {
     const lat = b.south + rand() * (b.north - b.south);
     const lng = b.west + rand() * (b.east - b.west);
-    if (areaContains(area, lat, lng)) return { lat, lng };
+    if (!areaContains(area, lat, lng)) continue;
+    if (area.custom && rand() > 1 - CENTER_WEIGHT * edgeness(area, lat, lng)) continue;
+    return { lat, lng };
   }
   return null;
 }
@@ -283,25 +298,22 @@ async function findLocation(area, usedPanos, usedSpots = []) {
     if (!areaContains(area, res.location.lat, res.location.lng)) return null;
     return { panoId: res.pano_id, lat: res.location.lat, lng: res.location.lng, date: res.date };
   };
-  // 狭い範囲（自作の範囲など）は撮影地点の数が限られるので、候補を 8 か所集めてから、
-  // このゲームと最近のゲームで出た場所から、いちばん離れたものを選ぶ。
-  // 広い範囲は、十分に離れた候補が見つかった時点で決める
-  const enough = wide ? 1 : 8;
+  // 候補は範囲の中から均等に選んでいるので、「前に出た場所から十分に離れている」ものの中から
+  // くじ引きのように選ぶ（いちばん遠いものを選ぶと、範囲のふちばかり出てしまうため）。
+  // 十分に離れたものが見つからなかったときだけ、いちばん離れていたものを使う
   let best = null;
   let bestRoom = -1;
-  let seen = 0;
   for (let i = 0; i < tries; i += batch) {
     const points = Array.from({ length: batch }, () => randomPointIn(area)).filter(Boolean);
     if (!points.length) break;
     const found = (await Promise.all(points.map(ask))).filter(Boolean);
+    const good = [];
     for (const spot of found) {
       const room = Math.min(nearestDistance(spot, usedSpots) / gameGap, nearestDistance(spot, recent) / recentGap);
-      seen += 1;
+      if (room >= 1) good.push(spot);
       if (room > bestRoom) { best = spot; bestRoom = room; }
     }
-    // まだ何も出ていない（比べる相手がいない）なら、最初の候補でよい
-    if (bestRoom === Infinity) return accept(best);
-    if (wide ? bestRoom >= 1 : seen >= enough) return accept(best);
+    if (good.length) return accept(good[Math.floor(rand() * good.length)]);
   }
   if (best) return accept(best);
   throw new Error("この範囲ではストリートビューが見つかりませんでした。範囲を広げるか、道路のある場所を選んでください。");
