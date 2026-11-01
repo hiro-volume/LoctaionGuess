@@ -422,7 +422,7 @@ async function startQuickGame() {
     area: findArea(state.selectedAreaId),
     move: true, pan: true, zoom: true,
     timeLimit: QUICK_TIME_LIMIT,
-    mode: "rounds", difficulty: "normal", hardcore: false,
+    mode: "rounds", difficulty: "normal", hardcore: false, guessMode: "pin",
     maxLife: LIFE_PRESETS.normal, life: LIFE_PRESETS.normal,
     rounds: QUICK_ROUNDS,
     index: 0, results: [], overlays: [], usedPanos: new Set(), usedSpots: [],
@@ -787,6 +787,115 @@ const regionNear = makeLocator(REGIONS);
 const regionById = new Map(REGIONS.map((r) => [r.id, r]));
 const regionCache = new Map();
 
+// ---------------------------------------------------------------- 当て方（地点・国・都道府県）
+
+const GUESS_MODES = {
+  pin: { tab: "📍 地点", noun: "地点", help: "ピンを刺した場所と正解の距離で得点が決まります。" },
+  country: { tab: "🌐 国", noun: "国", help: "地図で国をクリックして選びます。正解の国なら満点、違う国でも近ければ少し点が入ります（最大で半分）。" },
+  pref: { tab: "🗾 都道府県", noun: "都道府県", help: "地図で都道府県をクリックして選びます。正解なら満点、違う都道府県でも近ければ少し点が入ります（最大で半分）。" },
+};
+const JAPAN_PREFS = REGIONS.filter((r) => r.country === "JPN");
+const prefNear = makeLocator(JAPAN_PREFS);
+
+// その範囲で選べる当て方
+function guessModesFor(area) {
+  const modes = ["pin"];
+  if (area.type === "world") modes.push("country");
+  if (area.iso === "JPN") modes.push("pref");
+  return modes;
+}
+
+function isRegionMode(g) {
+  return !!g && (g.guessMode === "country" || g.guessMode === "pref");
+}
+
+function regionAt(mode, lat, lng) {
+  if (mode === "country") return countryNear(lat, lng);
+  if (mode === "pref") return prefNear(lat, lng);
+  return null;
+}
+
+function regionInfo(mode, id) {
+  const list = mode === "country" ? WORLD : mode === "pref" ? JAPAN_PREFS : [];
+  return list.find((r) => r.id === id) || null;
+}
+
+function regionName(mode, id) {
+  const r = regionInfo(mode, id);
+  return r ? r.name : "（海の上）";
+}
+
+// 回答の判定。地点は距離で、国・都道府県は「同じなら満点、違えば選んだ区画のふちまでの近さで最大半分」
+function judgeGuess(g, guess, answer) {
+  if (!guess) return { distance: null, score: 0 };
+  if (!isRegionMode(g)) {
+    const distance = distanceMeters(guess, answer);
+    return { distance, score: scoreFor(distance, g.area) };
+  }
+  const answerRegion = regionAt(g.guessMode, answer.lat, answer.lng);
+  const guessRegion = regionAt(g.guessMode, guess.lat, guess.lng);
+  if (guessRegion && guessRegion === answerRegion) {
+    return { distance: 0, score: MAX_SCORE, answerRegion, guessRegion, correct: true };
+  }
+  const r = regionInfo(g.guessMode, guessRegion);
+  const distance = r
+    ? r.rings.reduce((min, ring) => ring.reduce((m, [lng, lat]) => Math.min(m, distanceMeters({ lat, lng }, answer)), min), Infinity)
+    : distanceMeters(guess, answer);
+  const score = Math.round((MAX_SCORE / 2) * Math.exp(-distance / (areaSizeMeters(g.area) * 0.07)));
+  return { distance, score, answerRegion, guessRegion, correct: false };
+}
+
+// 結果に出す「あなたの答え」（地点は距離、国・都道府県は名前と正誤）
+function guessResultText(g, r) {
+  if (!r.guess) return "時間切れ";
+  if (!isRegionMode(g)) return formatDistance(r.distance);
+  return `${r.correct ? "✓" : "✗"} ${regionName(g.guessMode, r.guessRegion)}`;
+}
+
+// 区画（国・都道府県）を地図に塗る
+function regionPolygon(mode, id, color, opacity) {
+  const r = regionInfo(mode, id);
+  if (!r) return null;
+  return new google.maps.Polygon({
+    paths: r.rings.map((ring) => ring.map(([lng, lat]) => ({ lat, lng }))),
+    strokeColor: color, strokeOpacity: 0.95, strokeWeight: 2, fillColor: color, fillOpacity: opacity,
+    clickable: false, zIndex: 0,
+  });
+}
+
+const REGION_RIGHT_LINES = [
+  "正解！お見事🎯", "ばっちり当たり！✨", "その読み、正確です👏", "迷わず正解！さすが😎",
+  "当たり！地理に強いですね📚", "完璧！次も当てましょう🔥",
+];
+
+function regionReaction(g, r) {
+  if (!r || !r.guess) return reactionFor(null, false);
+  if (r.correct) return REGION_RIGHT_LINES[Math.floor(rand() * REGION_RIGHT_LINES.length)];
+  return reactionFor(r.distance, false);
+}
+
+// 設定シートの「当て方」
+function renderGuessTabs(area) {
+  const modes = guessModesFor(area);
+  if (!modes.includes(state.guessMode)) state.guessMode = "pin";
+  $("guess-row").hidden = modes.length < 2;
+  $("guess-tabs").innerHTML = modes.map((m) =>
+    `<button class="tab${m === state.guessMode ? " active" : ""}" data-guess="${m}">${GUESS_MODES[m].tab}</button>`).join("");
+  $("guess-help").textContent = GUESS_MODES[state.guessMode].help;
+  // 国・都道府県を当てるときは、数メートル単位のエクストラモードは使えない
+  const region = state.guessMode !== "pin";
+  document.querySelector(".hardcore-row").hidden = region;
+  $("hardcore-help").hidden = region;
+  $("guess-tabs").querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => {
+    state.guessMode = b.dataset.guess;
+    renderGuessTabs(area);
+  }));
+}
+
+function guessIdleText(g) {
+  return isRegionMode(g) ? `${GUESS_MODES[g.guessMode].noun}をクリックして選ぶ` : "ピンをマップに配置する";
+}
+
 // 記録の点がどの区画（県・州など）か。何度も描き直すので結果を覚えておく
 function regionOfRound(r) {
   const key = `${r.lat},${r.lng}`;
@@ -926,14 +1035,18 @@ function loadScores() {
 
 // ランキングは「同じ条件で遊んだもの」どうしで比べる（ラウンド数・ライフ制の難易度ごと）
 function boardOf(g) {
-  return g.mode === "life" ? `life-${g.difficulty}-${g.maxLife}${g.hardcore ? "-x" : ""}` : `rounds-${g.rounds}`;
+  const base = g.mode === "life" ? `life-${g.difficulty}-${g.maxLife}${g.hardcore ? "-x" : ""}` : `rounds-${g.rounds}`;
+  // 国・都道府県を当てたゲームは、別の部門にする（例: rounds-5@country）
+  return isRegionMode(g) ? `${base}@${g.guessMode}` : base;
 }
 
 function boardLabel(key) {
-  const [mode, a, b, x] = key.split("-");
-  if (mode === "rounds") return `${a}ラウンド`;
+  const [rule, guess] = key.split("@");
+  const [mode, a, b, x] = rule.split("-");
+  const suffix = GUESS_MODES[guess] ? `・${GUESS_MODES[guess].noun}当て` : "";
+  if (mode === "rounds") return `${a}ラウンド${suffix}`;
   const label = a === "custom" ? `ライフ ${Number(b).toLocaleString()}` : `ライフ・${DIFFICULTY_NAMES[a] || a}`;
-  return x ? `${label}・🔥エクストラ` : label;
+  return (x ? `${label}・🔥エクストラ` : label) + suffix;
 }
 
 // 並べ方: ラウンド制は点数が高い順、ライフ制は生き残ったラウンド数 → 点数の順。同点なら早い方が上
@@ -1158,6 +1271,7 @@ function openSettings(id) {
   renderUsage();
   $("settings-sheet").hidden = false;
   renderRanking(area.id);
+  renderGuessTabs(area);
   decorateSheetForMulti();
   $("btn-start").focus();
 }
@@ -1278,6 +1392,7 @@ function rulesText(g) {
     g.zoom ? null : "ズームなし",
     g.timeLimit ? `制限時間 ${g.timeLimit}秒` : null,
     g.hardcore ? "🔥エクストラ" : null,
+    isRegionMode(g) ? `${GUESS_MODES[g.guessMode].noun}当て` : null,
   ].filter(Boolean);
   return `（${parts.join("・")}）`;
 }
@@ -1789,6 +1904,8 @@ function clearGameMarkers() {
   g.guessMarker = null;
   (g.overlays || []).forEach((o) => o.setMap(null));
   g.overlays = [];
+  if (g.pickShape) g.pickShape.setMap(null);
+  g.pickShape = null;
 }
 
 // ---------------------------------------------------------------- 結果表示用のピン・線・ラベル
@@ -1851,6 +1968,17 @@ function addOverlay(o) {
 
 // 1ラウンド分の「自分のピン・正解・その間の線」を描く
 function drawRoundResult(r, { tag, showDistance, guessPin }) {
+  const g = state.game;
+  if (isRegionMode(g)) {
+    // 正解の区画は緑、はずれたときは選んだ区画を赤で塗る
+    const answerShape = regionPolygon(g.guessMode, r.answerRegion || regionAt(g.guessMode, r.answer.lat, r.answer.lng), ANSWER_COLOR, 0.3);
+    if (answerShape) addOverlay(answerShape);
+    if (r.guess && !r.correct) {
+      const guessShape = regionPolygon(g.guessMode, r.guessRegion, GUESS_COLOR, 0.25);
+      if (guessShape) addOverlay(guessShape);
+    }
+    showDistance = false;
+  }
   if (!r.guess) {
     // ピンを立てる前に時間切れになったラウンドは、正解だけを表示する
     addOverlay(new google.maps.Marker({ position: r.answer, icon: pinIcon(ANSWER_COLOR, "answer"), title: "正解", zIndex: 3 }));
@@ -1867,7 +1995,7 @@ function drawRoundResult(r, { tag, showDistance, guessPin }) {
     path: [r.guess, r.answer], strokeOpacity: 0, zIndex: 1,
     icons: [{ icon: { path: "M 0,-1 0,1", strokeColor: "#1b2330", strokeOpacity: 1, strokeWeight: 3, scale: 3 }, offset: "0", repeat: "12px" }],
   }));
-  if (showDistance) {
+  if (showDistance && r.distance != null) {
     const mid = { lat: (r.guess.lat + r.answer.lat) / 2, lng: (r.guess.lng + r.answer.lng) / 2 };
     addOverlay(new MapLabel(mid, formatDistance(r.distance), "distance"));
   }
@@ -1919,7 +2047,8 @@ async function startGame() {
     timeLimit: $("opt-timer").checked ? Number($("opt-time").value) : 0,
     mode,
     difficulty: $("opt-difficulty").value,
-    hardcore: mode === "life" && $("opt-hardcore").checked,
+    guessMode: state.guessMode || "pin",
+    hardcore: mode === "life" && $("opt-hardcore").checked && (state.guessMode || "pin") === "pin",
     maxLife,
     life: maxLife,
     rounds,
@@ -1943,7 +2072,7 @@ async function replayGame() {
     return showMessage("今月の無料枠の上限に達しました（config.js の limits）。来月まで待つか、上限を見直してください。");
   }
   clearGameMarkers();
-  const keep = ["area", "move", "pan", "zoom", "timeLimit", "mode", "difficulty", "hardcore", "maxLife", "rounds"];
+  const keep = ["area", "move", "pan", "zoom", "timeLimit", "mode", "difficulty", "hardcore", "maxLife", "rounds", "guessMode"];
   state.game = {
     ...Object.fromEntries(keep.map((k) => [k, old[k]])),
     life: old.maxLife, index: 0, results: [], overlays: [], usedPanos: new Set(), usedSpots: [],
@@ -1969,7 +2098,7 @@ async function startRound() {
   $("timer-pill").hidden = true;
   $("result").hidden = true;
   $("btn-guess").disabled = true;
-  $("btn-guess").textContent = "ピンをマップに配置する";
+  $("btn-guess").textContent = guessIdleText(g);
   $("btn-back-start").hidden = !g.move;
   $("btn-zoom-in").disabled = $("btn-zoom-out").disabled = !g.zoom;
   $("info-area").textContent = g.area.name;
@@ -2060,6 +2189,18 @@ function showPanorama(panoId, { move, pan, zoom }) {
 
 function placeGuess(latLng) {
   const g = state.game;
+  let picked = null;
+  if (isRegionMode(g)) {
+    picked = regionAt(g.guessMode, latLng.lat(), latLng.lng());
+    if (!picked) {
+      $("btn-guess").textContent = `${GUESS_MODES[g.guessMode].noun}の上をクリックしてください`;
+      return;
+    }
+    // 選んだ区画を塗って、どこを選んだかひと目でわかるようにする
+    if (g.pickShape) g.pickShape.setMap(null);
+    g.pickShape = regionPolygon(g.guessMode, picked, GUESS_COLOR, 0.3);
+    if (g.pickShape) g.pickShape.setMap(state.map);
+  }
   g.guess = { lat: latLng.lat(), lng: latLng.lng() };
   // 刺し直すたびに作り直して、毎回その場にポンと出す
   if (g.guessMarker) g.guessMarker.setMap(null);
@@ -2073,7 +2214,7 @@ function placeGuess(latLng) {
     showPinRipple(g.guess);
   }
   $("btn-guess").disabled = false;
-  $("btn-guess").textContent = "決定する";
+  $("btn-guess").textContent = picked ? `「${regionName(g.guessMode, picked)}」で決定` : "決定する";
   if (g.multi) sendMyView();
 }
 
@@ -2202,9 +2343,9 @@ function submitGuess(timedOut = false) {
   stopTimer();
   g.playMs = (g.playMs || 0) + (Date.now() - (g.roundStartedAt || Date.now()));
   const missed = !g.guess;
-  const distance = missed ? null : distanceMeters(g.guess, g.answer);
-  const score = missed ? 0 : scoreFor(distance, g.area);
-  const result = { distance, score, answer: g.answer, guess: g.guess, timedOut };
+  const judged = judgeGuess(g, g.guess, g.answer);
+  const { distance, score } = judged;
+  const result = { ...judged, answer: g.answer, guess: g.guess, timedOut };
   if (g.mode === "life") {
     result.damage = Math.min(g.life, damageFor(score, distance, g.hardcore));
     g.life -= result.damage;
@@ -2215,6 +2356,8 @@ function submitGuess(timedOut = false) {
   // 置いたピンは結果表示用のものに置き換える
   if (g.guessMarker) g.guessMarker.setMap(null);
   g.guessMarker = null;
+  if (g.pickShape) g.pickShape.setMap(null);
+  g.pickShape = null;
   drawRoundResult(result, { showDistance: true, guessPin: true });
   state.map.setOptions({ draggableCursor: null });
 
@@ -2227,11 +2370,13 @@ function submitGuess(timedOut = false) {
        <div class="rs-cap">${MAX_SCORE.toLocaleString()} 点のうち</div>`;
   const roundText = g.mode === "life" ? `ラウンド ${g.index + 1}` : `ラウンド ${g.index + 1} / ${g.rounds}`;
   $("result-text").innerHTML = `
-    <div class="rs-reaction"><span class="reaction${g.hardcore ? " extra" : ""}">${reactionFor(missed ? null : distance, g.hardcore)}</span></div>
+    <div class="rs-reaction"><span class="reaction${g.hardcore ? " extra" : ""}">${isRegionMode(g) ? regionReaction(g, result) : reactionFor(missed ? null : distance, g.hardcore)}</span></div>
     <div class="rs-meta"><b>${roundText}</b>${LEGEND}${mapsLink(g.answer)}</div>
-    <div class="rs-side rs-left">
+    <div class="rs-side rs-left">${isRegionMode(g) && !missed ? `
+      <div class="rs-big ${result.correct ? "rs-correct" : "rs-wrong"}">${result.correct ? "正解！" : "はずれ"}</div>
+      <div class="rs-cap">あなた: ${escapeHtml(regionName(g.guessMode, result.guessRegion))} ・ 正解: ${escapeHtml(regionName(g.guessMode, result.answerRegion))}</div>` : `
       <div class="rs-big rs-dist">${missed ? "時間切れ" : formatDistance(distance)}</div>
-      <div class="rs-cap">${missed ? "ピンを立てる前に時間切れ" : timedOut ? "正解から（時間切れで提出）" : "正解から"}</div>
+      <div class="rs-cap">${missed ? "ピンを立てる前に時間切れ" : timedOut ? "正解から（時間切れで提出）" : "正解から"}</div>`}
     </div>
     <div class="rs-side rs-right">${right}</div>`;
   $("btn-next").textContent = last ? "結果を見る" : "次のラウンドへ";
@@ -2294,7 +2439,7 @@ function showFinal() {
     ${header}
     ${LEGEND}
     <table>${g.results.map((r, i) =>
-      `<tr><td class="num">${i + 1}</td><td>${r.guess ? formatDistance(r.distance) : "時間切れ"}</td><td>${r.score} 点</td>` +
+      `<tr><td class="num">${i + 1}</td><td>${escapeHtml(guessResultText(g, r))}</td><td>${r.score.toLocaleString()} 点</td>` +
       (g.mode === "life" ? `<td class="damage">−${r.damage}</td>` : "") +
       `<td>${mapsLink(r.answer, "見る")}</td></tr>`).join("")}
     </table>

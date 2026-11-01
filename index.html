@@ -216,6 +216,12 @@
               <button data-mode="rounds" class="tab active">ラウンド制</button>
               <button data-mode="life" class="tab">ライフ制</button>
             </div>
+            <!-- 当て方（全世界は「国」、日本は「都道府県」も選べる） -->
+            <div id="guess-row" hidden>
+              <h4 class="guess-title">当て方</h4>
+              <div class="tabs" id="guess-tabs"></div>
+              <p class="help" id="guess-help"></p>
+            </div>
             <label class="row" id="rounds-row">ラウンド数
               <select id="opt-rounds">
                 <option value="3">3</option>

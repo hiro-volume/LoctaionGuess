@@ -470,6 +470,7 @@ function hostStartGame() {
     move: $("opt-move").checked,
     pan: $("opt-pan").checked,
     zoom: $("opt-zoom").checked,
+    guessMode: state.guessMode || "pin",
     timeLimit: mp.config.mode === "team"
       ? (mp.config.timer.on ? mp.config.timer.seconds : 0)
       : $("opt-timer").checked ? Number($("opt-time").value) : 0,
@@ -515,8 +516,9 @@ function prepareMultiGame(area, settings) {
     move: settings.move, pan: settings.pan, zoom: settings.zoom, timeLimit: settings.timeLimit,
     index: -1, results: [], overlays: [], usedPanos: new Set(), usedSpots: [], total: 0,
     team, myTeam,
-    // リアクションの厳しさは、自分のチームのエクストラに合わせる
-    hardcore: !!(team && myTeam && team.teams[myTeam].extra),
+    guessMode: settings.guessMode || "pin",
+    // リアクションの厳しさは、自分のチームのエクストラに合わせる（国・都道府県当てでは使わない）
+    hardcore: !!(team && myTeam && team.teams[myTeam].extra) && (settings.guessMode || "pin") === "pin",
     teamLife: team ? { red: team.teams.red.life, blue: team.teams.blue.life } : null,
     history: [],
   };
@@ -566,7 +568,7 @@ function beginMultiRound(msg) {
   $("result").hidden = true;
   $("mp-wait").hidden = true;
   $("btn-guess").disabled = true;
-  $("btn-guess").textContent = "ピンをマップに配置する";
+  $("btn-guess").textContent = guessIdleText(g);
   $("btn-back-start").hidden = !g.move;
   $("btn-zoom-in").disabled = $("btn-zoom-out").disabled = !g.zoom;
   $("info-area").textContent = g.area.name;
@@ -635,10 +637,9 @@ function finishMultiRound() {
   const answer = { lat: mp.answer.lat, lng: mp.answer.lng, panoId: mp.answer.panoId };
   const results = mp.players.map((p) => {
     const sub = mp.guesses.get(p.id) || { guess: null, ms: 0 };
-    const distance = sub.guess ? distanceMeters(sub.guess, answer) : null;
-    const score = sub.guess ? scoreFor(distance, g.area) : 0;
-    mp.totals.set(p.id, (mp.totals.get(p.id) || 0) + score);
-    return { id: p.id, name: p.name, color: p.color, guess: sub.guess, distance, score, total: mp.totals.get(p.id), ms: sub.ms };
+    const judged = judgeGuess(g, sub.guess, answer);
+    mp.totals.set(p.id, (mp.totals.get(p.id) || 0) + judged.score);
+    return { id: p.id, name: p.name, color: p.color, guess: sub.guess, ...judged, total: mp.totals.get(p.id), ms: sub.ms };
   });
   mp.answer = null;
   mp.guesses = null;
@@ -830,7 +831,11 @@ function showMultiResult(msg) {
   g.lastResult = msg;
   const answer = msg.answer;
 
-  // 正解と、全員のピン・線を描く
+  // 正解と、全員のピン・線を描く（国・都道府県当てでは、正解の区画も塗る）
+  if (isRegionMode(g)) {
+    const shape = regionPolygon(g.guessMode, regionAt(g.guessMode, answer.lat, answer.lng), ANSWER_COLOR, 0.3);
+    if (shape) addOverlay(shape);
+  }
   addOverlay(new google.maps.Marker({ position: answer, icon: pinIcon(ANSWER_COLOR, "answer"), title: "正解", zIndex: 10 }));
   addOverlay(new MapLabel(answer, "正解", "tag answer"));
   const bounds = new google.maps.LatLngBounds();
@@ -860,11 +865,14 @@ function showMultiResult(msg) {
   }
   renderTeamHud(msg.team);
   $("result-text").innerHTML = `
-    ${mine ? `<div class="rs-reaction"><span class="reaction${g.hardcore ? " extra" : ""}">${reactionFor(missed ? null : mine.distance, g.hardcore)}</span></div>` : ""}
+    ${mine ? `<div class="rs-reaction"><span class="reaction${g.hardcore ? " extra" : ""}">${isRegionMode(g) ? regionReaction(g, mine) : reactionFor(missed ? null : mine.distance, g.hardcore)}</span></div>` : ""}
     <div class="rs-meta"><b>ラウンド ${msg.index + 1}${g.team ? "" : ` / ${g.rounds}`}</b>${mapsLink(answer)}</div>
     <div class="rs-side rs-left">
+${isRegionMode(g) && !missed ? `
+      <div class="rs-big ${mine.correct ? "rs-correct" : "rs-wrong"}">${mine.correct ? "正解！" : "はずれ"}</div>
+      <div class="rs-cap">あなた: ${escapeHtml(regionName(g.guessMode, mine.guessRegion))} ・ 正解: ${escapeHtml(regionName(g.guessMode, regionAt(g.guessMode, answer.lat, answer.lng)))}</div>` : `
       <div class="rs-big rs-dist">${missed ? "時間切れ" : formatDistance(mine.distance)}</div>
-      <div class="rs-cap">${missed ? "ピンを立てる前に時間切れ" : "正解から"}</div>
+      <div class="rs-cap">${missed ? "ピンを立てる前に時間切れ" : "正解から"}</div>`}
     </div>
     <div class="rs-side rs-right">${g.team && msg.team ? teamResultSide(msg.team) : `
       <div class="rs-big rs-score">${mine ? mine.score.toLocaleString() : 0}</div>
@@ -874,7 +882,7 @@ function showMultiResult(msg) {
       <tr class="${r.id === mp.me ? "me" : ""}">
         <td class="num">${i + 1}</td>
         <td class="pl"><i class="dot" style="background:${r.color}"></i>${escapeHtml(r.name)}</td>
-        <td>${r.guess ? formatDistance(r.distance) : "時間切れ"}</td>
+        <td>${escapeHtml(guessResultText(g, r))}</td>
         <td class="gain">+${r.score}</td>
         <td><b>${r.total.toLocaleString()}</b></td>
       </tr>`).join("")}
@@ -1013,9 +1021,13 @@ function hostTeamRound(results) {
   for (const t of Object.keys(TEAMS)) {
     const best = results
       .filter((r) => g.team.members[r.id] === t && r.guess)
-      .sort((a, b) => a.distance - b.distance)[0];
-    const points = best ? Math.max(0, MAX_SCORE - damageFor(scoreFor(best.distance, g.area), best.distance, g.team.teams[t].extra)) : 0;
-    teams[t] = { points, best: best ? { id: best.id, name: best.name, distance: best.distance } : null, before: g.teamLife[t] };
+      .sort((a, b) => b.score - a.score || a.distance - b.distance)[0];
+    const extra = g.team.teams[t].extra && !isRegionMode(g);
+    const points = best ? Math.max(0, MAX_SCORE - damageFor(best.score, best.distance, extra)) : 0;
+    teams[t] = {
+      points, before: g.teamLife[t],
+      best: best ? { id: best.id, name: best.name, distance: best.distance, guess: best.guess, guessRegion: best.guessRegion, correct: best.correct } : null,
+    };
   }
   const diff = teams.red.points - teams.blue.points;
   const loser = diff > 0 ? "blue" : diff < 0 ? "red" : null;
@@ -1085,7 +1097,7 @@ function renderTeamHud(round) {
   hud.querySelector(".th-mult").textContent = `×${teamMultiplier(Math.max(0, g.index))}`;
   const dist = (t) => {
     const b = round && round.teams[t].best;
-    return b ? formatDistance(b.distance) : "—";
+    return b ? guessResultText(g, b) : "—";
   };
   hud.querySelector(".th-dist").hidden = !round;
   hud.querySelector(".d-red").textContent = dist("red");
@@ -1119,8 +1131,8 @@ function showTeamFinal(msg) {
     </div>`;
   const rows = g.history.map((h) => `<tr>
       <td class="num">${h.index + 1}</td>
-      <td class="red">${h.teams.red.best ? formatDistance(h.teams.red.best.distance) : "—"}</td>
-      <td class="blue">${h.teams.blue.best ? formatDistance(h.teams.blue.best.distance) : "—"}</td>
+      <td class="red">${h.teams.red.best ? escapeHtml(guessResultText(g, h.teams.red.best)) : "—"}</td>
+      <td class="blue">${h.teams.blue.best ? escapeHtml(guessResultText(g, h.teams.blue.best)) : "—"}</td>
       <td class="num">×${h.multiplier}</td>
       <td class="damage">${h.teams.red.damage ? `赤 −${h.teams.red.damage.toLocaleString()}` : h.teams.blue.damage ? `青 −${h.teams.blue.damage.toLocaleString()}` : "—"}</td>
     </tr>`).join("");

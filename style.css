@@ -1814,3 +1814,9 @@ body:has(#mp-social:not([hidden])) #mp-wait { left: 68px; max-width: min(360px, 
 /* ================================================================ 回答マップ: マウスを乗せていないときは半透明に */
 .screen-game #map-dock { transition: width .2s, height .2s, opacity .2s; }
 .screen-game #map-dock:not(.open):not(.pinned) { opacity: .55; }
+
+/* ================================================================ 当て方（地点・国・都道府県） */
+.guess-title { margin-top: 14px; }
+#guess-tabs .tab { flex: 1; }
+.rs-correct { color: #6be39a; text-shadow: 0 0 16px rgba(80,220,140,.6); }
+.rs-wrong { color: #ff8a80; text-shadow: 0 0 16px rgba(255,80,70,.5); }
