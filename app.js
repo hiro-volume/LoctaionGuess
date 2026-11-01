@@ -2223,6 +2223,11 @@ function showPanorama(panoId, { move, pan, zoom }) {
   addUsage("streetView");
   if (!state.pano) {
     state.pano = new google.maps.StreetViewPanorama($("pano"), opts);
+    // 枠の大きさが変わったら描き直す。結果画面などで隠れている間（大きさ 0）に作られたり、
+    // 窓の大きさが変わったりすると、ストリートビューが左上に小さく収まったままになることがあるため
+    new ResizeObserver(() => {
+      if (state.pano && $("pano").clientWidth) google.maps.event.trigger(state.pano, "resize");
+    }).observe($("pano"));
     state.pano.addListener("pov_changed", () => {
       const pov = state.pano.getPov();
       const g = state.game;
