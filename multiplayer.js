@@ -229,6 +229,9 @@ function guestOnMessage(msg) {
     case "final":
       showMultiFinal(msg);
       break;
+    case "hurry":
+      applyHurry(msg);
+      break;
     case "react":
       showReaction(msg);
       break;
@@ -567,6 +570,7 @@ function beginMultiRound(msg) {
   $("loading").hidden = true;
   $("result").hidden = true;
   $("mp-wait").hidden = true;
+  $("hurry-note").hidden = true;
   $("btn-guess").disabled = true;
   $("btn-guess").textContent = guessIdleText(g);
   $("btn-back-start").hidden = !g.move;
@@ -621,6 +625,13 @@ function recordGuess(id, msg) {
   }
   const done = [...mp.guesses.keys()];
   broadcast({ type: "progress", done });
+  // 最初の1人が回答したら、まだの人の残り時間を短くする（残りがそれより長いときだけ）
+  if (done.length === 1 && mp.players.length > 1) {
+    const who = mp.players.find((p) => p.id === id);
+    const hurry = { type: "hurry", index: g.index, id, name: (who && who.name) || "?", seconds: HURRY_SECONDS };
+    broadcast(hurry);
+    applyHurry(hurry);
+  }
   if (g.submitted) renderWaiting(done);
   checkAllGuessed();
 }
@@ -647,6 +658,29 @@ function finishMultiRound() {
   const msg = { type: "result", index: g.index, answer, results, team, last: team ? !!team.winner : g.index + 1 >= g.rounds };
   broadcast(msg);
   showMultiResult(msg);
+}
+
+// 誰かが回答したら、まだ回答していない人は残り HURRY_SECONDS 秒にする
+// （制限時間なしのゲームでも、ここから HURRY_SECONDS 秒の時間制限が始まる）
+const HURRY_SECONDS = 30;
+
+function applyHurry(msg) {
+  const mp = state.mp;
+  const g = state.game;
+  if (!mp || !g || !g.multi || msg.index !== g.index || g.submitted || app.className !== "screen-game") return;
+  if (msg.id === mp.me) return;
+  const seconds = Math.max(5, Math.min(120, Number(msg.seconds) || HURRY_SECONDS));
+  const left = state.timerDeadline ? (state.timerDeadline - Date.now()) / 1000 : Infinity;
+  if (left <= seconds) return;
+  startTimer(seconds);
+  const note = $("hurry-note");
+  note.textContent = `⚡ ${msg.name} さんが回答しました！ 残り ${seconds} 秒`;
+  note.hidden = false;
+  note.classList.remove("show");
+  void note.offsetWidth;
+  note.classList.add("show");
+  clearTimeout(state.hurryTimer);
+  state.hurryTimer = setTimeout(() => { note.hidden = true; }, 3500);
 }
 
 // 「他のプレイヤーを待っています」

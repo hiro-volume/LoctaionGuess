@@ -1337,14 +1337,15 @@ function updateTimerSettings() {
   $("time-label").textContent = `${$("opt-time").value}秒`;
 }
 
-function startTimer() {
-  const g = state.game;
+// seconds を渡すと、その秒数から数え直す（マルチプレイで誰かが回答して、残りが短くなったとき）
+function startTimer(seconds = state.game.timeLimit) {
   stopTimer();
   const pill = $("timer-pill");
-  pill.hidden = !g.timeLimit;
+  pill.hidden = !seconds;
   pill.classList.remove("urgent", "beat");
-  if (!g.timeLimit) return;
-  const deadline = Date.now() + g.timeLimit * 1000;
+  if (!seconds) return;
+  const deadline = Date.now() + seconds * 1000;
+  state.timerDeadline = deadline;
   let shown = null;
   let flashed = false;
   const tick = () => {
@@ -1381,6 +1382,7 @@ function startTimer() {
 
 function stopTimer() {
   $("danger-edge").hidden = true;
+  state.timerDeadline = null;
   clearInterval(state.timer);
   state.timer = null;
 }

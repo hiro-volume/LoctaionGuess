@@ -1822,3 +1822,25 @@ body:has(#mp-social:not([hidden])) #mp-wait { left: 68px; max-width: min(360px, 
 .rs-wrong { color: #ff8a80; text-shadow: 0 0 16px rgba(255,80,70,.5); }
 /* 半透明でも不透明でも、同じ重なり方（レイヤー）で描いて、枠の位置がずれないようにする */
 .screen-game #map-dock { will-change: opacity; }
+
+/* ================================================================ マルチプレイ: 残り時間が短くなったお知らせ */
+#hurry-note {
+  position: absolute; top: 104px; left: 50%; translate: -50% 0; z-index: 7; pointer-events: none;
+  padding: 8px 18px; border-radius: 999px; white-space: nowrap;
+  font-size: 14px; font-weight: 800; color: #fff;
+  background: linear-gradient(135deg, #e5392f, #ff7a29); box-shadow: 0 8px 24px rgba(229,57,47,.45);
+}
+#hurry-note[hidden] { display: none; }
+#hurry-note.show { animation: hurryIn 3.5s ease forwards; }
+@keyframes hurryIn {
+  0% { opacity: 0; transform: translateY(-8px) scale(.9); }
+  8% { opacity: 1; transform: translateY(0) scale(1.06); }
+  14% { transform: scale(1); }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+html.no-anim #hurry-note.show { animation: none; }
+body.team-game #hurry-note { top: 132px; }
+@media (max-width: 720px) {
+  #hurry-note { top: 176px; font-size: 12px; white-space: normal; max-width: calc(100vw - 32px); text-align: center; }
+}
