@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- LocationGuess のアイコン: 紺の角丸に、水色の地球と赤い位置ピン -->
+  <defs>
+    <radialGradient id="sea" cx=".38" cy=".32" r=".8">
+      <stop offset="0" stop-color="#7fdcff"/>
+      <stop offset=".6" stop-color="#2a93dd"/>
+      <stop offset="1" stop-color="#145aa6"/>
+    </radialGradient>
+    <clipPath id="globe"><circle cx="30" cy="34" r="22"/></clipPath>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0e1a33"/>
+  <circle cx="30" cy="34" r="22" fill="url(#sea)"/>
+  <g clip-path="url(#globe)">
+    <path d="M10 26c5-6 13-7 18-3 3 3 1 8 5 10 4 2 2 8-3 9-5 1-6 6-11 5-6-1-6-7-9-11-2-3-3-7 0-10z" fill="#6be39a"/>
+    <path d="M36 18c6-2 13 0 15 4 2 4-1 7 2 10 3 3 1 7-4 7-4 0-5 4-9 3-4-1-4-5-7-7-3-2-4-6-2-10 1-4 3-6 5-7z" fill="#6be39a"/>
+    <g fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="1.4">
+      <ellipse cx="30" cy="34" rx="22" ry="8"/>
+      <ellipse cx="30" cy="34" rx="9" ry="22"/>
+    </g>
+  </g>
+  <circle cx="30" cy="34" r="22" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2"/>
+  <!-- 位置ピン -->
+  <path d="M46 37s11-11.5 11-19a11 11 0 0 0-22 0c0 7.5 11 19 11 19z" fill="#e5392f" stroke="#fff" stroke-width="2.6" stroke-linejoin="round"/>
+  <circle cx="46" cy="18" r="4.2" fill="#fff"/>
+</svg>
