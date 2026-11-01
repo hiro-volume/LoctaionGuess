@@ -255,16 +255,16 @@ async function findLocation(area, usedPanos, usedSpots = []) {
   const size = areaSizeMeters(area);
   // 同じゲームの中では、前の出題から範囲の 6% ほど離れた場所を選ぶ
   const gameGap = Math.max(60, size * 0.06);
-  // 最近のゲームで出た場所の近く（範囲の 1.5% ほど）も避ける
+  // 最近のゲームで出た場所の近くも避ける（狭い範囲ほど、くり返しが目立つので広めに）
   const recent = loadRecentSpots(area.id);
-  const recentGap = Math.max(30, size * 0.015);
+  const recentGap = wide ? Math.max(30, size * 0.015) : Math.max(40, size * 0.05);
   const accept = (spot) => {
     usedSpots.push({ lat: spot.lat, lng: spot.lng });
     rememberSpot(area.id, spot);
     return spot;
   };
   const tries = wide ? 200 : MAX_LOCATION_TRIES;
-  const batch = wide ? 6 : 3;
+  const batch = wide ? 6 : 4;
   const ask = async (p) => {
     const url = "https://maps.googleapis.com/maps/api/streetview/metadata" +
       `?location=${p.lat},${p.lng}&radius=${radius}&source=outdoor&key=${encodeURIComponent(CONFIG.apiKey)}`;
@@ -280,20 +280,27 @@ async function findLocation(area, usedPanos, usedSpots = []) {
     if (!areaContains(area, res.location.lat, res.location.lng)) return null;
     return { panoId: res.pano_id, lat: res.location.lat, lng: res.location.lng, date: res.date };
   };
-  // 離れた場所が見つからなかったときのために、いちばん離れていた候補を覚えておく
-  let fallback = null;
-  let fallbackRoom = -1;
+  // 狭い範囲（自作の範囲など）は撮影地点の数が限られるので、候補を 8 か所集めてから、
+  // このゲームと最近のゲームで出た場所から、いちばん離れたものを選ぶ。
+  // 広い範囲は、十分に離れた候補が見つかった時点で決める
+  const enough = wide ? 1 : 8;
+  let best = null;
+  let bestRoom = -1;
+  let seen = 0;
   for (let i = 0; i < tries; i += batch) {
     const points = Array.from({ length: batch }, () => randomPointIn(area)).filter(Boolean);
     if (!points.length) break;
     const found = (await Promise.all(points.map(ask))).filter(Boolean);
     for (const spot of found) {
       const room = Math.min(nearestDistance(spot, usedSpots) / gameGap, nearestDistance(spot, recent) / recentGap);
-      if (room >= 1) return accept(spot);
-      if (room > fallbackRoom) { fallback = spot; fallbackRoom = room; }
+      seen += 1;
+      if (room > bestRoom) { best = spot; bestRoom = room; }
     }
+    // まだ何も出ていない（比べる相手がいない）なら、最初の候補でよい
+    if (bestRoom === Infinity) return accept(best);
+    if (wide ? bestRoom >= 1 : seen >= enough) return accept(best);
   }
-  if (fallback) return accept(fallback);
+  if (best) return accept(best);
   throw new Error("この範囲ではストリートビューが見つかりませんでした。範囲を広げるか、道路のある場所を選んでください。");
 }
 
