@@ -1766,3 +1766,30 @@ html.no-anim #danger-edge.flash { animation: dangerFlash 1.5s steps(2, jump-none
 
 /* リアクション・チャットのボタンがあるときは、待ち一覧をその右に出す */
 body:has(#mp-social:not([hidden])) #mp-wait { left: 68px; max-width: min(360px, calc(100vw - 80px)); }
+
+/* ================================================================ チームのメンバー（ゲージの下） */
+.tg-members { display: flex; flex-wrap: wrap; gap: 4px; }
+.tg.blue .tg-members { justify-content: flex-end; }
+.tg.red .tg-members { padding-left: 18px; }
+.tg.blue .tg-members { padding-right: 18px; }
+.tg-member {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 120px; padding: 2px 8px 2px 2px; border-radius: 999px;
+  font-size: 11px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: rgba(11,17,32,.78); border: 1px solid color-mix(in srgb, var(--c) 70%, transparent);
+}
+.tg-member i {
+  flex: none; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 10px; font-style: normal; background: var(--c);
+}
+.tg-member.me { border-color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.4); }
+
+/* ================================================================ ライフのバーのはしを斜めにカット */
+.tg-bar, .lh-bar { transform: skewX(-18deg); border-radius: 5px; }
+.tg.blue .tg-bar { transform: skewX(18deg); }
+.tg-life, .lh-life { transform: skewX(18deg); }
+.tg.blue .tg-life { transform: skewX(-18deg); }
+@media (max-width: 720px) {
+  /* 細い画面のチーム戦では、方位と残り時間をメンバーの下に並べる */
+  body.team-game .screen-game #heading-tape { top: 96px; }
+  body.team-game .screen-game #timer-pill { top: 138px; }
+}

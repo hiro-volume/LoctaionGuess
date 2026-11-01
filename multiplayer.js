@@ -1052,6 +1052,12 @@ function renderTeamHud(round) {
     const from = round ? round.teams[t].before : now;
     el.classList.toggle("mine", g.myTeam === t);
     el.querySelector(".tg-extra").hidden = !g.team.teams[t].extra;
+    // そのチームのメンバー（色つきのアイコンと名前）をゲージの下に並べる
+    const mp = state.mp;
+    el.querySelector(".tg-members").innerHTML = (mp ? mp.players : [])
+      .filter((p) => g.team.members[p.id] === t)
+      .map((p) => `<span class="tg-member${p.id === mp.me ? " me" : ""}" style="--c:${p.color}"><i>${escapeHtml((p.name || "?").slice(0, 1))}</i>${escapeHtml(p.name || "?")}</span>`)
+      .join("");
     const fill = el.querySelector(".tg-fill");
     const num = el.querySelector(".tg-life");
     fill.style.transition = "none";
