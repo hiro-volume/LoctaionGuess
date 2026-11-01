@@ -1004,42 +1004,6 @@ ${isRegionMode(g) && !missed ? `
   $("result").hidden = false;
 }
 
-// ---------------------------------------------------------------- ラウンドの始まりの 3・2・1
-// 結果からはホストが「次のラウンドへ」で進める。新しいラウンドが始まったら、全員の画面で
-// 3・2・1 と数えてから、答えられるようにして制限時間を動かし始める
-const ROUND_COUNTDOWN_SECONDS = 3;
-
-function startRoundCountdown(onDone) {
-  stopRoundCountdown();
-  const box = $("round-countdown");
-  const endAt = Date.now() + ROUND_COUNTDOWN_SECONDS * 1000;
-  let shown = null;
-  box.hidden = false;
-  const tick = () => {
-    const left = Math.ceil((endAt - Date.now()) / 1000);
-    if (left === shown) return;
-    shown = left;
-    if (left <= 0) {
-      stopRoundCountdown();
-      onDone();
-      return;
-    }
-    $("round-countdown-num").textContent = left;
-    // 数字が変わるたびに、ポンと出し直す
-    box.classList.remove("tick");
-    void box.offsetWidth;
-    box.classList.add("tick");
-  };
-  tick();
-  state.roundCountdown = setInterval(tick, 100);
-}
-
-function stopRoundCountdown() {
-  clearInterval(state.roundCountdown);
-  state.roundCountdown = null;
-  $("round-countdown").hidden = true;
-}
-
 // 結果画面の「次へ」（ホストだけが押せる）
 function multiNext() {
   const mp = state.mp;

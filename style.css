@@ -1863,9 +1863,9 @@ body.team-game #hurry-note { top: 132px; }
 }
 .rc-ring small { font-size: 13px; font-weight: 700; color: #cdeefe; }
 .rc-ring b { font-size: 78px; font-weight: 900; line-height: 1; color: #fff; text-shadow: 0 0 22px rgba(56,189,248,.85); }
-#round-countdown.tick b { animation: countPop .6s cubic-bezier(.2,1.6,.4,1); }
+#round-countdown.count-pop b { animation: countPop .6s cubic-bezier(.2,1.6,.4,1); }
 @keyframes countPop { 0% { transform: scale(1.8); opacity: 0; } 40% { opacity: 1; } 100% { transform: scale(1); } }
-html.no-anim #round-countdown.tick b { animation: none; }
+html.no-anim #round-countdown.count-pop b { animation: none; }
 @media (max-width: 720px) {
   .rc-ring { width: 120px; height: 120px; }
   .rc-ring b { font-size: 52px; }

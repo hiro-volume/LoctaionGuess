@@ -1337,6 +1337,42 @@ function updateTimerSettings() {
   $("time-label").textContent = `${$("opt-time").value}秒`;
 }
 
+// ---------------------------------------------------------------- ラウンドの始まりの 3・2・1
+// 新しいラウンドが始まったら 3・2・1 と数えてから、答えられるようにして制限時間を動かし始める
+// （一人で遊ぶときも、マルチプレイでも。マルチプレイでは全員の画面で同時に数える）
+const ROUND_COUNTDOWN_SECONDS = 3;
+
+function startRoundCountdown(onDone) {
+  stopRoundCountdown();
+  const box = $("round-countdown");
+  const endAt = Date.now() + ROUND_COUNTDOWN_SECONDS * 1000;
+  let shown = null;
+  box.hidden = false;
+  const tick = () => {
+    const left = Math.ceil((endAt - Date.now()) / 1000);
+    if (left === shown) return;
+    shown = left;
+    if (left <= 0) {
+      stopRoundCountdown();
+      onDone();
+      return;
+    }
+    $("round-countdown-num").textContent = left;
+    // 数字が変わるたびに、ポンと出し直す
+    box.classList.remove("count-pop");
+    void box.offsetWidth;
+    box.classList.add("count-pop");
+  };
+  tick();
+  state.roundCountdown = setInterval(tick, 100);
+}
+
+function stopRoundCountdown() {
+  clearInterval(state.roundCountdown);
+  state.roundCountdown = null;
+  $("round-countdown").hidden = true;
+}
+
 // seconds を渡すと、その秒数から数え直す（マルチプレイで誰かが回答して、残りが短くなったとき）
 function startTimer(seconds = state.game.timeLimit) {
   stopTimer();
@@ -2132,9 +2168,12 @@ async function startRound() {
   g.answer = answer;
   g.usedPanos.add(g.answer.panoId);
   showPanorama(g.answer.panoId, g);
-  g.roundStartedAt = Date.now();
   updateHeadingTape(state.pano.getPov().heading);
-  startTimer();
+  startRoundCountdown(() => {
+    if (state.game !== g || app.className !== "screen-game") return;
+    g.roundStartedAt = Date.now();
+    startTimer();
+  });
 }
 
 function showPanorama(panoId, { move, pan, zoom }) {
