@@ -1149,13 +1149,24 @@ function startTimer() {
   if (!g.timeLimit) return;
   const deadline = Date.now() + g.timeLimit * 1000;
   let shown = null;
+  let flashed = false;
   const tick = () => {
     const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
     if (left === shown) return;
     shown = left;
     $("timer-text").textContent = formatTime(left);
     pill.classList.toggle("urgent", left <= 10);
-    $("danger-edge").hidden = left > 15 || left <= 0;
+    // 残り 15 秒になったら、1回だけ画面のふちを赤くボワッと光らせる
+    if (!flashed && left <= 15 && left > 0) {
+      flashed = true;
+      const edge = $("danger-edge");
+      edge.hidden = false;
+      edge.classList.remove("flash");
+      void edge.offsetWidth;
+      edge.classList.add("flash");
+      clearTimeout(state.edgeTimer);
+      state.edgeTimer = setTimeout(() => { edge.hidden = true; }, 1600);
+    }
     // 残り10秒からは、1秒減るたびにビクッと動かす（アニメーションを最初からやり直す）
     if (left <= 10) {
       pill.classList.remove("beat");

@@ -397,7 +397,11 @@
       <div id="danger-edge" hidden></div>
       <!-- シングルのライフ制: 右上にライフのバー（その下にエリア・ラウンド・スコア） -->
       <div id="life-hud" hidden>
-        <div class="lh-bar"><i class="lh-fill"></i><b class="lh-life" id="lh-life">0</b></div>
+        <div class="lh-row">
+          <div class="lh-bar"><i class="lh-fill"></i><b class="lh-life" id="lh-life">0</b></div>
+          <!-- バーの右はしの印: ライフは右から左へ減っていく -->
+          <span class="lh-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 2.5a7 7 0 0 0-7 7c0 5.2 7 12 7 12s7-6.8 7-12a7 7 0 0 0-7-7z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.6" fill="currentColor"/></svg></span>
+        </div>
         <div class="lh-meta">
           <span class="tg-extra" id="lh-extra" hidden>🔥EXTRA</span>
           <b id="lh-area"></b><span>ラウンド <b id="lh-round"></b></span><span>スコア <b id="lh-score"></b></span>
