@@ -1908,3 +1908,12 @@ html.no-anim #mp-toast.show { animation: none; }
   .ld-globe { width: 130px; height: 130px; }
   .ld-text { font-size: 16px; }
 }
+
+/* タイトルの右下の小さなバージョン表記 */
+.app-version {
+  position: absolute; right: 12px; bottom: 8px; z-index: 2;
+  font-size: 11px; font-family: var(--font-display); letter-spacing: .06em; color: rgba(255,255,255,.4);
+  pointer-events: none;
+}
+/* バージョン表記とクレジットが重ならないよう、クレジットを少し上げる */
+.title-foot { padding-bottom: 24px; }

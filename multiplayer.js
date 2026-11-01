@@ -81,9 +81,28 @@ function hostAccept(conn) {
     mp.conns.set(conn.peer, conn);
     mp.players.push({ id: conn.peer, name: "", ready: false, color: nextPlayerColor(), isHost: false, team: smallerTeam() });
     conn.on("data", (msg) => hostOnMessage(conn.peer, msg));
+    setTimeout(() => {
+      const p = mp.players.find((x) => x.id === conn.peer);
+      if (p && !p.version) rejectForVersion(conn, null);
+    }, VERSION_WAIT_MS);
     conn.on("close", () => hostRemovePlayer(conn.peer));
     broadcastLobby();
   });
+}
+
+// ---------------------------------------------------------------- バージョンの確認
+const VERSION_WAIT_MS = 4000;
+
+function versionMismatchText(roomVersion, myVersion) {
+  const v = (x) => (x ? `v${x}` : "古いバージョン");
+  return `バージョンが合わないため、入室できませんでした（部屋: ${v(roomVersion)} / あなた: ${v(myVersion)}）。` +
+    "ホストと参加者の両方が、ページを再読み込み（Ctrl + Shift + R）してから、もう一度試してください。";
+}
+
+function rejectForVersion(conn, guestVersion) {
+  if (!conn) return;
+  if (conn.open) conn.send({ type: "reject", reason: versionMismatchText(APP_VERSION, guestVersion) });
+  setTimeout(() => conn.close(), 500);
 }
 
 function hostRemovePlayer(id) {
@@ -93,8 +112,8 @@ function hostRemovePlayer(id) {
   mp.conns.delete(id);
   mp.players = mp.players.filter((p) => p.id !== id);
   broadcastLobby();
-  // 抜けた人がいることを、全員に知らせる
-  if (leaving) {
+  // 抜けた人がいることを、全員に知らせる（バージョン違いで断った人は、もともと入っていないので知らせない）
+  if (leaving && leaving.version) {
     const note = { type: "left", name: leaving.name || "名無しの旅人", team: leaving.team };
     broadcast(note);
     showLeftNote(note);
@@ -107,6 +126,13 @@ function hostOnMessage(id, msg) {
   const mp = state.mp;
   const player = mp && mp.players.find((p) => p.id === id);
   if (!player || !msg || typeof msg !== "object") return;
+  if (msg.type === "hello") {
+    if (msg.version !== APP_VERSION) return rejectForVersion(mp.conns.get(id), msg.version);
+    player.version = msg.version;
+    return;
+  }
+  // バージョンを名乗っていない人（古いバージョン）の操作は受け付けない
+  if (!player.version) return rejectForVersion(mp.conns.get(id), null);
   if (msg.type === "name") {
     player.name = String(msg.name || "").trim().slice(0, 16) || "名無しの旅人";
     player.ready = true;
@@ -146,7 +172,7 @@ function publicPlayers() {
 function broadcastLobby() {
   const mp = state.mp;
   mp.conns.forEach((conn, id) => {
-    if (conn.open) conn.send({ type: "lobby", players: publicPlayers(), phase: mp.phase, you: id, config: mp.config });
+    if (conn.open) conn.send({ type: "lobby", players: publicPlayers(), phase: mp.phase, you: id, config: mp.config, version: APP_VERSION });
   });
   renderLobby();
 }
@@ -168,6 +194,7 @@ function joinRoom(code) {
     state.mp.conn = conn;
     conn.on("open", () => {
       state.mp.connecting = false;
+      conn.send({ type: "hello", version: APP_VERSION });
       renderLobby();
     });
     conn.on("data", guestOnMessage);
@@ -205,6 +232,13 @@ function guestOnMessage(msg) {
       showMessage(msg.reason);
       break;
     case "lobby": {
+      if (msg.version !== APP_VERSION) {
+        mp.leaving = true;
+        leaveRoom();
+        showMode();
+        showMessage(versionMismatchText(msg.version, APP_VERSION));
+        break;
+      }
       const backToLobby = mp.phase !== "lobby" && msg.phase === "lobby";
       mp.players = msg.players;
       mp.me = msg.you;
