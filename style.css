@@ -2015,3 +2015,37 @@ html.no-anim #mp-toast.show { animation: none; }
 /* 文字は選択できないようにする（ボタンを押すだけ）。名前などの入力欄だけは選べる */
 body { user-select: none; -webkit-user-select: none; }
 input, textarea, [contenteditable="true"] { user-select: text; -webkit-user-select: text; }
+
+/* ================================================================ 結果のボタン: 文字がはみ出さないように */
+.screen-result #btn-next { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 16px; }
+.screen-result #btn-next:disabled { font-size: 14px; }
+/* 参加者は押せないので、Space の案内は出さない */
+.screen-result .result-buttons #btn-next:disabled ~ .rs-key { display: none; }
+
+/* ================================================================ マルチプレイの個人戦: みんなのライフ（合計点） */
+#mp-board { display: none; }
+.screen-game #mp-board:not([hidden]) {
+  position: absolute; top: 12px; left: 12px; z-index: 5; width: 240px;
+  display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 14px;
+  background: rgba(11, 17, 32, .82); border: 1px solid rgba(255,255,255,.15); box-shadow: 0 8px 24px rgba(0,0,0,.4);
+}
+.mb-title { font-size: 11px; font-weight: 800; letter-spacing: .06em; color: var(--muted); padding: 0 2px; }
+.mb-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 42vh; overflow-y: auto; }
+.mb-list li {
+  display: grid; grid-template-columns: 18px 22px 1fr auto; grid-template-rows: auto auto; align-items: center; column-gap: 6px;
+  padding: 4px 6px; border-radius: 8px; font-size: 12px;
+}
+.mb-list li.me { background: rgba(107,227,154,.12); box-shadow: inset 0 0 0 1px rgba(107,227,154,.45); }
+.mb-list li.out { opacity: .45; }
+.mb-rank { grid-row: 1 / span 2; font-size: 11px; font-weight: 900; color: var(--muted); text-align: center; }
+.mb-list .p-avatar.mini { grid-row: 1 / span 2; width: 22px; height: 22px; font-size: 12px; }
+.mb-name { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mb-num { font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+.mb-bar { grid-column: 3 / span 2; grid-row: 2; height: 5px; border-radius: 3px; overflow: hidden; background: rgba(255,255,255,.12); }
+.mb-bar i { display: block; height: 100%; margin-left: auto; transition: width .6s; }
+.pl-life { margin-left: 6px; font-size: 10px; font-weight: 700; color: #ff9a90; }
+/* 一覧の分だけ、待ち一覧などを下げる必要はない（回答したら一覧は隠れて、待ち一覧に変わる） */
+@media (max-width: 720px) {
+  .screen-game #mp-board:not([hidden]) { width: 180px; top: auto; bottom: 150px; left: 56px; max-height: 30vh; }
+  .mb-list { max-height: 22vh; }
+}

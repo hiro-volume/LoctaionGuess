@@ -640,6 +640,9 @@ function prepareMultiGame(area, settings) {
     hardcore: (team ? !!(myTeam && team.teams[myTeam].extra) : !!settings.hardcore) && (settings.guessMode || "pin") === "pin",
     teamLife: team ? { red: team.teams.red.life, blue: team.teams.blue.life } : null,
     history: [],
+    // 個人戦: みんなのライフと合計点（結果が届くたびに更新し、探している間も左上に出す）
+    lives: Object.fromEntries(state.mp.players.map((p) => [p.id, settings.maxLife || 0])),
+    totals: Object.fromEntries(state.mp.players.map((p) => [p.id, 0])),
   };
   state.lifeShown = null;
   document.body.classList.toggle("team-game", !!team);
@@ -701,6 +704,7 @@ function beginMultiRound(msg) {
   $("info-score").textContent = g.total.toLocaleString();
   renderHudLife();
   renderTeamHud();
+  renderMpBoard();
   setScreen("game");
   drawArea(g.area);
   state.map.setOptions({ draggableCursor: "crosshair" });
@@ -860,6 +864,31 @@ function applyHurry(msg) {
   state.hurryTimer = setTimeout(() => { note.hidden = true; }, 3500);
 }
 
+// 探している間の、みんなのライフ（ライフ制）か合計点（ラウンド制）の一覧（個人戦だけ）
+function renderMpBoard() {
+  const mp = state.mp;
+  const g = state.game;
+  const show = !!(mp && g && g.multi && !g.team && mp.players.length > 1);
+  $("mp-board").hidden = !show;
+  if (!show) return;
+  const life = g.mode === "life";
+  $("mb-title").textContent = life ? "♥ みんなのライフ" : "🏆 合計点";
+  const rows = mp.players
+    .map((p) => ({ p, life: g.lives[p.id] ?? 0, total: g.totals[p.id] || 0 }))
+    .sort((a, b) => (life ? b.life - a.life : 0) || b.total - a.total);
+  $("mb-list").innerHTML = rows.map(({ p, life: hp, total }, i) => {
+    const out = life && hp <= 0;
+    const ratio = g.maxLife ? hp / g.maxLife : 0;
+    return `<li class="${p.id === mp.me ? "me" : ""}${out ? " out" : ""}">
+      <span class="mb-rank">${out ? "💀" : i + 1}</span>
+      ${playerAvatarHtml(p, "mini")}
+      <span class="mb-name">${escapeHtml(p.name || "?")}</span>
+      ${life ? `<span class="mb-bar"><i style="width:${ratio * 100}%;background:${lifeColor(ratio)}"></i></span>
+      <b class="mb-num">${out ? "脱落" : hp.toLocaleString()}</b>` : `<b class="mb-num">${total.toLocaleString()}</b>`}
+    </li>`;
+  }).join("");
+}
+
 // 「他のプレイヤーを待っています」
 function renderWaiting(done) {
   const mp = state.mp;
@@ -869,6 +898,7 @@ function renderWaiting(done) {
   mp.done = [...set];
   const playing = mp.players.filter((p) => isAlive(p.id));
   $("mp-wait").hidden = false;
+  $("mp-board").hidden = true;
   $("mp-wait-title").textContent = isAlive(mp.me)
     ? `回答しました！ 他の人を待っています（${set.size} / ${playing.length}）`
     : `💀 脱落しました。残っている人の画面を観戦できます（${set.size} / ${playing.length} 人が回答）`;
@@ -882,7 +912,7 @@ function renderWaiting(done) {
     const cls = ["pl-row", done ? "done" : "", me ? "me" : "", watching ? "watching" : "", out ? "out" : ""].join(" ");
     return `<button class="${cls}" data-id="${escapeHtml(p.id)}" style="--c:${p.color}" ${me || out ? "disabled" : ""}>
       ${playerAvatarHtml(p)}
-      <span class="pl-name">${TEAMS[teamId] ? `<i class="pl-team ${teamId}">${TEAMS[teamId].short}</i>` : ""}${escapeHtml(p.name || "?")}</span>
+      <span class="pl-name">${TEAMS[teamId] ? `<i class="pl-team ${teamId}">${TEAMS[teamId].short}</i>` : ""}${escapeHtml(p.name || "?")}${g.mode === "life" && !g.team && !out ? `<small class="pl-life">♥ ${(g.lives[p.id] || 0).toLocaleString()}</small>` : ""}</span>
       <span class="pl-state">${out ? "💀 脱落" : done ? "✓ 回答済み" : '<i class="dots">考え中</i>'}</span>
       <span class="pl-watch">${me ? "あなた" : out ? "—" : watching ? "👀 見ています" : "👀 見る"}</span>
     </button>`;
@@ -1074,6 +1104,10 @@ function showMultiResult(msg) {
 
   const rows = [...msg.results].sort((a, b) => b.score - a.score || a.ms - b.ms);
   const missed = !mine || !mine.guess;
+  msg.results.forEach((r) => {
+    g.totals[r.id] = r.total;
+    if (g.mode === "life" && !g.team) g.lives[r.id] = r.out ? 0 : Math.max(0, r.life);
+  });
   if (mine && g.mode === "life" && !g.team && !mine.out) {
     g.life = mine.life;
     if (mine.justOut) g.alive = new Set(msg.results.filter((r) => !r.out && r.life > 0).map((r) => r.id));
@@ -1107,7 +1141,7 @@ ${isRegionMode(g) && !missed ? `
       </tr>`).join("")}
     </table>`;
   const host = mp.role === "host";
-  $("btn-next").textContent = host ? (msg.last ? "最終結果へ" : "次のラウンドへ") : "ホストが進めるのを待っています…";
+  $("btn-next").textContent = host ? (msg.last ? "最終結果へ" : "次のラウンドへ") : "ホストを待っています…";
   $("btn-next").disabled = !host;
   $("btn-end").hidden = true;
   setResultButtons(false, false);
