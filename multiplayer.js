@@ -453,6 +453,7 @@ function decorateSheetForMulti() {
   $("mode-tabs").hidden = team;
   $("team-note").hidden = !team;
   if (team) $("rounds-row").hidden = true;
+  updateTimerSettings();
   $("btn-start").textContent = team ? `${state.mp.players.length}人でチーム戦を始める` : multi ? `${state.mp.players.length}人で始める` : "このマップで始める";
   $("ranking").hidden = multi;
   $("btn-to-ranking").hidden = multi;
@@ -469,7 +470,9 @@ function hostStartGame() {
     move: $("opt-move").checked,
     pan: $("opt-pan").checked,
     zoom: $("opt-zoom").checked,
-    timeLimit: $("opt-timer").checked ? Number($("opt-time").value) : 0,
+    timeLimit: mp.config.mode === "team"
+      ? (mp.config.timer.on ? mp.config.timer.seconds : 0)
+      : $("opt-timer").checked ? Number($("opt-time").value) : 0,
     // チーム戦: 始めた時点のチーム分けと、チームごとのライフ・エクストラ
     team: mp.config.mode === "team"
       ? { teams: JSON.parse(JSON.stringify(mp.config.teams)), members: Object.fromEntries(mp.players.map((p) => [p.id, p.team])) }
@@ -972,7 +975,11 @@ const TEAM_LIFE_MIN = 500;
 const TEAM_LIFE_MAX = 50000;
 
 function defaultMatchConfig() {
-  return { mode: "solo", teams: { red: { life: 6000, extra: false }, blue: { life: 6000, extra: false } } };
+  return {
+    mode: "solo",
+    teams: { red: { life: 6000, extra: false }, blue: { life: 6000, extra: false } },
+    timer: { on: false, seconds: 60 }, // チーム戦の制限時間（両チーム共通）
+  };
 }
 
 // 人数の少ないチームに入れる（同じなら赤）
@@ -1142,6 +1149,13 @@ function renderMatchCard() {
     const join = document.querySelector(`.join-team[data-team="${t}"]`);
     join.hidden = !me || me.team === t;
   }
+  const timer = cfg.timer || { on: false, seconds: 60 };
+  $("team-timer").checked = timer.on;
+  $("team-timer").disabled = !host;
+  $("team-timer-row").hidden = !timer.on;
+  if (document.activeElement !== $("team-time")) $("team-time").value = timer.seconds;
+  $("team-time").disabled = !host;
+  $("team-time-label").textContent = `${timer.seconds}秒`;
 }
 
 function bindMatchCard() {
@@ -1160,6 +1174,12 @@ function bindMatchCard() {
     }));
     $(`team-${t}-extra`).addEventListener("change", hostOnly((cfg) => { cfg.teams[t].extra = $(`team-${t}-extra`).checked; }));
   }
+  $("team-timer").addEventListener("change", hostOnly((cfg) => { cfg.timer.on = $("team-timer").checked; }));
+  // スライダーを動かしている間も、秒数の表示はすぐ変える（配るのは離したとき）
+  $("team-time").addEventListener("input", () => { $("team-time-label").textContent = `${$("team-time").value}秒`; });
+  $("team-time").addEventListener("change", hostOnly((cfg) => {
+    cfg.timer.seconds = Math.min(300, Math.max(10, Math.round(Number($("team-time").value) / 10) * 10 || 60));
+  }));
   document.querySelectorAll(".join-team").forEach((b) => b.addEventListener("click", () => {
     const mp = state.mp;
     if (!mp || mp.phase !== "lobby") return;

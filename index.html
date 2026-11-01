@@ -136,6 +136,13 @@
                 <button class="btn-ghost small-btn join-team" data-team="blue">青チームに入る</button>
               </div>
             </div>
+            <div class="team-timer">
+              <label class="switch-row"><span><b>⏱ 制限時間</b><small>両チーム共通</small></span><input type="checkbox" id="team-timer" class="switch"></label>
+              <label class="row" id="team-timer-row" hidden>
+                <input type="range" id="team-time" min="10" max="300" step="10" value="60">
+                <span id="team-time-label" class="time-label">60秒</span>
+              </label>
+            </div>
             <p class="help team-help">毎ラウンド、それぞれのチームで<b>いちばん正解に近かった人</b>の得点で比べます。<b>点差 × 倍率</b>が相手チームへのダメージになり、相手のライフを先に 0 にしたチームの勝ちです。倍率はラウンドが進むと上がります（×1 → ×1.5 → ×2 …最大 ×3）。ライフとエクストラモードはチームごとに変えられるので、ハンデにも使えます。</p>
           </div>
         </div>
@@ -199,7 +206,7 @@
         <div class="sheet-body">
           <div class="sheet-col">
             <h4>ゲームモード</h4>
-            <p id="team-note" class="help team-note" hidden>⚔ <b>チーム戦</b>: 相手チームのライフを 0 にするまで続きます。ライフとエクストラモードはロビーで設定します。</p>
+            <p id="team-note" class="help team-note" hidden>⚔ <b>チーム戦</b>: 相手チームのライフを 0 にするまで続きます。ライフ・エクストラモード・制限時間はロビーで設定します。</p>
             <div class="tabs" id="mode-tabs">
               <button data-mode="rounds" class="tab active">ラウンド制</button>
               <button data-mode="life" class="tab">ライフ制</button>
@@ -243,7 +250,7 @@
 
           <div class="sheet-col">
             <h4>制限時間と操作</h4>
-            <label class="switch-row">制限時間
+            <label class="switch-row" id="timer-switch-row">制限時間
               <input type="checkbox" id="opt-timer" class="switch">
             </label>
             <label class="row" id="timer-row" hidden>

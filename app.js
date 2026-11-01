@@ -1129,7 +1129,10 @@ function formatTime(sec) {
 }
 
 function updateTimerSettings() {
-  $("timer-row").hidden = !$("opt-timer").checked;
+  // チーム戦の制限時間はロビーで決めるので、設定シートでは出さない
+  const team = !!(state.mp && state.mp.role === "host" && state.mp.config && state.mp.config.mode === "team");
+  $("timer-switch-row").hidden = team;
+  $("timer-row").hidden = team || !$("opt-timer").checked;
   $("time-label").textContent = `${$("opt-time").value}秒`;
 }
 

@@ -1642,3 +1642,10 @@ html.no-anim .tg.hit .tg-bar { animation: none; }
   body.team-game .screen-result .tg-points { font-size: 24px; }
   .tf-teams { grid-template-columns: 1fr; }
 }
+
+/* チーム戦の制限時間（両チーム共通） */
+.team-timer { margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: var(--bg-2); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.team-timer .switch-row span { display: flex; flex-direction: column; }
+.team-timer .switch-row small { font-size: 11px; color: var(--muted); }
+.team-timer .row input[type=range] { flex: 1; }
+.team-timer input:disabled { opacity: .7; }
