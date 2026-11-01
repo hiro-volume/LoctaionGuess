@@ -23,7 +23,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.53">
+  <link rel="stylesheet" href="style.css?v=1.54">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -142,18 +142,31 @@
             <button data-m="team" class="tab"><span><b>⚔ チーム戦</b><small>赤と青に分かれて、ライフを削り合う</small></span></button>
           </div>
           <div id="team-setup" hidden>
+            <div class="team-rule">
+              <div class="seg team-rule-seg" id="team-rule">
+                <button data-rule="life" class="tab"><span><b>♥ ライフ制</b><small>相手のライフを 0 にしたら勝ち</small></span></button>
+                <button data-rule="rounds" class="tab"><span><b>🏁 ラウンド制</b><small>決まったラウンドの合計点で勝負</small></span></button>
+              </div>
+              <label class="row" id="team-rounds-row" hidden>ラウンド数
+                <select id="team-rounds">
+                  <option value="3">3</option>
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                </select>
+              </label>
+            </div>
             <div class="team-cols">
               <div class="team-col red">
                 <header><span class="tg-badge">赤</span><b>チーム赤</b><span class="count" id="team-red-count"></span></header>
                 <ul class="team-members" id="team-red-members"></ul>
-                <label class="row">ライフ <input type="number" id="team-red-life" min="1000" max="100000" step="1000" value="10000"></label>
+                <label class="row team-life-row">ライフ <input type="number" id="team-red-life" min="1000" max="100000" step="1000" value="10000"></label>
                 <label class="switch-row"><span>🔥 エクストラモード</span><input type="checkbox" id="team-red-extra" class="switch"></label>
                 <button class="btn-ghost small-btn join-team" data-team="red">赤チームに入る</button>
               </div>
               <div class="team-col blue">
                 <header><span class="tg-badge">青</span><b>チーム青</b><span class="count" id="team-blue-count"></span></header>
                 <ul class="team-members" id="team-blue-members"></ul>
-                <label class="row">ライフ <input type="number" id="team-blue-life" min="1000" max="100000" step="1000" value="10000"></label>
+                <label class="row team-life-row">ライフ <input type="number" id="team-blue-life" min="1000" max="100000" step="1000" value="10000"></label>
                 <label class="switch-row"><span>🔥 エクストラモード</span><input type="checkbox" id="team-blue-extra" class="switch"></label>
                 <button class="btn-ghost small-btn join-team" data-team="blue">青チームに入る</button>
               </div>
@@ -165,7 +178,8 @@
                 <span id="team-time-label" class="time-label">60秒</span>
               </label>
             </div>
-            <p class="help team-help">毎ラウンド、それぞれのチームで<b>いちばん正解に近かった人</b>の得点で比べます。<b>点差 × 倍率</b>が相手チームへのダメージになり、相手のライフを先に 0 にしたチームの勝ちです。倍率はラウンドが進むと上がります（×1 → ×1.5 → ×2 …最大 ×3）。ライフとエクストラモードはチームごとに変えられるので、ハンデにも使えます。</p>
+            <p class="help team-help" id="team-help-rounds" hidden>毎ラウンド、それぞれのチームで<b>いちばん正解に近かった人</b>の得点がチームの得点になります。決まったラウンドが終わったときに、<b>合計点の多いチームの勝ち</b>です。エクストラモードはチームごとに変えられるので、ハンデにも使えます。</p>
+            <p class="help team-help" id="team-help-life">毎ラウンド、それぞれのチームで<b>いちばん正解に近かった人</b>の得点で比べます。<b>点差 × 倍率</b>が相手チームへのダメージになり、相手のライフを先に 0 にしたチームの勝ちです。倍率はラウンドが進むと上がります（×1 → ×1.5 → ×2 …最大 ×3）。ライフとエクストラモードはチームごとに変えられるので、ハンデにも使えます。</p>
           </div>
         </div>
       </div>
@@ -228,7 +242,7 @@
         <div class="sheet-body">
           <div class="sheet-col">
             <h4>ゲームモード</h4>
-            <p id="team-note" class="help team-note" hidden>⚔ <b>チーム戦</b>: 相手チームのライフを 0 にするまで続きます。ライフ・エクストラモード・制限時間はロビーで設定します。</p>
+            <p id="team-note" class="help team-note" hidden>⚔ <b>チーム戦</b>: 勝ち方（ライフ制・ラウンド制）、ライフ、エクストラモード、制限時間はロビーで設定します。</p>
             <div class="tabs" id="mode-tabs">
               <button data-mode="rounds" class="tab active">ラウンド制</button>
               <button data-mode="life" class="tab">ライフ制</button>
@@ -730,14 +744,14 @@
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.53"></script>
-  <script src="hiroshima-boundary.js?v=1.53"></script>
-  <script src="world-boundary.js?v=1.53"></script>
-  <script src="region-boundary.js?v=1.53"></script>
-  <script src="regions.js?v=1.53"></script>
+  <script src="config.js?v=1.54"></script>
+  <script src="hiroshima-boundary.js?v=1.54"></script>
+  <script src="world-boundary.js?v=1.54"></script>
+  <script src="region-boundary.js?v=1.54"></script>
+  <script src="regions.js?v=1.54"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="app.js?v=1.53"></script>
-  <script src="multiplayer.js?v=1.53"></script>
+  <script src="app.js?v=1.54"></script>
+  <script src="multiplayer.js?v=1.54"></script>
 </body>
 </html>

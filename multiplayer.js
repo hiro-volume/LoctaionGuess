@@ -540,7 +540,10 @@ function hostStartGame() {
       : $("opt-timer").checked ? Number($("opt-time").value) : 0,
     // チーム戦: 始めた時点のチーム分けと、チームごとのライフ・エクストラ
     team: mp.config.mode === "team"
-      ? { teams: JSON.parse(JSON.stringify(mp.config.teams)), members: Object.fromEntries(mp.players.map((p) => [p.id, p.team])) }
+      ? {
+        teams: JSON.parse(JSON.stringify(mp.config.teams)), members: Object.fromEntries(mp.players.map((p) => [p.id, p.team])),
+        rule: mp.config.rule === "rounds" ? "rounds" : "life", rounds: mp.config.rounds || 5,
+      }
       : null,
   };
   saveSettings();
@@ -629,7 +632,8 @@ function prepareMultiGame(area, settings) {
   const myTeam = team ? team.members[state.mp.me] : null;
   const life = !team && settings.mode === "life";
   state.game = {
-    area, multi: true, mode: life ? "life" : "rounds", rounds: team || life ? Infinity : settings.rounds,
+    area, multi: true, mode: life ? "life" : "rounds",
+    rounds: team ? (team.rule === "rounds" ? team.rounds : Infinity) : life ? Infinity : settings.rounds,
     difficulty: settings.difficulty, maxLife: settings.maxLife || 0, life: settings.maxLife || 0,
     alive: null,
     move: settings.move, pan: settings.pan, zoom: settings.zoom, timeLimit: settings.timeLimit,
@@ -639,6 +643,7 @@ function prepareMultiGame(area, settings) {
     // リアクションの厳しさは、自分のチームのエクストラに合わせる（国・都道府県当てでは使わない）
     hardcore: (team ? !!(myTeam && team.teams[myTeam].extra) : !!settings.hardcore) && (settings.guessMode || "pin") === "pin",
     teamLife: team ? { red: team.teams.red.life, blue: team.teams.blue.life } : null,
+    teamScore: { red: 0, blue: 0 }, // チーム戦のラウンド制: チームの合計点
     history: [],
     // 個人戦: みんなのライフと合計点（結果が届くたびに更新し、探している間も左上に出す）
     lives: Object.fromEntries(state.mp.players.map((p) => [p.id, settings.maxLife || 0])),
@@ -835,7 +840,7 @@ function finishMultiRound() {
   mp.guesses = null;
   const team = g.team ? hostTeamRound(results) : null;
   // ライフ制の個人戦は、残りが 1 人以下になったら終わり
-  const last = team ? !!team.winner : g.mode === "life" ? aliveIds().length <= 1 : g.index + 1 >= g.rounds;
+  const last = team ? (g.team.rule === "rounds" ? g.index + 1 >= g.rounds : !!team.winner) : g.mode === "life" ? aliveIds().length <= 1 : g.index + 1 >= g.rounds;
   const msg = { type: "result", index: g.index, answer, results, team, last };
   broadcast(msg);
   showMultiResult(msg);
@@ -1113,7 +1118,8 @@ function showMultiResult(msg) {
     if (mine.justOut) g.alive = new Set(msg.results.filter((r) => !r.out && r.life > 0).map((r) => r.id));
   }
   if (g.team && msg.team) {
-    g.teamLife = { red: msg.team.teams.red.life, blue: msg.team.teams.blue.life };
+    if (g.team.rule === "rounds") g.teamScore = { red: msg.team.teams.red.total, blue: msg.team.teams.blue.total };
+    else g.teamLife = { red: msg.team.teams.red.life, blue: msg.team.teams.blue.life };
     g.history.push({ index: msg.index, ...msg.team });
   }
   renderTeamHud(msg.team);
@@ -1266,6 +1272,8 @@ function defaultMatchConfig() {
     mode: "solo",
     teams: { red: { life: 10000, extra: false }, blue: { life: 10000, extra: false } },
     timer: { on: false, seconds: 60 }, // チーム戦の制限時間（両チーム共通）
+    rule: "life", // チーム戦の勝ち方: "life"（相手のライフを 0 に）/ "rounds"（決まったラウンドの合計点）
+    rounds: 5,
   };
 }
 
@@ -1318,6 +1326,18 @@ function hostTeamRound(results) {
       best: best ? { id: best.id, name: best.name, distance: best.distance, guess: best.guess, guessRegion: best.guessRegion, correct: best.correct } : null,
     };
   }
+  // ラウンド制: その回の得点を合計に足すだけ。最後のラウンドで合計の多いチームの勝ち
+  if (g.team.rule === "rounds") {
+    for (const t of Object.keys(TEAMS)) {
+      teams[t].before = g.teamScore[t];
+      g.teamScore[t] += teams[t].points;
+      Object.assign(teams[t], { damage: 0, total: g.teamScore[t] });
+    }
+    const final = g.index + 1 >= g.rounds;
+    const winner = !final ? null
+      : g.teamScore.red > g.teamScore.blue ? "red" : g.teamScore.blue > g.teamScore.red ? "blue" : "draw";
+    return { multiplier: 1, teams, winner };
+  }
   const diff = teams.red.points - teams.blue.points;
   const loser = diff > 0 ? "blue" : diff < 0 ? "red" : null;
   for (const t of Object.keys(TEAMS)) {
@@ -1346,11 +1366,14 @@ function renderTeamHud(round) {
   const hud = $("team-hud");
   hud.hidden = !(g && g.team);
   if (hud.hidden) return;
+  const byRounds = g.team.rule === "rounds";
+  hud.classList.toggle("by-rounds", byRounds);
   for (const t of Object.keys(TEAMS)) {
     const el = hud.querySelector(`.tg.${t}`);
-    const max = g.team.teams[t].life;
-    const now = g.teamLife[t];
+    const max = byRounds ? g.team.rounds * MAX_SCORE : g.team.teams[t].life;
+    const now = byRounds ? g.teamScore[t] : g.teamLife[t];
     const from = round ? round.teams[t].before : now;
+    const barColor = (ratio) => (byRounds ? `linear-gradient(180deg, ${TEAMS[t].color}, ${TEAMS[t].color}cc)` : lifeColor(ratio));
     el.classList.toggle("mine", g.myTeam === t);
     el.querySelector(".tg-extra").hidden = !g.team.teams[t].extra;
     // そのチームのメンバー（色つきのアイコンと名前）をゲージの下に並べる
@@ -1363,26 +1386,32 @@ function renderTeamHud(round) {
     const num = el.querySelector(".tg-life");
     fill.style.transition = "none";
     fill.style.width = `${(from / max) * 100}%`;
-    fill.style.background = lifeColor(from / max);
+    fill.style.background = barColor(from / max);
     num.textContent = from.toLocaleString();
     el.querySelector(".tg-points").textContent = round ? round.teams[t].points.toLocaleString() : "";
     const dmg = el.querySelector(".tg-dmg");
     dmg.classList.remove("show");
-    dmg.textContent = round && round.teams[t].damage ? `−${round.teams[t].damage.toLocaleString()}` : "";
+    dmg.classList.toggle("gain", byRounds);
+    dmg.textContent = byRounds
+      ? (round && round.teams[t].points ? `+${round.teams[t].points.toLocaleString()}` : "")
+      : (round && round.teams[t].damage ? `−${round.teams[t].damage.toLocaleString()}` : "");
     if (round && from !== now) {
       setTimeout(() => {
         fill.style.transition = "";
         fill.style.width = `${(now / max) * 100}%`;
-        fill.style.background = lifeColor(now / max);
+        fill.style.background = barColor(now / max);
         countNumber(num, from, now);
         dmg.classList.add("show");
-        el.classList.remove("hit");
-        void el.offsetWidth;
-        el.classList.add("hit");
+        if (!byRounds) {
+          el.classList.remove("hit");
+          void el.offsetWidth;
+          el.classList.add("hit");
+        }
       }, 700);
     }
   }
-  hud.querySelector(".th-round").textContent = `ラウンド ${g.index + 1}`;
+  hud.querySelector(".th-round").textContent = byRounds ? `ラウンド ${g.index + 1} / ${g.team.rounds}` : `ラウンド ${g.index + 1}`;
+  hud.querySelector(".th-mult").hidden = byRounds;
   hud.querySelector(".th-mult").textContent = `×${teamMultiplier(Math.max(0, g.index))}`;
   const dist = (t) => {
     const b = round && round.teams[t].best;
@@ -1411,6 +1440,12 @@ function teamResultSide(round) {
   const g = state.game;
   const mine = g.myTeam || "red";
   const opp = mine === "red" ? "blue" : "red";
+  if (g.team.rule === "rounds") {
+    const lead = round.teams[mine].total - round.teams[opp].total;
+    return `
+      <div class="rs-big rs-score">+${round.teams[mine].points.toLocaleString()}</div>
+      <div class="rs-cap">チームの得点 ・ 合計 ${round.teams[mine].total.toLocaleString()}（${lead > 0 ? `${lead.toLocaleString()} 点リード` : lead < 0 ? `${(-lead).toLocaleString()} 点差で追いかけ中` : "同点"}）</div>`;
+  }
   const dealt = round.teams[opp].damage;
   const taken = round.teams[mine].damage;
   const text = dealt ? `相手に −${dealt.toLocaleString()} ダメージ！` : taken ? `−${taken.toLocaleString()} ダメージを受けた…` : "引き分け（ダメージなし）";
@@ -1422,32 +1457,40 @@ function teamResultSide(round) {
 function showTeamFinal(msg) {
   const mp = state.mp;
   const g = state.game;
-  const win = msg.winner || (g.teamLife.red >= g.teamLife.blue ? "red" : "blue");
+  const byRounds = g.team.rule === "rounds";
+  const win = msg.winner || (byRounds
+    ? (g.teamScore.red > g.teamScore.blue ? "red" : g.teamScore.blue > g.teamScore.red ? "blue" : "draw")
+    : (g.teamLife.red >= g.teamLife.blue ? "red" : "blue"));
   const members = (t) => mp.players.filter((p) => g.team.members[p.id] === t)
     .map((p) => `<li class="${p.id === mp.me ? "me" : ""}">${playerAvatarHtml(p)}${escapeHtml(p.name || "?")}</li>`).join("");
   const side = (t) => `
     <div class="tf-team ${t}${t === win ? " won" : ""}">
       <header><span class="tg-badge">${TEAMS[t].short}</span><b>${TEAMS[t].name}</b>${g.team.teams[t].extra ? '<span class="tg-extra">🔥EXTRA</span>' : ""}</header>
-      <div class="tf-life">${lifeBar(Math.max(0, g.teamLife[t]), g.team.teams[t].life)}<span>${Math.max(0, g.teamLife[t]).toLocaleString()} / ${g.team.teams[t].life.toLocaleString()}</span></div>
+      <div class="tf-life">${byRounds
+        ? `<b class="tf-score">${g.teamScore[t].toLocaleString()} 点</b>`
+        : `${lifeBar(Math.max(0, g.teamLife[t]), g.team.teams[t].life)}<span>${Math.max(0, g.teamLife[t]).toLocaleString()} / ${g.team.teams[t].life.toLocaleString()}</span>`}</div>
       <ul>${members(t)}</ul>
     </div>`;
   const rows = g.history.map((h) => `<tr>
       <td class="num">${h.index + 1}</td>
       <td class="red">${h.teams.red.best ? escapeHtml(guessResultText(g, h.teams.red.best)) : "—"}</td>
       <td class="blue">${h.teams.blue.best ? escapeHtml(guessResultText(g, h.teams.blue.best)) : "—"}</td>
-      <td class="num">×${h.multiplier}</td>
-      <td class="damage">${h.teams.red.damage ? `赤 −${h.teams.red.damage.toLocaleString()}` : h.teams.blue.damage ? `青 −${h.teams.blue.damage.toLocaleString()}` : "—"}</td>
+      ${byRounds
+        ? `<td class="red">+${h.teams.red.points.toLocaleString()}</td><td class="blue">+${h.teams.blue.points.toLocaleString()}</td>`
+        : `<td class="num">×${h.multiplier}</td>
+      <td class="damage">${h.teams.red.damage ? `赤 −${h.teams.red.damage.toLocaleString()}` : h.teams.blue.damage ? `青 −${h.teams.blue.damage.toLocaleString()}` : "—"}</td>`}
     </tr>`).join("");
   const mineWon = g.myTeam === win;
+  const draw = win === "draw";
   $("result-text").innerHTML = `
-    <div class="team-final ${win}">
-      <div class="tf-trophy">🏆</div>
-      <b>${TEAMS[win].name}の勝利！</b>
-      <span>${g.myTeam ? (mineWon ? "あなたのチームの勝ち！おめでとう🎉" : "あなたのチームの負け…次こそ！") : ""}</span>
+    <div class="team-final ${draw ? "draw" : win}">
+      <div class="tf-trophy">${draw ? "🤝" : "🏆"}</div>
+      <b>${draw ? "引き分け！" : `${TEAMS[win].name}の勝利！`}</b>
+      <span>${draw ? "合計点がまったく同じでした" : g.myTeam ? (mineWon ? "あなたのチームの勝ち！おめでとう🎉" : "あなたのチームの負け…次こそ！") : ""}</span>
     </div>
-    <div class="sub">${escapeHtml(g.area.name)} ・ ${msg.rounds} ラウンドで決着</div>
+    <div class="sub">${escapeHtml(g.area.name)} ・ ${byRounds ? `ラウンド制 ${msg.rounds} ラウンド` : `${msg.rounds} ラウンドで決着`}</div>
     <div class="tf-teams">${side("red")}${side("blue")}</div>
-    <table class="tf-table"><tr><th>R</th><th class="red">赤のベスト</th><th class="blue">青のベスト</th><th>倍率</th><th>ダメージ</th></tr>${rows}</table>`;
+    <table class="tf-table"><tr><th>R</th><th class="red">赤のベスト</th><th class="blue">青のベスト</th>${byRounds ? '<th class="red">赤の得点</th><th class="blue">青の得点</th>' : "<th>倍率</th><th>ダメージ</th>"}</tr>${rows}</table>`;
   $("btn-next").textContent = g.team ? "チーム分けに戻る" : "ロビーに戻る";
   $("btn-next").disabled = false;
   $("btn-end").hidden = true;
@@ -1485,6 +1528,17 @@ function renderMatchCard() {
     const join = document.querySelector(`.join-team[data-team="${t}"]`);
     join.hidden = !me || me.team === t;
   }
+  const rule = cfg.rule === "rounds" ? "rounds" : "life";
+  document.querySelectorAll("#team-rule .tab").forEach((b) => {
+    b.classList.toggle("active", b.dataset.rule === rule);
+    b.disabled = !host;
+  });
+  $("team-rounds-row").hidden = rule !== "rounds";
+  $("team-rounds").value = String(cfg.rounds || 5);
+  $("team-rounds").disabled = !host;
+  document.querySelectorAll(".team-life-row").forEach((r) => { r.hidden = rule === "rounds"; });
+  $("team-help-life").hidden = rule === "rounds";
+  $("team-help-rounds").hidden = rule !== "rounds";
   const timer = cfg.timer || { on: false, seconds: 60 };
   $("team-timer").checked = timer.on;
   $("team-timer").disabled = !host;
@@ -1511,6 +1565,8 @@ function bindMatchCard() {
     $(`team-${t}-extra`).addEventListener("change", hostOnly((cfg) => { cfg.teams[t].extra = $(`team-${t}-extra`).checked; }));
   }
   $("team-timer").addEventListener("change", hostOnly((cfg) => { cfg.timer.on = $("team-timer").checked; }));
+  document.querySelectorAll("#team-rule .tab").forEach((b) => b.addEventListener("click", hostOnly((cfg) => { cfg.rule = b.dataset.rule; })));
+  $("team-rounds").addEventListener("change", hostOnly((cfg) => { cfg.rounds = [3, 5, 10].includes(Number($("team-rounds").value)) ? Number($("team-rounds").value) : 5; }));
   // スライダーを動かしている間も、秒数の表示はすぐ変える（配るのは離したとき）
   $("team-time").addEventListener("input", () => { $("team-time-label").textContent = `${$("team-time").value}秒`; });
   $("team-time").addEventListener("change", hostOnly((cfg) => {

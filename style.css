@@ -2049,3 +2049,21 @@ input, textarea, [contenteditable="true"] { user-select: text; -webkit-user-sele
   .screen-game #mp-board:not([hidden]) { width: 180px; top: auto; bottom: 150px; left: 56px; max-height: 30vh; }
   .mb-list { max-height: 22vh; }
 }
+
+/* 赤チームのゲージは、バッジのある左から右へ伸びる（減るときは右から左へ）。青チームは左右反対 */
+.red .tg-fill { left: 0; right: auto; }
+.blue .tg-fill { left: auto; right: 0; }
+
+/* チーム戦の勝ち方 */
+.team-rule { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.team-rule-seg .tab { text-align: left; }
+.team-rule-seg .tab span { display: flex; flex-direction: column; gap: 2px; }
+.team-rule-seg .tab small { font-size: 11px; color: var(--muted); font-weight: 500; }
+.team-rule-seg .tab:disabled { cursor: default; }
+.team-rule-seg .tab:disabled:not(.active) { opacity: .5; }
+.tg-dmg.gain { color: #6be39a; }
+.team-final.draw { background: linear-gradient(135deg, #4b5563, #9ca3af); }
+.tf-score { font-size: 18px; color: #fff; }
+/* ラウンド制のチーム戦: 結果では「+得点」だけを大きく出す（同じ数字を2回出さない） */
+#team-hud.by-rounds .tg-points { display: none !important; }
+body.team-game .screen-result #team-hud.by-rounds .tg-dmg { top: 40px; font-size: 30px; }
