@@ -1697,3 +1697,27 @@ html.no-anim #danger-edge.flash { animation: dangerFlash 1.5s steps(2, jump-none
   #stage:has(#life-hud:not([hidden])) #heading-tape { top: 86px; }
   #stage:has(#life-hud:not([hidden])) #timer-pill { top: 128px; }
 }
+
+/* チーム戦: チームのバッジをライフのバーのはしにくっつける（一人で遊ぶときのバーと同じ形） */
+.tg { gap: 0; }
+.tg > .tg-badge {
+  position: relative; z-index: 1; width: 42px; height: 42px; font-size: 16px;
+  border: 3px solid rgba(160,140,255,.9);
+}
+.tg.red > .tg-badge { margin-right: -14px; }
+.tg.blue > .tg-badge { margin-left: -14px; }
+.tg.mine > .tg-badge { border-color: #fff; }
+.tg.red .tg-bar { padding-left: 10px; }
+.tg.red .tg-meta { padding-left: 18px; }
+.tg.blue .tg-meta { padding-right: 18px; }
+.tg .tg-bar { height: 30px; }
+.tg-main { gap: 3px; }
+/* バッジの高さ（42px）とバーの高さ（30px）の中心をそろえる */
+.tg > .tg-badge { align-self: flex-start; margin-top: -6px; }
+.tg .tg-main { margin-top: 0; }
+@media (max-width: 720px) {
+  .tg > .tg-badge { width: 34px; height: 34px; font-size: 13px; margin-top: -4px; }
+  .tg.red > .tg-badge { margin-right: -10px; }
+  .tg.blue > .tg-badge { margin-left: -10px; }
+  .tg .tg-bar { height: 26px; }
+}
