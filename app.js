@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.65";
+const APP_VERSION = "1.66";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -1147,8 +1147,12 @@ function renderProgress(cat) {
   });
 
   // 国の形は下地として薄く、遊んだ区画だけを濃さで塗る
+  // ストリートビューのない国は、そもそも遊べないので黒く塗っておく
+  const noSV = new Set(window.LG_NO_STREETVIEW || []);
   const base = getWorldPaths()
-    .map((c) => `<path class="country" d="${c.d}"><title>${escapeHtml(c.name)}</title></path>`)
+    .map((c) => noSV.has(c.id)
+      ? `<path class="country no-sv" d="${c.d}"><title>${escapeHtml(c.name)}（ストリートビューなし）</title></path>`
+      : `<path class="country" d="${c.d}"><title>${escapeHtml(c.name)}</title></path>`)
     .join("");
   const played = [...regionCounts].map(([id, n]) => {
     const reg = regionById.get(id);
@@ -1158,7 +1162,8 @@ function renderProgress(cat) {
   }).join("");
 
   const svg = $("world-map");
-  svg.innerHTML = `<rect class="ocean" x="-720" y="-300" width="1800" height="750"/>${base}${played}`;
+  const hatch = `<defs><pattern id="no-sv-hatch" width="1.6" height="1.6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1.6" height="1.6" fill="#05070d"/><line x1="0" y1="0" x2="0" y2="1.6" stroke="#1c2539" stroke-width=".6"/></pattern></defs>`;
+  svg.innerHTML = `${hatch}<rect class="ocean" x="-720" y="-300" width="1800" height="750"/>${base}${played}`;
   state.progressHome = progressViewBox(areasInCategory(cat), cat);
   setProgressView(state.progressHome);
 

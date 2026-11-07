@@ -30,6 +30,17 @@ window.LG_WORLD_COVERAGE = [
   "AUS", "NZL",
 ];
 
+// Google のストリートビューが（ほとんど）ない国・地域。成績の世界地図で黒く塗る
+// （ストリートビューの情報 API で、国の中のたくさんの点を調べて見つからなかったところ）
+window.LG_NO_STREETVIEW = [
+  "ZMB", "YEM", "UZB", "MHL", "FSM", "IOT", "SHN", "AIA", "CYM", "VGB", "MSR", "TCA", "GGY", "TKM", "TON", "TTO", "SUR", "TJK", "SDN", "SYR",
+  "SDS", "SOM", "SOL", "SLB", "SLE", "SAU", "SYC", "WSM", "VCT", "LCA", "KNA", "PNG", "PAK", "PLW", "PRK", "NER", "NIC", "NIU", "COK", "ABW",
+  "NRU", "MOZ", "MAR", "SAH", "MUS", "MDV", "MWI", "LBY", "LBR", "KWT", "KIR", "JAM", "IRQ", "IRN", "HND", "GUY", "HTI", "GNB", "GIN", "GRD",
+  "GAB", "SPM", "WLF", "MAF", "BLM", "NCL", "ATF", "ETH", "FJI", "ERI", "GNQ", "DJI", "SLV", "DMA", "CYN", "CYP", "CUB", "CIV", "COD", "COG",
+  "COM", "TCD", "CAF", "CMR", "CPV", "MMR", "BDI", "BRB", "BHR", "BHS", "AZE", "HMD", "ATC", "NFK", "ARM", "ATG", "AFG", "DZA", "KAS", "TUV",
+  "SXM",
+];
+
 // 出題範囲のプリセット
 // type "polygons": rings は [[緯度, 経度], ...] の配列（島ごと）
 // type "circle": center と radius（メートル）

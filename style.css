@@ -196,6 +196,7 @@ html, body {
 #world-map.dragging { cursor: grabbing; }
 #world-map .country { fill: #23304d; stroke: #0e1730; stroke-width: .6; vector-effect: non-scaling-stroke; }
 #world-map .country:hover { fill: #2c3b5e; }
+#world-map .country.no-sv, #world-map .country.no-sv:hover { fill: url(#no-sv-hatch); }
 #world-map .region { stroke: rgba(255,255,255,.55); stroke-width: .6; vector-effect: non-scaling-stroke; }
 #world-map .region:hover { filter: brightness(1.2); }
 .pm-tools {
@@ -221,6 +222,7 @@ html, body {
 .sw-1 { background: #1d4a6b; }
 .sw-2 { background: #2387c0; }
 .sw-3 { background: #38bdf8; }
+.sw-none { background: repeating-linear-gradient(45deg, #05070d 0 2px, #1a2236 2px 4px); outline: 1px solid #2a3550; }
 .sw.dot { border-radius: 50%; width: 7px; height: 7px; background: #e0f6ff; }
 .progress-stats { display: flex; flex-direction: column; align-items: center; gap: 14px; justify-content: center; }
 .ring {
