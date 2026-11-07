@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.59";
+const APP_VERSION = "1.60";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -1762,6 +1762,41 @@ function damageFor(score, distance, hardcore) {
   return Math.max(normal, strict);
 }
 
+// 結果に出すライフのバー。減る前の長さで出してから、少し待って縮める（animateLifeDrain）。
+// 削れた分は赤く残って、あとから追いかけるように消える
+function lifeDrainHtml(before, after, max) {
+  return `<div class="rs-lifebar" data-from="${Math.max(0, before)}" data-to="${Math.max(0, after)}" data-max="${max}">
+    <i class="rl-ghost"></i><i class="rl-fill"></i><b class="rl-num">${Math.max(0, before).toLocaleString()}</b></div>`;
+}
+
+function animateLifeDrain(root) {
+  root.querySelectorAll(".rs-lifebar").forEach((bar) => {
+    const from = Number(bar.dataset.from);
+    const to = Number(bar.dataset.to);
+    const max = Number(bar.dataset.max) || 1;
+    const fill = bar.querySelector(".rl-fill");
+    const ghost = bar.querySelector(".rl-ghost");
+    const num = bar.querySelector(".rl-num");
+    const pct = (v) => `${(v / max) * 100}%`;
+    fill.style.transition = ghost.style.transition = "none";
+    fill.style.width = ghost.style.width = pct(from);
+    fill.style.background = lifeColor(from / max);
+    if (from === to) return;
+    setTimeout(() => {
+      if (!bar.isConnected) return;
+      fill.style.transition = "width .45s cubic-bezier(.3,.8,.3,1), background .45s";
+      fill.style.width = pct(to);
+      fill.style.background = lifeColor(to / max);
+      ghost.style.transition = "width .9s ease .5s";
+      ghost.style.width = pct(to);
+      countNumber(num, from, to, 900);
+      bar.classList.remove("hit");
+      void bar.offsetWidth;
+      bar.classList.add("hit");
+    }, state.prefs && state.prefs.anim ? 650 : 0);
+  });
+}
+
 function lifeBar(life, max) {
   return `<span class="lifebar"><span style="width:${(life / max) * 100}%;background:${lifeColor(life / max)}"></span></span>`;
 }
@@ -2782,7 +2817,8 @@ function submitGuess(timedOut = false) {
   const last = g.mode === "life" ? g.life <= 0 : g.index + 1 >= g.rounds;
   const right = g.mode === "life"
     ? `<div class="rs-big rs-damage">−${result.damage.toLocaleString()}</div>
-       <div class="rs-cap">${g.hardcore ? '<span class="rs-extra">🔥EXTRA</span>' : ""}ライフ ${lifeBar(g.life, g.maxLife)} 残り ${g.life.toLocaleString()} / ${g.maxLife.toLocaleString()}${g.life <= 0 ? "（ライフ切れ）" : ""}</div>`
+       ${lifeDrainHtml(g.life + result.damage, g.life, g.maxLife)}
+       <div class="rs-cap">${g.hardcore ? '<span class="rs-extra">🔥EXTRA</span>' : ""}ライフ 残り ${g.life.toLocaleString()} / ${g.maxLife.toLocaleString()}${g.life <= 0 ? "（ライフ切れ）" : ""}</div>`
     : `<div class="rs-big rs-score">${score.toLocaleString()}</div>
        <div class="rs-cap">${MAX_SCORE.toLocaleString()} 点のうち</div>`;
   const roundText = g.mode === "life" ? `ラウンド ${g.index + 1}` : `ラウンド ${g.index + 1} / ${g.rounds}`;
@@ -2800,6 +2836,7 @@ function submitGuess(timedOut = false) {
   $("btn-end").hidden = last;
   setResultButtons(false, false);
   $("result").hidden = false;
+  animateLifeDrain($("result-text"));
   fitResults([result], { top: 70, bottom: 90, left: 60, right: 60 });
 }
 

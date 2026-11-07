@@ -2094,3 +2094,25 @@ body.team-game .screen-result #team-hud.by-rounds .tg-dmg { top: 40px; font-size
 .cv-shape svg .u-fill { opacity: .22; }
 .cv-shape svg .u-fill * { fill: #6be39a; stroke: none; }
 .cv-shape svg .u-line { fill: none; }
+
+/* ================================================================ 結果: ライフが減るアニメーション */
+.rs-lifebar {
+  position: relative; width: 220px; height: 20px; margin: 6px auto 2px; border-radius: 4px; overflow: hidden;
+  transform: skewX(-18deg); background: rgba(20, 16, 50, .85); border: 2px solid rgba(160,140,255,.7);
+}
+/* 減るのは右から（ライフのバーと同じ向き） */
+.rs-lifebar .rl-fill, .rs-lifebar .rl-ghost { position: absolute; top: 0; bottom: 0; right: 0; }
+.rs-lifebar .rl-ghost { background: linear-gradient(180deg, #fff, #ff5a4e 40%, #c41d14); }
+.rs-lifebar .rl-num {
+  position: absolute; inset: 0; display: grid; place-items: center; transform: skewX(18deg);
+  font-size: 12px; font-weight: 900; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.8); font-variant-numeric: tabular-nums;
+}
+.rs-lifebar.hit { animation: hitShake .45s ease; }
+.rs-right .rs-cap .lifebar { display: none; }
+
+/* チーム戦のゲージの「削れた分」 */
+.tg-ghost { position: absolute; top: 0; bottom: 0; background: linear-gradient(180deg, #fff, #ff5a4e 40%, #c41d14); }
+.red .tg-ghost { left: 0; right: auto; }
+.blue .tg-ghost { left: auto; right: 0; }
+#team-hud.by-rounds .tg-ghost { display: none; }
+@media (max-width: 720px) { .rs-lifebar { width: 140px; height: 16px; } }

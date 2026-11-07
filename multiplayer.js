@@ -1154,6 +1154,7 @@ ${isRegionMode(g) && !missed ? `
   $("btn-end").hidden = true;
   setResultButtons(false, false);
   $("result").hidden = false;
+  animateLifeDrain($("result-text"));
 }
 
 // 結果画面の「次へ」（ホストだけが押せる）
@@ -1385,9 +1386,10 @@ function renderTeamHud(round) {
       .map((p) => `<span class="tg-member${p.id === mp.me ? " me" : ""}" style="--c:${p.color}">${playerAvatarHtml(p, "mini")}${escapeHtml(p.name || "?")}</span>`)
       .join("");
     const fill = el.querySelector(".tg-fill");
+    const ghost = el.querySelector(".tg-ghost");
     const num = el.querySelector(".tg-life");
-    fill.style.transition = "none";
-    fill.style.width = `${(from / max) * 100}%`;
+    fill.style.transition = ghost.style.transition = "none";
+    fill.style.width = ghost.style.width = `${(from / max) * 100}%`;
     fill.style.background = barColor(from / max);
     num.textContent = from.toLocaleString();
     el.querySelector(".tg-points").textContent = round ? round.teams[t].points.toLocaleString() : "";
@@ -1402,6 +1404,9 @@ function renderTeamHud(round) {
         fill.style.transition = "";
         fill.style.width = `${(now / max) * 100}%`;
         fill.style.background = barColor(now / max);
+        // 削れた分は赤く残り、少し遅れて追いかけるように消える（ライフ制だけ）
+        ghost.style.transition = byRounds ? "none" : "width .9s ease .5s";
+        ghost.style.width = `${(now / max) * 100}%`;
         countNumber(num, from, now);
         dmg.classList.add("show");
         if (!byRounds) {
@@ -1434,7 +1439,8 @@ function lifeResultSide(g, mine, msg) {
   }
   return `
       <div class="rs-big rs-damage">−${(mine.damage || 0).toLocaleString()}</div>
-      <div class="rs-cap">${g.hardcore ? '<span class="rs-extra">🔥EXTRA</span>' : ""}ライフ ${lifeBar(Math.max(0, mine.life), g.maxLife)} 残り ${Math.max(0, mine.life).toLocaleString()}${mine.justOut ? "（脱落…）" : ""} ・ 残り ${left} 人</div>`;
+      ${lifeDrainHtml(Math.max(0, mine.life) + (mine.damage || 0), Math.max(0, mine.life), g.maxLife)}
+      <div class="rs-cap">${g.hardcore ? '<span class="rs-extra">🔥EXTRA</span>' : ""}ライフ 残り ${Math.max(0, mine.life).toLocaleString()}${mine.justOut ? "（脱落…）" : ""} ・ 残り ${left} 人</div>`;
 }
 
 // 結果の下のバーの右側: 自分のチームの得点と、与えた・受けたダメージ
