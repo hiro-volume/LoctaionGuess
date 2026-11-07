@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.63";
+const APP_VERSION = "1.64";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -3021,7 +3021,18 @@ function initApp() {
   $("btn-exit-game").addEventListener("click", exitGame);
   $("btn-back-start").addEventListener("click", () => {
     // 出発地点に戻るのは同じパノラマオブジェクト内の移動なので、新しい読み込みとしては数えない
-    if (state.game && state.game.answer) state.pano.setPano(state.game.answer.panoId);
+    if (!state.game || !state.game.answer || !state.pano || state.spectating) return;
+    // 場所だけでなく、向き・上下の角度・ズームも、ラウンドが始まったときの状態に戻す
+    const reset = () => {
+      if (state.lockPov) state.pano.setPov(state.lockPov);
+      state.pano.setZoom(0);
+    };
+    if (state.pano.getPano() !== state.game.answer.panoId) {
+      // 場所が変わったあとに向きを合わせ直す（読み込みで向きが変わることがあるため）
+      google.maps.event.addListenerOnce(state.pano, "pano_changed", () => setTimeout(reset, 0));
+      state.pano.setPano(state.game.answer.panoId);
+    }
+    reset();
   });
   $("opt-rounds").addEventListener("change", saveSettings);
   ["opt-move", "opt-pan", "opt-zoom"].forEach((id) => $(id).addEventListener("change", saveSettings));
