@@ -181,9 +181,9 @@ window.LG_PRESETS = [
     difficulty: "hard",
     description: "大都市から砂漠の一本道まで（本土48州）",
     image: {
-      src: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/New_York_City_%28New_York%2C_USA%29%2C_Times_Square-Duffy_Square_--_2012_--_6380.jpg/960px-New_York_City_%28New_York%2C_USA%29%2C_Times_Square-Duffy_Square_--_2012_--_6380.jpg",
-      credit: "Dietmar Rabich / CC BY-SA 4.0",
-      link: "https://commons.wikimedia.org/wiki/File:New_York_City_(New_York,_USA),_Times_Square-Duffy_Square_--_2012_--_6380.jpg",
+      src: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/1_times_square_night_2013.jpg/960px-1_times_square_night_2013.jpg",
+      credit: "chensiyuan / CC BY-SA 4.0",
+      link: "https://commons.wikimedia.org/wiki/File:1_times_square_night_2013.jpg",
     },
     type: "polygons",
     iso: "USA",
