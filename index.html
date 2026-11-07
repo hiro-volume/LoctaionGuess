@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.69">
+  <link rel="stylesheet" href="style.css?v=1.70">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -55,6 +55,7 @@
       </div>
       <footer class="title-foot">
         <div id="usage-mini"></div>
+        <button id="btn-title-credit" class="credit-toggle" type="button" aria-expanded="false" aria-controls="title-credit">写真のクレジット</button>
         <div id="title-credit" class="credit-line"></div>
       </footer>
       <span id="app-version" class="app-version"></span>
@@ -549,6 +550,13 @@
           <button id="btn-map-zoom-out" class="dock-btn" title="地図を縮小" aria-label="地図を縮小">－</button>
         </div>
         <div id="map"></div>
+        <!-- スマホ: 小さい地図を押すと、画面いっぱいに広げる（小さいままではピンを置かない） -->
+        <button id="btn-dock-expand" class="dock-expand" type="button" aria-label="地図を広げる">
+          <span><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 10V4h6M20 14v6h-6M4 4l6 6M20 20l-6-6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>地図を広げる</span>
+        </button>
+        <button id="btn-dock-close" class="dock-close" type="button" aria-label="ストリートビューに戻る">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>景色に戻る
+        </button>
         <!-- 決定ボタンはマップと一体（マップを広げると一緒に伸び、押しに行ってもマップが閉じない） -->
         <button id="btn-guess" class="primary" disabled>ピンをマップに配置する</button>
       </div>
@@ -774,14 +782,14 @@
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.69"></script>
-  <script src="hiroshima-boundary.js?v=1.69"></script>
-  <script src="world-boundary.js?v=1.69"></script>
-  <script src="region-boundary.js?v=1.69"></script>
-  <script src="regions.js?v=1.69"></script>
+  <script src="config.js?v=1.70"></script>
+  <script src="hiroshima-boundary.js?v=1.70"></script>
+  <script src="world-boundary.js?v=1.70"></script>
+  <script src="region-boundary.js?v=1.70"></script>
+  <script src="regions.js?v=1.70"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="app.js?v=1.69"></script>
-  <script src="multiplayer.js?v=1.69"></script>
+  <script src="app.js?v=1.70"></script>
+  <script src="multiplayer.js?v=1.70"></script>
 </body>
 </html>

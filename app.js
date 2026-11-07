@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.69";
+const APP_VERSION = "1.70";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -453,6 +453,7 @@ function drawArea(area, fit = true) {
 
 function setScreen(name) {
   app.className = `screen-${name}`;
+  setDockFull(false);
   $("topbar").hidden = !["title", "mode", "select", "lobby"].includes(name);
   if (state.prefs) applyPrefs();
   // 古いバージョンだとわかっていたら、メニューに戻ったところで遊べないようにする
@@ -561,6 +562,7 @@ function buildTitleBackground() {
     .map((a, i) => `<div class="title-slide${i === 0 ? " active" : ""}" style="background-image:url('${a.image.src}')"></div>`)
     .join("");
   $("title-credit").textContent = "写真: " + imgs.map((a) => a.image.credit).join(" ・ ") + "（Wikimedia Commons）";
+  bindTitleCredit();
   let i = 0;
   setInterval(() => {
     const slides = document.querySelectorAll(".title-slide");
@@ -3147,6 +3149,7 @@ function ensureMap() {
   });
   state.map.addListener("idle", () => { if (state.game && state.game.multi) sendMyView(); });
   bindDockOpen();
+  bindPhoneDock();
   // 地図の大きさが変わるたびに（回答マップを広げたときなど）、引ける限界を合わせ、
   // まだ自分で地図を動かしていなければ、出題範囲が地図いっぱいに見えるように合わせ直す
   new ResizeObserver(() => { fitMinZoom(); refitArea(); }).observe($("map"));
@@ -3178,6 +3181,38 @@ function fitMinZoom() {
   if (state.map.get("minZoom") !== z) state.map.setOptions({ minZoom: z });
 }
 
+// ---------------------------------------------------------------- スマホの幅
+
+// スマホの幅（CSS の @media (max-width: 720px) と同じ）
+const PHONE_QUERY = window.matchMedia("(max-width: 720px)");
+function isPhoneLayout() {
+  return PHONE_QUERY.matches;
+}
+
+// スマホでは、回答マップを「右下の小さい地図」と「画面いっぱい」で切り替える
+function setDockFull(on) {
+  const dock = $("map-dock");
+  if (!dock) return;
+  dock.classList.toggle("m-full", !!on);
+}
+
+function bindPhoneDock() {
+  $("btn-dock-expand").addEventListener("click", () => setDockFull(true));
+  $("btn-dock-close").addEventListener("click", () => setDockFull(false));
+  // 画面を回してPCの幅になったら、全画面はやめる
+  PHONE_QUERY.addEventListener("change", () => { if (!isPhoneLayout()) setDockFull(false); });
+}
+
+// タイトルの写真クレジットは、スマホでは押したときだけ開く
+function bindTitleCredit() {
+  const btn = $("btn-title-credit");
+  btn.addEventListener("click", () => {
+    const open = !$("title-credit").classList.contains("show");
+    $("title-credit").classList.toggle("show", open);
+    btn.setAttribute("aria-expanded", String(open));
+  });
+}
+
 // 回答マップは、マウスを乗せている間・ドラッグしている間は広げたままにする。
 // （:hover だけだと、ドラッグ中にマウスが枠の外へ出た瞬間に縮んでしまうため）
 function bindDockOpen() {
@@ -3185,6 +3220,7 @@ function bindDockOpen() {
   let hover = false;
   let dragging = false;
   const update = () => {
+    if (isPhoneLayout()) return dock.classList.remove("open");
     if (hover || dragging) dock.classList.add("open");
     else dock.classList.remove("open");
   };
