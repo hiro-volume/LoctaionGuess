@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.61";
+const APP_VERSION = "1.62";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -1364,7 +1364,23 @@ function toggleBell(open = $("bell-panel").hidden) {
   if (open) {
     notices.forEach((n) => { n.unread = false; });
     $("bell-badge").hidden = true;
+    refreshBell();
   }
+}
+
+// ベルを開いたら、新しいバージョンが出ていないか、その場で確かめる（確かめている間はくるくる）
+async function refreshBell() {
+  const status = $("bell-status");
+  status.className = "bell-status checking";
+  status.innerHTML = '<i class="bs-spin"></i>更新を確認しています…';
+  // すぐ終わっても、確かめたことがわかるように少しだけ見せる
+  const [result] = await Promise.all([checkForUpdate(), new Promise((r) => setTimeout(r, 600))]);
+  renderBell();
+  const time = new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+  status.className = `bell-status ${result}`;
+  status.textContent = result === "newer" ? `新しいバージョンがあります（${time} に確認）`
+    : result === "latest" ? `✓ 最新のバージョンです（v${APP_VERSION}・${time} に確認）`
+      : "更新を確認できませんでした（インターネットにつながっているか確認してください）";
 }
 
 function bindBell() {
@@ -3337,12 +3353,13 @@ function isNewer(remote, local) {
   return false;
 }
 
+// 公開ページの最新バージョンを確かめる。"newer"（新しいのがある）/ "latest"（最新）/ "error"（確かめられない）を返す
 async function checkForUpdate() {
   try {
     const res = await fetch(`version.json?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return;
+    if (!res.ok) return "error";
     const { version } = await res.json();
-    if (!isNewer(version, APP_VERSION)) return;
+    if (!isNewer(version, APP_VERSION)) return "latest";
     state.outdated = version;
     $("update-text").innerHTML = `このページは古いバージョン（v${APP_VERSION}）です。<br>最新の <b>v${escapeHtml(version)}</b> に更新してから遊んでください。`;
     addNotice({
@@ -3350,8 +3367,10 @@ async function checkForUpdate() {
       text: `更新するまで遊べません（いまは v${APP_VERSION}）。`, actionLabel: "更新する", action: updateNow,
     });
     showUpdateGateIfIdle();
+    return "newer";
   } catch {
     // オフラインなどで確かめられないときは何もしない
+    return "error";
   }
 }
 

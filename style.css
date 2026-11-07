@@ -2121,3 +2121,10 @@ body.team-game .screen-result #team-hud.by-rounds .tg-dmg { top: 40px; font-size
 .num-pop { display: inline-block; animation: numPop .45s cubic-bezier(.2,1.6,.4,1); }
 @keyframes numPop { 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
 html.no-anim .num-pop { animation: none; }
+
+/* ベルを開いたときの「更新を確認しています」 */
+.bell-status { display: flex; align-items: center; gap: 8px; margin: -4px 4px 10px; font-size: 11px; color: var(--muted); }
+.bell-status.latest { color: var(--btn-hi); }
+.bell-status.newer { color: #ffd23f; }
+.bell-status.error { color: #ff8a80; }
+.bs-spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); border-top-color: var(--accent); animation: spin .8s linear infinite; }
