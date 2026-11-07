@@ -2116,3 +2116,8 @@ body.team-game .screen-result #team-hud.by-rounds .tg-dmg { top: 40px; font-size
 .blue .tg-ghost { left: auto; right: 0; }
 #team-hud.by-rounds .tg-ghost { display: none; }
 @media (max-width: 720px) { .rs-lifebar { width: 140px; height: 16px; } }
+
+/* 数え終わった数字がポンと弾む */
+.num-pop { display: inline-block; animation: numPop .45s cubic-bezier(.2,1.6,.4,1); }
+@keyframes numPop { 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
+html.no-anim .num-pop { animation: none; }

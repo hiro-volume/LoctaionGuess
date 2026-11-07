@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.60";
+const APP_VERSION = "1.61";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -1762,6 +1762,53 @@ function damageFor(score, distance, hardcore) {
   return Math.max(normal, strict);
 }
 
+// ---------------------------------------------------------------- 数字のアニメーション
+
+// el の数字を from から to まで、だんだんゆっくりになるように数えていく（prefix は「+」など）
+function tweenNumber(el, from, to, ms = 900, prefix = "", done) {
+  const start = performance.now();
+  const step = (now) => {
+    const k = Math.min(1, (now - start) / ms);
+    el.textContent = prefix + Math.round(from + (to - from) * (1 - (1 - k) ** 3)).toLocaleString();
+    if (k < 1) requestAnimationFrame(step);
+    else if (done) done();
+  };
+  requestAnimationFrame(step);
+}
+
+// 数え終わったら、数字をポンと弾ませる
+function popNumber(el) {
+  el.classList.remove("num-pop");
+  void el.offsetWidth;
+  el.classList.add("num-pop");
+}
+
+// root の中の data-count の数字を、0（または data-from）から数え上げる
+function animateCounts(root, delay = 250) {
+  root.querySelectorAll("[data-count]").forEach((el) => {
+    const to = Number(el.dataset.count);
+    const from = Number(el.dataset.from || 0);
+    const prefix = el.dataset.prefix || "";
+    if (!(state.prefs && state.prefs.anim) || from === to) {
+      el.textContent = prefix + to.toLocaleString();
+      return;
+    }
+    el.textContent = prefix + from.toLocaleString();
+    setTimeout(() => { if (el.isConnected) tweenNumber(el, from, to, 900, prefix, () => popNumber(el)); }, delay);
+  });
+}
+
+// 画面の上のスコアなど: 増えたときだけ、前の数字から数え上げる（減ったときや最初はそのまま出す）
+function setCountingNumber(el, value) {
+  const prev = Number(el.dataset.shown);
+  el.dataset.shown = value;
+  if (!Number.isFinite(prev) || value <= prev || !(state.prefs && state.prefs.anim)) {
+    el.textContent = value.toLocaleString();
+    return;
+  }
+  tweenNumber(el, prev, value, 800, "", () => popNumber(el));
+}
+
 // 結果に出すライフのバー。減る前の長さで出してから、少し待って縮める（animateLifeDrain）。
 // 削れた分は赤く残って、あとから追いかけるように消える
 function lifeDrainHtml(before, after, max) {
@@ -1825,7 +1872,7 @@ function renderLifeHud() {
   $("lh-extra").hidden = !g.hardcore;
   $("lh-area").textContent = g.area.name;
   $("lh-round").textContent = g.index + 1;
-  $("lh-score").textContent = (g.multi ? g.total : g.results.reduce((s, r) => s + r.score, 0)).toLocaleString();
+  setCountingNumber($("lh-score"), g.multi ? g.total : g.results.reduce((s, r) => s + r.score, 0));
 }
 
 function renderHudLife() {
@@ -2540,7 +2587,7 @@ async function startRound() {
   $("btn-zoom-in").disabled = $("btn-zoom-out").disabled = !g.zoom;
   $("info-area").textContent = g.area.name;
   $("info-round").textContent = g.mode === "life" ? `${g.index + 1}` : `${g.index + 1} / ${g.rounds}`;
-  $("info-score").textContent = g.results.reduce((s, r) => s + r.score, 0).toLocaleString();
+  setCountingNumber($("info-score"), g.results.reduce((s, r) => s + r.score, 0));
   renderHudLife();
   setScreen("game");
   drawArea(g.area);
@@ -2819,7 +2866,7 @@ function submitGuess(timedOut = false) {
     ? `<div class="rs-big rs-damage">−${result.damage.toLocaleString()}</div>
        ${lifeDrainHtml(g.life + result.damage, g.life, g.maxLife)}
        <div class="rs-cap">${g.hardcore ? '<span class="rs-extra">🔥EXTRA</span>' : ""}ライフ 残り ${g.life.toLocaleString()} / ${g.maxLife.toLocaleString()}${g.life <= 0 ? "（ライフ切れ）" : ""}</div>`
-    : `<div class="rs-big rs-score">${score.toLocaleString()}</div>
+    : `<div class="rs-big rs-score" data-count="${score}">0</div>
        <div class="rs-cap">${MAX_SCORE.toLocaleString()} 点のうち</div>`;
   const roundText = g.mode === "life" ? `ラウンド ${g.index + 1}` : `ラウンド ${g.index + 1} / ${g.rounds}`;
   $("result-text").innerHTML = `
@@ -2837,6 +2884,7 @@ function submitGuess(timedOut = false) {
   setResultButtons(false, false);
   $("result").hidden = false;
   animateLifeDrain($("result-text"));
+  animateCounts($("result-text"));
   fitResults([result], { top: 70, bottom: 90, left: 60, right: 60 });
 }
 
@@ -2893,7 +2941,7 @@ function showFinal() {
     const ended = played < g.rounds ? `（${g.rounds}ラウンド中 ${played} で終了）` : "";
     header = `
       <div class="sub">${escapeHtml(g.area.name)} ・ ${played}ラウンド${ended}${move}</div>
-      <div class="big">${total.toLocaleString()} / ${(played * MAX_SCORE).toLocaleString()} 点</div>
+      <div class="big"><span data-count="${total}">0</span> / ${(played * MAX_SCORE).toLocaleString()} 点</div>
       ${scoreBar(total, Math.max(1, played * MAX_SCORE))}`;
   }
   $("result-text").innerHTML = `
@@ -2910,6 +2958,7 @@ function showFinal() {
   $("btn-end").hidden = true;
   setResultButtons(true, true);
   $("result").hidden = false;
+  animateCounts($("result-text"), 350);
   state.game.finished = true;
 }
 

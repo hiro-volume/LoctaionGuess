@@ -708,7 +708,7 @@ function beginMultiRound(msg) {
   $("btn-zoom-in").disabled = $("btn-zoom-out").disabled = !g.zoom;
   $("info-area").textContent = g.area.name;
   $("info-round").textContent = Number.isFinite(g.rounds) ? `${g.index + 1} / ${g.rounds}` : `${g.index + 1}`;
-  $("info-score").textContent = g.total.toLocaleString();
+  setCountingNumber($("info-score"), g.total);
   renderHudLife();
   renderTeamHud();
   renderMpBoard();
@@ -1136,7 +1136,7 @@ ${isRegionMode(g) && !missed ? `
       <div class="rs-cap">${missed ? "ピンを立てる前に時間切れ" : "正解から"}</div>`}
     </div>
     <div class="rs-side rs-right">${g.team && msg.team ? teamResultSide(msg.team) : g.mode === "life" && mine ? lifeResultSide(g, mine, msg) : `
-      <div class="rs-big rs-score">${mine ? mine.score.toLocaleString() : 0}</div>
+      <div class="rs-big rs-score" data-count="${mine ? mine.score : 0}">0</div>
       <div class="rs-cap">${MAX_SCORE.toLocaleString()} 点のうち ・ 合計 ${mine ? mine.total.toLocaleString() : 0}</div>`}
     </div>
     <table class="mp-table rs-board">${rows.map((r, i) => `
@@ -1155,6 +1155,7 @@ ${isRegionMode(g) && !missed ? `
   setResultButtons(false, false);
   $("result").hidden = false;
   animateLifeDrain($("result-text"));
+  animateCounts($("result-text"));
 }
 
 // 結果画面の「次へ」（ホストだけが押せる）
@@ -1451,14 +1452,14 @@ function teamResultSide(round) {
   if (g.team.rule === "rounds") {
     const lead = round.teams[mine].total - round.teams[opp].total;
     return `
-      <div class="rs-big rs-score">+${round.teams[mine].points.toLocaleString()}</div>
+      <div class="rs-big rs-score" data-count="${round.teams[mine].points}" data-prefix="+">+0</div>
       <div class="rs-cap">チームの得点 ・ 合計 ${round.teams[mine].total.toLocaleString()}（${lead > 0 ? `${lead.toLocaleString()} 点リード` : lead < 0 ? `${(-lead).toLocaleString()} 点差で追いかけ中` : "同点"}）</div>`;
   }
   const dealt = round.teams[opp].damage;
   const taken = round.teams[mine].damage;
   const text = dealt ? `相手に −${dealt.toLocaleString()} ダメージ！` : taken ? `−${taken.toLocaleString()} ダメージを受けた…` : "引き分け（ダメージなし）";
   return `
-      <div class="rs-big rs-score">${round.teams[mine].points.toLocaleString()}</div>
+      <div class="rs-big rs-score" data-count="${round.teams[mine].points}">0</div>
       <div class="rs-cap">チームの得点 ×${round.multiplier} ・ ${text}</div>`;
 }
 
