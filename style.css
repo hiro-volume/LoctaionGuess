@@ -28,7 +28,7 @@ html, body {
   font-family: var(--font);
 }
 
-#app { position: relative; height: 100vh; display: flex; overflow: hidden; }
+#app { position: relative; height: var(--app-h); display: flex; overflow: hidden; }
 
 /* ---------- 画面の切り替え ---------- */
 #title-screen, #select-screen, #panel, #stage { display: none; }
@@ -353,7 +353,7 @@ button.small { padding: 5px 10px; font-size: 13px; }
 /* 広げたときの大きさは左上のボタンで変えられる（画面からはみ出さないように制限） */
 .screen-game #map-dock.open, .screen-game #map-dock.pinned {
   width: min(var(--dock-w, 600px), calc(100vw - 32px));
-  height: min(var(--dock-h, 440px), calc(100vh - 160px));
+  height: min(var(--dock-h, 440px), calc(var(--app-h) - 160px));
 }
 .screen-game #map-dock { bottom: 80px; }
 
@@ -1280,7 +1280,7 @@ body.team-game .screen-result { --tbar: 124px; }
 
 /* ラウンド・凡例・リンクは地図の左上に（ひとことや、Google のロゴと表記に重ならないように） */
 .screen-result .rs-meta {
-  position: absolute; left: 12px; top: calc(12px - 100vh + var(--rbar) + var(--tbar)); z-index: 2;
+  position: absolute; left: 12px; top: calc(12px - var(--app-h) + var(--rbar) + var(--tbar)); z-index: 2;
   display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-radius: 999px;
   background: rgba(17, 21, 40, .85); font-size: 12px; color: var(--muted);
 }
@@ -1290,8 +1290,8 @@ body.team-game .screen-result { --tbar: 124px; }
 
 /* マルチ: 全員の結果は地図の右上のカードに */
 .screen-result .rs-board {
-  position: absolute; right: 12px; top: calc(12px - 100vh + var(--rbar) + var(--tbar)); z-index: 2; margin: 0;
-  max-height: calc(100vh - var(--rbar) - var(--tbar) - 100px); overflow-y: auto; display: block;
+  position: absolute; right: 12px; top: calc(12px - var(--app-h) + var(--rbar) + var(--tbar)); z-index: 2; margin: 0;
+  max-height: calc(var(--app-h) - var(--rbar) - var(--tbar) - 100px); overflow-y: auto; display: block;
   padding: 6px 8px; border-radius: 12px; background: rgba(17, 21, 40, .9); box-shadow: 0 6px 20px rgba(0,0,0,.4);
 }
 
@@ -1320,7 +1320,7 @@ body.team-game .screen-result { --tbar: 124px; }
   overflow: visible; border-radius: 0; box-shadow: none;
 }
 .screen-game #map-dock.open, .screen-game #map-dock.pinned {
-  height: calc(min(var(--dock-h, 440px), calc(100vh - 160px)) + 60px);
+  height: calc(min(var(--dock-h, 440px), calc(var(--app-h) - 160px)) + 60px);
 }
 .screen-game #map { border-radius: 10px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,.5); }
 .screen-game #btn-guess {
@@ -2238,3 +2238,18 @@ html.no-anim .num-pop { animation: none; }
 
 /* マップの設定を開いている間は、右上のベルとアイコンを隠す（閉じるボタンに重ならないように） */
 body:has(#settings-sheet:not([hidden])) #topbar { display: none; }
+
+/* ================================================================ 画面の高さ */
+/* スマホのブラウザでは 100vh が上下のバーの裏まで含むので、見えている高さ（dvh）を使う */
+:root { --app-h: 100vh; }
+@supports (height: 100dvh) { :root { --app-h: 100dvh; } }
+
+/* スマホの全画面マップ: 「マウスを乗せていないときは半透明」は使わず、後ろのボタンも隠す */
+@media (max-width: 720px) {
+  .screen-game #map-dock.m-full { opacity: 1 !important; }
+  #stage:has(#map-dock.m-full) #game-controls,
+  #stage:has(#map-dock.m-full) #info-card,
+  #stage:has(#map-dock.m-full) #heading-tape,
+  #stage:has(#map-dock.m-full) #life-hud,
+  #stage:has(#map-dock.m-full) #team-hud { visibility: hidden; }
+}
