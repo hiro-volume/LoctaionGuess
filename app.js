@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.67";
+const APP_VERSION = "1.68";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -609,6 +609,7 @@ function renderSelect() {
 
   renderProgress(cat);
 
+  setupMapSearch();
   const grid = $("map-grid");
   grid.innerHTML = "";
   const list = areasInCategory(cat).filter((a) => a.type !== "world");
@@ -630,10 +631,69 @@ function renderSelect() {
   create.innerHTML = `<div class="create-inner"><span class="plus">＋</span><b>新しい範囲を作る</b><small>円や多角形で、好きな場所を囲めます</small></div>`;
   create.addEventListener("click", openEditor);
   grid.appendChild(create);
+  applyMapSearch();
 
   const credits = PRESETS.filter((a) => a.image)
     .map((a) => `<a href="${a.image.link}" target="_blank" rel="noopener">${escapeHtml(a.name)}: ${escapeHtml(a.image.credit)}</a>`);
   $("credits").innerHTML = "写真（Wikimedia Commons）: " + credits.join(" ・ ");
+}
+
+// ---------------------------------------------------------------- マップの検索
+
+// 検索で比べやすい形にする（全角・半角、大文字・小文字、カタカナ・ひらがなの違いをなくす）
+function searchKey(text) {
+  return String(text || "").normalize("NFKC").toLowerCase()
+    .replace(/[\u30a1-\u30f6]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60))
+    .replace(/\s+/g, " ").trim();
+}
+
+// 漢字の名前は、ひらがなでも見つかるように読みを足しておく
+const NAME_READINGS = {
+  world: "ぜんせかい せかい",
+  japan: "にほん にっぽん",
+  korea: "かんこく",
+  taiwan: "たいわん",
+  "south-africa": "みなみあふりか",
+  hiroshima: "ひろしまけん",
+  "hiroshima-city": "ひろしましちゅうしんぶ",
+};
+
+let mapSearchReady = false;
+function setupMapSearch() {
+  if (mapSearchReady) return;
+  mapSearchReady = true;
+  const input = $("map-search");
+  input.addEventListener("input", () => {
+    // 検索するときは、カテゴリに関係なく全部のマップから探す
+    if (input.value.trim() && (state.category || "all") !== "all") {
+      state.category = "all";
+      renderSelect();
+    } else applyMapSearch();
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { input.value = ""; applyMapSearch(); }
+  });
+  $("map-search-clear").addEventListener("click", () => {
+    input.value = "";
+    applyMapSearch();
+    input.focus();
+  });
+}
+
+// 検索の言葉に合うカードだけ出す（言葉はスペースで区切ると、全部ふくむものだけ）
+function applyMapSearch() {
+  const raw = $("map-search").value.trim();
+  const words = searchKey(raw).split(" ").filter(Boolean);
+  $("map-search-clear").hidden = !raw;
+  let shown = 0;
+  document.querySelectorAll("#map-grid .map-card").forEach((card) => {
+    const ok = !words.length || (card.dataset.search ? words.every((w) => card.dataset.search.includes(w)) : false);
+    card.hidden = !ok;
+    if (ok && card.dataset.search) shown++;
+  });
+  const empty = $("map-search-empty");
+  empty.hidden = !(words.length && !shown);
+  if (!empty.hidden) empty.textContent = `「${raw}」に合うマップは見つかりませんでした`;
 }
 
 function mapCard(area) {
@@ -658,6 +718,7 @@ function mapCard(area) {
       ${recordBadge(area)}
     </div>`;
   card.querySelector("b").textContent = area.name;
+  card.dataset.search = searchKey([area.name, NAME_READINGS[area.id], area.id, area.iso].filter(Boolean).join(" "));
   if (!cover) hydrateThumbs(card, area);
   const open = () => openSettings(area.id);
   card.addEventListener("click", open);

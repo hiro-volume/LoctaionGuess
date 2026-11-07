@@ -2130,3 +2130,24 @@ html.no-anim .num-pop { animation: none; }
 .bell-status.newer { color: #ffd23f; }
 .bell-status.error { color: #ff8a80; }
 .bs-spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+
+/* マップの検索 */
+.chips-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 22px 0; }
+.chips-row .chips { margin: 0; }
+.map-search {
+  display: flex; align-items: center; gap: 8px; flex: 0 1 260px; min-width: 200px;
+  background: var(--bg-2); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 8px 0 14px;
+}
+.map-search:focus-within { border-color: var(--accent); color: var(--text); }
+.map-search input {
+  flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--text);
+  font: inherit; font-weight: 600; padding: 9px 0;
+}
+.map-search input::-webkit-search-cancel-button { display: none; }
+.map-search button {
+  width: 24px; height: 24px; border-radius: 50%; border: 0; background: var(--line); color: var(--text);
+  font-size: 14px; line-height: 1; cursor: pointer; padding: 0;
+}
+.map-search-empty { text-align: center; color: var(--muted); margin: 4px 0 18px; }
+.map-card[hidden] { display: none !important; }
+@media (max-width: 640px) { .map-search { flex: 1 1 100%; } }

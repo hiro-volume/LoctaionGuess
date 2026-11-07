@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.67">
+  <link rel="stylesheet" href="style.css?v=1.68">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -227,7 +227,15 @@
         </div>
         <div class="progress-stats" id="progress-stats"></div>
       </div>
-      <nav id="category-chips" class="chips"></nav>
+      <div class="chips-row">
+        <nav id="category-chips" class="chips"></nav>
+        <label class="map-search">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+          <input id="map-search" type="search" placeholder="国・地域を検索" autocomplete="off" aria-label="国・地域を検索">
+          <button id="map-search-clear" type="button" title="消す" aria-label="検索を消す" hidden>×</button>
+        </label>
+      </div>
+      <p id="map-search-empty" class="map-search-empty" hidden></p>
       <div id="map-grid" class="map-grid"></div>
       <p id="credits" class="credits"></p>
     </section>
@@ -766,14 +774,14 @@
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.67"></script>
-  <script src="hiroshima-boundary.js?v=1.67"></script>
-  <script src="world-boundary.js?v=1.67"></script>
-  <script src="region-boundary.js?v=1.67"></script>
-  <script src="regions.js?v=1.67"></script>
+  <script src="config.js?v=1.68"></script>
+  <script src="hiroshima-boundary.js?v=1.68"></script>
+  <script src="world-boundary.js?v=1.68"></script>
+  <script src="region-boundary.js?v=1.68"></script>
+  <script src="regions.js?v=1.68"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="app.js?v=1.67"></script>
-  <script src="multiplayer.js?v=1.67"></script>
+  <script src="app.js?v=1.68"></script>
+  <script src="multiplayer.js?v=1.68"></script>
 </body>
 </html>
