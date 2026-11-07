@@ -725,7 +725,7 @@ button:active:not(:disabled), .chip:active { transform: scale(.96); }
   .screen-select .select-head { animation: fadeDown .5s both; }
   .screen-select .progress-panel { animation: fadeUp .6s .08s cubic-bezier(.2,.8,.2,1) both; }
   .screen-select .chips { animation: fadeUp .6s .16s cubic-bezier(.2,.8,.2,1) both; }
-  .map-card { animation: fadeUp .55s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i, 0) * 60ms + 200ms); }
+  .map-card { animation: fadeUp .55s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(min(var(--i, 0) * 60ms, 900ms) + 200ms); }
   .ring { animation: ringFill 1.2s .3s cubic-bezier(.2,.8,.2,1) both; }
 
   /* エディタ・ゲーム画面 */
