@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- LocationGuess のアイコン: 紺の角丸に、水色の地球と赤い位置ピン -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="6.5 5.2 52.2 52.2">
+  <!-- LocationGuess のアイコン: 背景は透明で、水色の地球と赤い位置ピンだけ（viewBox は絵の範囲にぴったり合わせている） -->
   <defs>
     <radialGradient id="sea" cx=".38" cy=".32" r=".8">
       <stop offset="0" stop-color="#7fdcff"/>
@@ -8,7 +8,6 @@
     </radialGradient>
     <clipPath id="globe"><circle cx="30" cy="34" r="22"/></clipPath>
   </defs>
-  <rect width="64" height="64" rx="14" fill="#0e1a33"/>
   <circle cx="30" cy="34" r="22" fill="url(#sea)"/>
   <g clip-path="url(#globe)">
     <path d="M10 26c5-6 13-7 18-3 3 3 1 8 5 10 4 2 2 8-3 9-5 1-6 6-11 5-6-1-6-7-9-11-2-3-3-7 0-10z" fill="#6be39a"/>
