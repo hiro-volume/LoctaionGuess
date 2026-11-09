@@ -850,7 +850,7 @@ function rankedSideHtml(cls, mine, glyph, color, name, rp) {
   </div>`;
 }
 
-// 試合中の上: 左に相手、右に自分の体力（認定戦は合計点）。change があれば、結果の画面で減るところを見せる
+// 試合中の上: 左に自分、右に相手の体力（認定戦は合計点）。change があれば、結果の画面で減るところを見せる
 function renderRankedHud(change) {
   const g = state.game;
   const hud = $("ranked-hud");
@@ -861,14 +861,14 @@ function renderRankedHud(change) {
   const rank = loadRank();
   const mult = r.placing ? "" : `<em class="rh-mult"><b>×${ROUND_MULTIPLIERS[Math.min(g.index, ROUND_MULTIPLIERS.length - 1)]}</b></em>`;
   hud.innerHTML = `
-    ${rankedSideHtml("red", false, r.npc.glyph, r.npc.color, r.npc.name, r.npc.rp)}
+    ${rankedSideHtml("red", true, me.avatar.glyph, me.avatar.color, me.name, rank.rp)}
     <div class="rh-round"><b>${r.placing ? `認定戦 ${r.matchNo} / ${PLACEMENT_MATCHES}` : "コンペティティブ"}</b><span>ラウンド ${g.index + 1} / ${g.rounds}</span></div>
     ${mult}
-    ${rankedSideHtml("blue", true, me.avatar.glyph, me.avatar.color, me.name, rank.rp)}`;
+    ${rankedSideHtml("blue", false, r.npc.glyph, r.npc.color, r.npc.name, r.npc.rp)}`;
   const max = r.placing ? g.rounds * MAX_SCORE : MATCH_LIFE;
   const sides = [
-    { el: hud.querySelector(".tg.red"), now: r.placing ? r.npcTotal : r.npcLife, from: change ? change.npcFrom : null, color: "#e5392f" },
-    { el: hud.querySelector(".tg.blue"), now: r.placing ? r.myTotal : r.myLife, from: change ? change.myFrom : null, color: "#2563eb" },
+    { el: hud.querySelector(".tg.red"), now: r.placing ? r.myTotal : r.myLife, from: change ? change.myFrom : null, color: "#2563eb" },
+    { el: hud.querySelector(".tg.blue"), now: r.placing ? r.npcTotal : r.npcLife, from: change ? change.npcFrom : null, color: "#e5392f" },
   ];
   const paint = (s, ratio) => (r.placing ? `linear-gradient(180deg, ${s.color}, ${s.color}cc)` : lifeColor(ratio));
   sides.forEach((s) => {

@@ -2640,7 +2640,7 @@ html.no-anim .rs-hint { animation: none; }
   .rk-pips span { padding: 7px 10px; font-size: 12px; }
 }
 
-/* ================================================================ コンペティティブ: チーム戦と同じ体力バー（左に相手、右に自分） */
+/* ================================================================ コンペティティブ: チーム戦と同じ体力バー（左に自分、右に相手） */
 #ranked-hud { display: none; }
 .screen-game #ranked-hud:not([hidden]), .screen-result #ranked-hud:not([hidden]) { display: block; position: absolute; inset: 0 0 auto 0; z-index: 6; pointer-events: none; }
 #ranked-hud .tg-badge { font-size: 22px; }
@@ -2783,9 +2783,9 @@ html.no-anim .cs-flash { display: none; }
 }
 .rh-round > * { position: relative; }
 .rh-round { padding-right: 14px; }
-/* 倍率: 自分の体力バーのすぐ左に、角の丸い少し歪んだ四角形のガラスで大きく出す */
+/* 倍率: 自分の体力バーのすぐ右に、角の丸い少し歪んだ四角形のガラスで大きく出す */
 .rh-mult {
-  position: absolute; top: 8px; right: calc(12px + min(34vw, 360px) + 12px); z-index: 1;
+  position: absolute; top: 8px; left: calc(12px + min(34vw, 360px) + 12px); z-index: 1;
   display: grid; place-items: center; min-width: 74px; height: 50px; padding: 0 12px; border-radius: 13px;
   transform: skewX(-11deg) rotate(-3deg); font-style: normal;
   background: radial-gradient(120% 140% at 28% 12%, rgba(255,255,255,.58), rgba(180,225,255,.2) 45%, rgba(56,189,248,.3));
@@ -2799,7 +2799,7 @@ html.no-anim .cs-flash { display: none; }
 }
 /* 上の方位と重なる幅では、バーの内側の端の下に置く */
 @media (min-width: 721px) and (max-width: 1180px) {
-  .rh-mult { top: 46px; right: calc(12px + min(34vw, 360px) - 84px); min-width: 62px; height: 42px; }
+  .rh-mult { top: 46px; left: calc(12px + min(34vw, 360px) - 84px); min-width: 62px; height: 42px; }
   .rh-mult b { font-size: 24px; }
 }
 @media (max-width: 720px) {
