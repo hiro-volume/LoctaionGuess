@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.75";
+const APP_VERSION = "1.76";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -1749,9 +1749,341 @@ function stopRoundCountdown() {
   $("round-countdown").hidden = true;
 }
 
+// ---------------------------------------------------------------- チェックポイント・一手戻す
+
+// ラウンドが始まったら、チェックポイントと通った道をなかったことにする
+function resetRoundTools() {
+  const g = state.game;
+  g.checkpoint = null;
+  g.trail = [];
+  state.lastPano = null;
+  $("btn-checkpoint").hidden = !g.move;
+  updateCheckpointButton();
+}
+
+// 置く前: 押すと置ける ／ 置いた場所にいる間: 押せない ／ 移動したら: 押すと戻れる
+function updateCheckpointButton() {
+  const btn = $("btn-checkpoint");
+  const g = state.game;
+  const cp = g && g.checkpoint;
+  const away = !!(cp && state.pano && state.pano.getPano() !== cp.pano);
+  btn.disabled = !!cp && !away;
+  btn.classList.toggle("cp-set", !!cp);
+  const label = cp
+    ? (away ? `チェックポイントに戻る（${keyLabel("cpBack")}）` : "チェックポイントにいます")
+    : `チェックポイントを置く（${keyLabel("cpSet")}）`;
+  btn.title = label;
+  btn.setAttribute("aria-label", label);
+}
+
+// again: もう置いてあっても、今いる場所に置き直す（キーで置くとき）
+function setCheckpoint(again = false) {
+  const g = state.game;
+  if (!g || !g.answer || !g.move || !state.pano || state.spectating || (g.checkpoint && !again)) return;
+  g.checkpoint = { pano: state.pano.getPano(), pov: { ...state.pano.getPov() }, zoom: state.pano.getZoom() };
+  updateCheckpointButton();
+  const btn = $("btn-checkpoint");
+  btn.classList.remove("cp-pop");
+  void btn.offsetWidth;
+  btn.classList.add("cp-pop");
+}
+
+function returnToCheckpoint() {
+  const g = state.game;
+  const cp = g && g.checkpoint;
+  if (!cp || !state.pano || state.spectating || state.pano.getPano() === cp.pano) return;
+  const restore = () => {
+    state.pano.setPov(cp.pov);
+    state.pano.setZoom(cp.zoom);
+  };
+  google.maps.event.addListenerOnce(state.pano, "pano_changed", () => setTimeout(restore, 0));
+  state.pano.setPano(cp.pano);
+  restore();
+}
+
+// 動いた先を覚えておく（一手戻すため）。チェックポイントのボタンの状態もここで変わる
+function onPanoMoved() {
+  const g = state.game;
+  if (!g || !state.pano) return;
+  const here = state.pano.getPano();
+  if (state.lastPano && here !== state.lastPano && !state.undoing && !state.spectating) {
+    g.trail = g.trail || [];
+    g.trail.push(state.lastPano);
+    if (g.trail.length > 200) g.trail.shift();
+  }
+  state.undoing = false;
+  state.lastPano = here;
+  updateCheckpointButton();
+}
+
+function undoMove() {
+  const g = state.game;
+  if (!g || !g.move || !state.pano || state.spectating || !g.trail || !g.trail.length) return;
+  state.undoing = true;
+  state.pano.setPano(g.trail.pop());
+}
+
+// 向いている方向（back なら反対）にいちばん近い道へ進む
+function stepPano(back) {
+  const g = state.game;
+  if (!g || !g.move || !state.pano || state.spectating) return;
+  const now = Date.now();
+  if (now - (state.lastStepAt || 0) < 250) return;
+  const links = (state.pano.getLinks() || []).filter(Boolean);
+  if (!links.length) return;
+  const want = state.pano.getPov().heading + (back ? 180 : 0);
+  const gap = (h) => Math.abs((((h - want) % 360) + 540) % 360 - 180);
+  const best = links.reduce((a, b) => (gap(b.heading) < gap(a.heading) ? b : a));
+  if (gap(best.heading) > 100) return;
+  state.lastStepAt = now;
+  state.pano.setPano(best.pano);
+}
+
+// ---------------------------------------------------------------- キー設定
+
+// key: 最初の割り当て（e.code の形）。Shift などは「Shift+KeyC」のように書く
+const KEY_ACTIONS = [
+  { group: "ストリートビュー", items: [
+    { id: "guess", name: "決定する／次へ", desc: "ピンを決定する。結果画面では次へ進む", key: "Space" },
+    { id: "start", name: "出発地点に戻る", desc: "ラウンドの最初の場所に戻る", key: "KeyR" },
+    { id: "cpSet", name: "チェックポイントを置く", desc: "今いる場所に置く（置き直しもできる）", key: "Shift+KeyC" },
+    { id: "cpBack", name: "チェックポイントに戻る", desc: "置いた場所へ戻る", key: "KeyC" },
+    { id: "undo", name: "一手戻す", desc: "ひとつ前にいた場所に戻る", key: "KeyZ" },
+    { id: "north", name: "北を向く", desc: "カメラを北に向ける", key: "KeyN" },
+    { id: "hideUi", name: "画面の表示を隠す", desc: "押している間、景色と残り時間だけにする", key: "KeyV" },
+  ] },
+  { group: "移動", items: [
+    { id: "forward", name: "前に進む", desc: "向いている方向の道へ進む", key: "KeyW" },
+    { id: "back", name: "後ろに進む", desc: "反対方向の道へ進む", key: "KeyS" },
+    { id: "left", name: "左を見る", desc: "押している間、左へ回る", key: "KeyA" },
+    { id: "right", name: "右を見る", desc: "押している間、右へ回る", key: "KeyD" },
+    { id: "zoomIn", name: "ズームイン", desc: "カメラを近づける", key: "KeyE" },
+    { id: "zoomOut", name: "ズームアウト", desc: "カメラを引く", key: "KeyQ" },
+  ] },
+  { group: "その他", items: [
+    { id: "fullscreen", name: "フルスクリーン", desc: "全画面表示を切り替える", key: "KeyF" },
+  ] },
+];
+const KEY_ITEMS = KEY_ACTIONS.flatMap((g) => g.items);
+// 割り当てとは別に、いつでも使えるキー
+const KEY_ALT = { ArrowUp: "forward", ArrowDown: "back", ArrowLeft: "left", ArrowRight: "right", NumpadAdd: "zoomIn", NumpadSubtract: "zoomOut" };
+
+function keyOf(id) {
+  const saved = state.prefs.keys || {};
+  return id in saved ? saved[id] : KEY_ITEMS.find((a) => a.id === id).key;
+}
+
+function comboOf(e) {
+  if (e.metaKey || !e.code) return null;
+  return `${e.ctrlKey ? "Ctrl+" : ""}${e.altKey ? "Alt+" : ""}${e.shiftKey ? "Shift+" : ""}${e.code}`;
+}
+
+const KEY_NAMES = {
+  ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→", Space: "Space", Minus: "-", Equal: "=", Semicolon: ";", Quote: "'",
+  BracketLeft: "[", BracketRight: "]", Comma: ",", Period: ".", Slash: "/", Backslash: "\\", Backquote: "`", NumpadAdd: "Numpad +", NumpadSubtract: "Numpad -",
+};
+function codeLabel(combo) {
+  return combo.split("+").map((c) => KEY_NAMES[c] || c.replace(/^Key/, "").replace(/^Digit/, "").replace(/^Numpad(\d)/, "Numpad $1")).join(" + ");
+}
+function keyLabel(id) {
+  const combo = keyOf(id);
+  return combo ? codeLabel(combo) : "未設定";
+}
+
+const heldKeys = new Map();
+const heldLook = new Set();
+let lookFrame = 0;
+let lookLast = 0;
+
+function lookStep(now) {
+  const dir = (heldLook.has("right") ? 1 : 0) - (heldLook.has("left") ? 1 : 0);
+  if (!heldLook.size || !state.pano || app.className !== "screen-game") {
+    lookFrame = 0;
+    return;
+  }
+  const dt = Math.min(50, now - lookLast);
+  lookLast = now;
+  if (dir) {
+    const p = state.pano.getPov();
+    state.pano.setPov({ heading: p.heading + dir * dt * 0.09, pitch: p.pitch });
+  }
+  lookFrame = requestAnimationFrame(lookStep);
+}
+
+function pressLook(id) {
+  const g = state.game;
+  if (!g || !g.pan || state.spectating) return;
+  heldLook.add(id);
+  if (!lookFrame) {
+    lookLast = performance.now();
+    lookFrame = requestAnimationFrame(lookStep);
+  }
+}
+
+function releaseHeldKeys() {
+  heldKeys.clear();
+  heldLook.clear();
+  $("stage").classList.remove("hide-ui");
+}
+
+function clickIfShown(id) {
+  const b = $(id);
+  if (!b.hidden && !b.disabled) b.click();
+}
+
+const KEY_RUN = {
+  guess: () => clickIfShown(app.className === "screen-result" ? "btn-next" : "btn-guess"),
+  start: () => clickIfShown("btn-back-start"),
+  cpSet: () => setCheckpoint(true),
+  cpBack: returnToCheckpoint,
+  undo: undoMove,
+  north: () => $("compass").click(),
+  hideUi: () => $("stage").classList.add("hide-ui"),
+  forward: () => stepPano(false),
+  back: () => stepPano(true),
+  left: () => pressLook("left"),
+  right: () => pressLook("right"),
+  zoomIn: () => state.game && !state.spectating && zoomPano(1),
+  zoomOut: () => state.game && !state.spectating && zoomPano(-1),
+  fullscreen: () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else document.documentElement.requestFullscreen().catch(() => {});
+  },
+};
+// 押し続けても1回だけ動かすもの
+const KEY_ONCE = new Set(["guess", "start", "cpSet", "cpBack", "north", "fullscreen"]);
+
+function stopKeyCapture() {
+  state.keyCapture = null;
+  renderKeyList();
+}
+
+// 「キーの枠」を押したあとの、次のキーを割り当てる
+function captureKey(e) {
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (e.code === "Escape") return stopKeyCapture();
+  if (["Shift", "Control", "Alt", "Meta"].includes(e.key) || e.code === "Tab") return;
+  const combo = comboOf(e);
+  if (!combo) return;
+  const keys = { ...(state.prefs.keys || {}) };
+  // 同じキーを使っていた操作は「未設定」にする
+  KEY_ITEMS.forEach((a) => { if (a.id !== state.keyCapture && keyOf(a.id) === combo) keys[a.id] = null; });
+  keys[state.keyCapture] = combo;
+  state.prefs.keys = keys;
+  saveJSON(STORE_PREFS, state.prefs);
+  stopKeyCapture();
+  refreshKeyTitles();
+}
+
+function onGameKey(e) {
+  if (state.keyCapture) {
+    if (!$("game-settings").hidden) return captureKey(e);
+    state.keyCapture = null;
+  }
+  const screen = app.className;
+  if (screen !== "screen-game" && screen !== "screen-result") return;
+  if (!$("game-settings").hidden || !$("dialog").hidden || !$("loading").hidden || !$("round-countdown").hidden) return;
+  if (e.target.closest && e.target.closest("input, textarea, select")) return;
+  const combo = comboOf(e);
+  if (!combo) return;
+  const item = KEY_ITEMS.find((a) => keyOf(a.id) === combo);
+  const id = item ? item.id : KEY_ALT[combo];
+  if (!id || (screen === "screen-result" && id !== "guess")) return;
+  e.preventDefault();
+  e.stopPropagation();
+  // ボタンにフォーカスが残っていると、Space でそのボタンまで押されてしまう
+  if (e.target.closest && e.target.closest("button")) e.target.blur();
+  if (e.repeat && KEY_ONCE.has(id)) return;
+  heldKeys.set(e.code, id);
+  KEY_RUN[id]();
+}
+
+function onGameKeyUp(e) {
+  const id = heldKeys.get(e.code);
+  if (!id) return;
+  heldKeys.delete(e.code);
+  if (id === "left" || id === "right") heldLook.delete(id);
+  if (id === "hideUi") $("stage").classList.remove("hide-ui");
+}
+
+function renderKeyList() {
+  $("gs-keys-list").innerHTML = KEY_ACTIONS.map((g) => `
+    <h4>${g.group}</h4>
+    <div class="key-grid">${g.items.map((a) => {
+      const alts = Object.keys(KEY_ALT).filter((k) => KEY_ALT[k] === a.id).map((k) => `<i>${codeLabel(k)}</i>`).join("");
+      const listening = state.keyCapture === a.id;
+      return `<div class="key-card">
+        <div class="key-text"><b>${a.name}</b><small>${a.desc}</small></div>
+        <div class="key-caps">${alts}<button type="button" class="key-cap${listening ? " listening" : ""}${keyOf(a.id) ? "" : " none"}" data-key="${a.id}">${listening ? "キーを押す…" : keyLabel(a.id)}</button></div>
+      </div>`;
+    }).join("")}</div>`).join("");
+}
+
+// ボタンの説明に、今のキーを出す
+function refreshKeyTitles() {
+  $("btn-back-start").title = `出発地点に戻る（${keyLabel("start")}）`;
+  $("btn-zoom-in").title = `ズームイン（${keyLabel("zoomIn")}）`;
+  $("btn-zoom-out").title = `ズームアウト（${keyLabel("zoomOut")}）`;
+  $("compass").title = `クリックで北を向く（${keyLabel("north")}）`;
+  // 結果画面の「続けるには ○○ を押して」も、今のキーに合わせる
+  $("rs-key").querySelector("kbd").textContent = keyLabel("guess");
+  $("rs-key").hidden = !keyOf("guess");
+  updateCheckpointButton();
+}
+
+function setSettingsTab(tab) {
+  document.querySelectorAll("[data-gs-tab]").forEach((b) => b.classList.toggle("active", b.dataset.gsTab === tab));
+  $("gs-general").hidden = tab !== "general";
+  $("gs-keys").hidden = tab !== "keys";
+  $("game-settings").querySelector(".gs-panel").classList.toggle("wide", tab === "keys");
+  state.keyCapture = null;
+  if (tab === "keys") renderKeyList();
+}
+
+function bindGameKeys() {
+  window.addEventListener("keydown", onGameKey, true);
+  window.addEventListener("keyup", onGameKeyUp, true);
+  window.addEventListener("blur", releaseHeldKeys);
+  document.querySelectorAll("[data-gs-tab]").forEach((b) => b.addEventListener("click", () => setSettingsTab(b.dataset.gsTab)));
+  $("gs-keys-list").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-key]");
+    if (!b) return;
+    state.keyCapture = b.dataset.key;
+    renderKeyList();
+  });
+  $("btn-keys-reset").addEventListener("click", () => {
+    state.prefs.keys = {};
+    saveJSON(STORE_PREFS, state.prefs);
+    state.keyCapture = null;
+    renderKeyList();
+    refreshKeyTitles();
+  });
+  $("btn-checkpoint").addEventListener("click", () => {
+    if (state.game && state.game.checkpoint) returnToCheckpoint();
+    else setCheckpoint();
+  });
+  refreshKeyTitles();
+}
+
+// ---------------------------------------------------------------- 結果の国旗
+
+// 国名は、地図データの正式名称だと長いものを短くする
+const COUNTRY_SHORT = { TWN: "台湾", KOR: "韓国", PRK: "北朝鮮", THA: "タイ", USA: "アメリカ", MNG: "モンゴル", CHN: "中国", ZAF: "南アフリカ", MLI: "マリ", KOS: "コソボ" };
+
+// 世界や自作のマップのように、どの国が出るかわからないマップでは、正解の国を国旗と名前で見せる
+function answerCountryHtml(g, answer) {
+  if (!g.area || !(g.area.type === "world" || g.area.custom) || !answer) return "";
+  const iso = countryNear(answer.lat, answer.lng);
+  const country = iso && WORLD.find((c) => c.id === iso);
+  if (!country) return "";
+  const code = (window.LG_ISO2 || {})[iso];
+  const flag = code ? `<img src="https://flagcdn.com/w80/${code}.png" width="30" height="20" alt="" onerror="this.remove()">` : "";
+  return `<div class="rs-country">${flag}<span>${escapeHtml(COUNTRY_SHORT[iso] || country.name)}</span></div>`;
+}
+
 // 残り時間の枠のまわりを一周するバー。rest は残りの割合（1 = 満タン、0 = なくなった）
 // 上の真ん中から時計回りに、なくなっていく
-const TIMER_RING_SECONDS = 15;
 const RING_PAD = 5; // 枠の外にはみ出す分
 function updateTimerRing(pill, rest) {
   const svg = $("timer-ring");
@@ -1780,22 +2112,23 @@ function startTimer(seconds = state.game.timeLimit) {
   stopTimer();
   const pill = $("timer-pill");
   pill.hidden = !seconds;
-  pill.classList.remove("urgent", "beat", "ring-on");
+  pill.classList.remove("urgent", "warn", "beat", "ring-on");
   if (!seconds) return;
   const deadline = Date.now() + seconds * 1000;
-  // 制限時間が 15 秒より短いときは、その時間で一周する
-  const ringTotal = Math.min(TIMER_RING_SECONDS, seconds) * 1000;
+  // バーは最初から出す。マルチプレイで残りが短くなったときは、減った分だけ短いバーになる
+  const ringTotal = Math.max(seconds, state.game.timeLimit || 0) * 1000;
   state.timerDeadline = deadline;
   let shown = null;
   let flashed = false;
   const tick = () => {
     const ms = deadline - Date.now();
     const left = Math.max(0, Math.ceil(ms / 1000));
-    if (ms <= ringTotal) updateTimerRing(pill, Math.max(0, ms) / ringTotal);
+    updateTimerRing(pill, Math.max(0, ms) / ringTotal);
     if (left === shown) return;
     shown = left;
     $("timer-text").textContent = formatTime(left);
     pill.classList.toggle("urgent", left <= 10);
+    pill.classList.toggle("warn", left <= 15);
     // 残り 15 秒になったら、1回だけ画面のふちを赤くボワッと光らせる
     if (!flashed && left <= 15 && left > 0) {
       flashed = true;
@@ -2708,6 +3041,7 @@ async function startRound() {
   $("btn-guess").disabled = true;
   $("btn-guess").textContent = guessIdleText(g);
   $("btn-back-start").hidden = !g.move;
+  resetRoundTools();
   $("btn-zoom-in").disabled = $("btn-zoom-out").disabled = !g.zoom;
   $("info-area").textContent = g.area.name;
   $("info-round").textContent = g.mode === "life" ? `${g.index + 1}` : `${g.index + 1} / ${g.rounds}`;
@@ -2763,7 +3097,7 @@ function showPanorama(panoId, { move, pan, zoom }) {
     enableCloseButton: false,
     linksControl: move,
     clickToGo: move,
-    keyboardShortcuts: move,
+    keyboardShortcuts: false, // キー操作は「キー設定」の割り当てで自分で受け取る
     panControl: false,
     zoomControl: false,
     scrollwheel: zoom,
@@ -2798,6 +3132,7 @@ function showPanorama(panoId, { move, pan, zoom }) {
       if (g && g.multi) sendMyView();
     });
     state.pano.addListener("pano_changed", () => {
+      onPanoMoved();
       if (state.game && state.game.multi) sendMyView();
     });
   } else {
@@ -3001,6 +3336,7 @@ function submitGuess(timedOut = false) {
       <div class="rs-cap">あなた: ${escapeHtml(regionName(g.guessMode, result.guessRegion))} ・ 正解: ${escapeHtml(regionName(g.guessMode, result.answerRegion))}</div>` : `
       <div class="rs-big rs-dist">${missed ? "時間切れ" : formatDistance(distance)}</div>
       <div class="rs-cap">${missed ? "ピンを立てる前に時間切れ" : timedOut ? "正解から（時間切れで提出）" : "正解から"}</div>`}
+      ${answerCountryHtml(g, g.answer)}
     </div>
     <div class="rs-side rs-right">${right}</div>`;
   $("btn-next").textContent = last ? "結果を見る" : "次のラウンドへ";
@@ -3116,12 +3452,6 @@ function initApp() {
   $("btn-next").addEventListener("click", () => (state.game && state.game.finished && !state.game.multi ? showHome() : nextRound()));
   $("btn-end").addEventListener("click", showFinal);
   $("btn-replay").addEventListener("click", replayGame);
-  // ラウンド結果では Space キーでも次へ進める
-  window.addEventListener("keydown", (e) => {
-    if (e.code !== "Space" || app.className !== "screen-result" || $("result").hidden) return;
-    if (e.target.closest("input, textarea, select, button")) return;
-    if (!$("btn-next").disabled) { e.preventDefault(); $("btn-next").click(); }
-  });
   $("btn-zoom-in").addEventListener("click", () => zoomPano(1));
   $("btn-zoom-out").addEventListener("click", () => zoomPano(-1));
   $("btn-game-settings").addEventListener("click", openGameSettings);
@@ -3350,11 +3680,14 @@ function openGameSettings() {
   if (app.className !== "screen-game") return;
   $("gs-timer-note").hidden = !(state.game && state.game.timeLimit);
   $("pref-fullscreen").checked = !!document.fullscreenElement;
+  setSettingsTab("general");
+  releaseHeldKeys();
   $("game-settings").hidden = false;
   $("btn-resume").focus();
 }
 
 function closeGameSettings() {
+  state.keyCapture = null;
   $("game-settings").hidden = true;
 }
 
@@ -3429,6 +3762,8 @@ function bindStaticUi() {
   $("btn-back-title").addEventListener("click", () => (state.mp && state.mp.role === "host" ? hostBackToLobby() : showMode()));
   $("btn-sheet-close").addEventListener("click", closeSettings);
   $("sheet-backdrop").addEventListener("click", closeSettings);
+  // キーの割り当てを待っている間の Esc を先に受け取るので、下の Esc の処理より前に登録する
+  bindGameKeys();
   // ストリートビューにフォーカスがあるとキー操作が地図側で止められることがあるので、
   // いちばん外側（window）で先に受け取る
   window.addEventListener("keydown", (e) => {

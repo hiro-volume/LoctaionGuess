@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.75">
+  <link rel="stylesheet" href="style.css?v=1.76">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -466,6 +466,7 @@
           <button id="btn-zoom-out" class="ctrl" title="ズームアウト" aria-label="ズームアウト">－</button>
         </div>
         <button id="btn-back-start" class="ctrl round" title="出発地点に戻る" aria-label="出発地点に戻る" hidden><svg viewBox="0 0 24 24" width="20" height="20"><path d="M9 14L4 9l5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10a6 6 0 0 1 0 12h-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+        <button id="btn-checkpoint" class="ctrl round" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 21V4M6 4.5c4-2.5 7 2 12 0v9c-5 2-8-2.5-12 0" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button id="btn-game-settings" class="ctrl round" title="設定（Esc）" aria-label="設定"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><g fill="currentColor"><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(0 12 12)"/><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(45 12 12)"/><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(90 12 12)"/><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(135 12 12)"/><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(180 12 12)"/><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(225 12 12)"/><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(270 12 12)"/><rect x="10.3" y="1.8" width="3.4" height="4.6" rx="1" transform="rotate(315 12 12)"/></g><circle cx="12" cy="12" r="5.4" fill="none" stroke="currentColor" stroke-width="3.4"/></svg></button>
       </div>
       <!-- 上の方位ベルト: 中央の印が今向いている方角 -->
@@ -500,7 +501,7 @@
       <div id="timer-pill" hidden>
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 9v4l2.5 2M9.5 2.5h5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
         <b id="timer-text">0:00</b>
-        <!-- 残り15秒から、まわりを一周して減っていくバー -->
+        <!-- まわりを一周して減っていくバー -->
         <svg id="timer-ring" class="timer-ring" aria-hidden="true"><path class="track"/><path class="bar"/></svg>
       </div>
       <!-- 右上の情報カード -->
@@ -620,6 +621,11 @@
       <div id="game-settings" hidden>
         <div class="gs-panel" role="dialog" aria-modal="true" aria-labelledby="gs-title">
           <h3 id="gs-title">設定</h3>
+          <div class="gs-tabs" role="tablist">
+            <button data-gs-tab="general" class="active" role="tab">全般</button>
+            <button data-gs-tab="keys" role="tab">キー設定</button>
+          </div>
+          <div id="gs-general">
 
           <div class="gs-row">
             <div class="gs-label">
@@ -663,6 +669,15 @@
           </label>
 
           <p class="gs-note" id="gs-timer-note" hidden>制限時間は、設定を開いている間も進みます。</p>
+          </div>
+
+          <div id="gs-keys" hidden>
+            <div id="gs-keys-list"></div>
+            <div class="gs-keys-foot">
+              <button id="btn-keys-reset" class="link-btn" type="button">↺ リセット</button>
+              <span>キーの枠を押してから、割り当てたいキーを押します（Esc でやめる）</span>
+            </div>
+          </div>
 
           <div class="gs-actions">
             <button id="btn-resume" class="btn-hero small">ゲームを再開する</button>
@@ -678,8 +693,7 @@
       <div class="result-buttons">
         <button id="btn-replay" class="primary" hidden>↻ もう一度遊ぶ</button>
         <button id="btn-next" class="primary">次へ</button>
-        <button id="btn-end" class="secondary" title="ここでゲームを終了して、結果を見る">
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>ゲームを終了</button>
+        <button id="btn-end" class="secondary" aria-label="ゲームを終了して結果を見る"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3.5 11.5 12 4l8.5 7.5M6 10v9.5h4.5V14h3v5.5H18V10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="end-label">終了</span></button>
         <small class="rs-key" id="rs-key">続けるには <kbd>Space</kbd> を押してください</small>
       </div>
     </div>
@@ -792,14 +806,14 @@
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.75"></script>
-  <script src="hiroshima-boundary.js?v=1.75"></script>
-  <script src="world-boundary.js?v=1.75"></script>
-  <script src="region-boundary.js?v=1.75"></script>
-  <script src="regions.js?v=1.75"></script>
+  <script src="config.js?v=1.76"></script>
+  <script src="hiroshima-boundary.js?v=1.76"></script>
+  <script src="world-boundary.js?v=1.76"></script>
+  <script src="region-boundary.js?v=1.76"></script>
+  <script src="regions.js?v=1.76"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="app.js?v=1.75"></script>
-  <script src="multiplayer.js?v=1.75"></script>
+  <script src="app.js?v=1.76"></script>
+  <script src="multiplayer.js?v=1.76"></script>
 </body>
 </html>

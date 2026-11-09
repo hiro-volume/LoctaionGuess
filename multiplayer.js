@@ -705,6 +705,7 @@ function beginMultiRound(msg) {
   $("btn-guess").disabled = true;
   $("btn-guess").textContent = guessIdleText(g);
   $("btn-back-start").hidden = !g.move;
+  resetRoundTools();
   $("btn-zoom-in").disabled = $("btn-zoom-out").disabled = !g.zoom;
   $("info-area").textContent = g.area.name;
   $("info-round").textContent = Number.isFinite(g.rounds) ? `${g.index + 1} / ${g.rounds}` : `${g.index + 1}`;
@@ -1134,6 +1135,7 @@ ${isRegionMode(g) && !missed ? `
       <div class="rs-cap">あなた: ${escapeHtml(regionName(g.guessMode, mine.guessRegion))} ・ 正解: ${escapeHtml(regionName(g.guessMode, regionAt(g.guessMode, answer.lat, answer.lng)))}</div>` : `
       <div class="rs-big rs-dist">${missed ? "時間切れ" : formatDistance(mine.distance)}</div>
       <div class="rs-cap">${missed ? "ピンを立てる前に時間切れ" : "正解から"}</div>`}
+      ${answerCountryHtml(g, answer)}
     </div>
     <div class="rs-side rs-right">${g.team && msg.team ? teamResultSide(msg.team) : g.mode === "life" && mine ? lifeResultSide(g, mine, msg) : `
       <div class="rs-big rs-score" data-count="${mine ? mine.score : 0}">0</div>

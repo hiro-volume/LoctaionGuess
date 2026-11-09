@@ -41,6 +41,10 @@ window.LG_NO_STREETVIEW = [
   "SXM",
 ];
 
+// 国旗の画像を探すための、国コードの対応（3文字 → 2文字）。国旗がない地域は入れていない
+window.LG_ISO2 = Object.fromEntries("ZWE:zw ZMB:zm YEM:ye VNM:vn VEN:ve VAT:va VUT:vu UZB:uz URY:uy FSM:fm MHL:mh MNP:mp VIR:vi GUM:gu ASM:as PRI:pr USA:us SGS:gs IOT:io SHN:sh PCN:pn AIA:ai FLK:fk CYM:ky BMU:bm VGB:vg TCA:tc MSR:ms JEY:je GGY:gg IMN:im GBR:gb ARE:ae UKR:ua UGA:ug TKM:tm TUR:tr TUN:tn TTO:tt TON:to TGO:tg TLS:tl THA:th TZA:tz TJK:tj TWN:tw SYR:sy CHE:ch SWE:se SWZ:sz SUR:sr SDS:ss SDN:sd LKA:lk ESP:es KOR:kr ZAF:za SOM:so SLB:sb SVK:sk SVN:si SGP:sg SLE:sl SYC:sc SRB:rs SEN:sn SAU:sa STP:st SMR:sm WSM:ws VCT:vc LCA:lc KNA:kn RWA:rw RUS:ru ROU:ro QAT:qa PRT:pt POL:pl PHL:ph PER:pe PRY:py PNG:pg PAN:pa PLW:pw PAK:pk OMN:om NOR:no PRK:kp NGA:ng NER:ne NIC:ni NZL:nz NIU:nu COK:ck NLD:nl ABW:aw CUW:cw NPL:np NRU:nr NAM:na MOZ:mz MAR:ma SAH:eh MNE:me MNG:mn MDA:md MCO:mc MEX:mx MUS:mu MRT:mr MLT:mt MLI:ml MDV:mv MYS:my MWI:mw MDG:mg MKD:mk LUX:lu LTU:lt LIE:li LBY:ly LBR:lr LSO:ls LBN:lb LVA:lv LAO:la KGZ:kg KWT:kw KOS:xk KIR:ki KEN:ke KAZ:kz JOR:jo JPN:jp JAM:jm ITA:it ISR:il PSX:ps IRL:ie IRQ:iq IRN:ir IDN:id IND:in ISL:is HUN:hu HND:hn HTI:ht GUY:gy GNB:gw GIN:gn GTM:gt GRD:gd GRC:gr GHA:gh DEU:de GEO:ge GMB:gm GAB:ga FRA:fr SPM:pm WLF:wf MAF:mf BLM:bl PYF:pf NCL:nc ATF:tf ALD:ax FIN:fi FJI:fj ETH:et EST:ee ERI:er GNQ:gq SLV:sv EGY:eg ECU:ec DOM:do DMA:dm DJI:dj GRL:gl FRO:fo DNK:dk CZE:cz CYP:cy CUB:cu HRV:hr CIV:ci CRI:cr COD:cd COG:cg COM:km COL:co CHN:cn MAC:mo HKG:hk CHL:cl TCD:td CAF:cf CPV:cv CAN:ca CMR:cm KHM:kh MMR:mm BDI:bi BFA:bf BGR:bg BRN:bn BRA:br BWA:bw BIH:ba BOL:bo BTN:bt BEN:bj BLZ:bz BEL:be BLR:by BRB:bb BGD:bd BHR:bh BHS:bs AZE:az AUT:at AUS:au HMD:hm NFK:nf ARM:am ARG:ar ATG:ag AGO:ao AND:ad DZA:dz ALB:al AFG:af ATA:aq SXM:sx TUV:tv"
+  .split(" ").map((p) => p.split(":")));
+
 // 出題範囲のプリセット
 // type "polygons": rings は [[緯度, 経度], ...] の配列（島ごと）
 // type "circle": center と radius（メートル）
