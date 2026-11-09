@@ -2510,3 +2510,8 @@ html.no-anim .rd.just small { animation: none; }
   #stage:has(#round-strip.many:not([hidden])) #timer-pill:not([hidden]) { top: 136px; }
   .screen-result #info-card:has(#round-strip:not([hidden])) { top: 54px; left: 10px; right: 10px; transform: none; padding: 5px 4px; }
 }
+
+/* PC: 縮小しているときの回答マップ（マウスを乗せると広がるのは今までどおり） */
+@media (min-width: 721px) {
+  .screen-game #map-dock { width: 300px; height: calc(190px + 60px); }
+}
