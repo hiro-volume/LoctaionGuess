@@ -2430,3 +2430,19 @@ html.no-anim #btn-checkpoint.cp-pop { animation: none; }
 @media (max-width: 860px) { .key-grid { grid-template-columns: 1fr; } }
 /* スマホにはキーボードがないので、タブは出さない */
 @media (max-width: 720px) { .gs-tabs { display: none; } }
+
+/* ================================================================ お知らせ: 更新履歴のタブ */
+.bell-tabs { display: flex; gap: 4px; margin: 0 0 10px; }
+.bell-tabs button {
+  flex: 1; padding: 7px 0; border-radius: 10px; border: 0; background: transparent; color: var(--muted);
+  font: inherit; font-size: 13px; font-weight: 800; cursor: pointer;
+}
+.bell-tabs button:hover { color: var(--text); }
+.bell-tabs button.active { background: var(--bg-2); color: #fff; }
+#bell-log > li { font-size: 12px; line-height: 1.5; }
+.log-head { display: flex; align-items: center; gap: 8px; width: 100%; }
+.log-head b { font-family: var(--font-display); }
+.log-head em { font-style: normal; font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: rgba(47,179,107,.2); color: var(--btn-hi); }
+.log-head small { margin-left: auto; color: var(--muted); font-size: 11px; }
+#bell-log ul { margin: 2px 0 0; padding-left: 16px; color: var(--muted); font-size: 11px; }
+#bell-log ul li { display: list-item; padding: 0; background: none; border: 0; }

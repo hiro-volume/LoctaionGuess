@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.76";
+const APP_VERSION = "1.77";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -1427,10 +1427,27 @@ function renderBell() {
     </li>`).join("") || '<li class="empty">お知らせはありません</li>';
 }
 
+// 更新履歴（新しいものが上）。開いたときに初めて作る
+function renderChangelog() {
+  $("bell-log").innerHTML = (window.LG_CHANGELOG || []).map((e) => `<li>
+      <div class="log-head"><b>v${escapeHtml(e.v)}</b>${e.v === APP_VERSION ? '<em>いまのバージョン</em>' : ""}<small>${escapeHtml(e.date.replace(/-/g, "/"))}</small></div>
+      <span>${escapeHtml(e.title)}</span>
+      ${e.items.length ? `<ul>${e.items.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ul>` : ""}
+    </li>`).join("") || '<li class="empty">更新履歴はありません</li>';
+}
+
+function setBellTab(tab) {
+  document.querySelectorAll("[data-bell-tab]").forEach((b) => b.classList.toggle("active", b.dataset.bellTab === tab));
+  $("bell-list").hidden = tab !== "notices";
+  $("bell-log").hidden = tab !== "log";
+  if (tab === "log" && !$("bell-log").children.length) renderChangelog();
+}
+
 function toggleBell(open = $("bell-panel").hidden) {
   $("bell-panel").hidden = !open;
   $("btn-bell").setAttribute("aria-expanded", String(open));
   if (open) {
+    setBellTab("notices");
     notices.forEach((n) => { n.unread = false; });
     $("bell-badge").hidden = true;
     refreshBell();
@@ -1454,6 +1471,7 @@ async function refreshBell() {
 
 function bindBell() {
   $("btn-bell").addEventListener("click", () => toggleBell());
+  document.querySelectorAll("[data-bell-tab]").forEach((b) => b.addEventListener("click", () => setBellTab(b.dataset.bellTab)));
   $("bell-list").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-i]");
     if (b && notices[Number(b.dataset.i)]) notices[Number(b.dataset.i)].action();

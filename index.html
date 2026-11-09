@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.76">
+  <link rel="stylesheet" href="style.css?v=1.77">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -760,9 +760,13 @@
     <button id="btn-bell" class="tb-bell" aria-label="お知らせ" aria-expanded="false"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span id="bell-badge" class="tb-badge" hidden>0</span></button>
     <button id="btn-profile" class="tb-user" title="プロフィールを編集"><span id="tb-avatar"></span><span id="tb-name" class="tb-name"></span></button>
     <section id="bell-panel" class="bell-panel" hidden aria-label="お知らせ">
-      <h4>お知らせ</h4>
+      <div class="bell-tabs" role="tablist">
+        <button data-bell-tab="notices" class="active" role="tab">お知らせ</button>
+        <button data-bell-tab="log" role="tab">更新履歴</button>
+      </div>
       <p id="bell-status" class="bell-status"></p>
       <ul id="bell-list" class="bell-list"></ul>
+      <ul id="bell-log" class="bell-list" hidden></ul>
     </section>
   </div>
 
@@ -806,14 +810,15 @@
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.76"></script>
-  <script src="hiroshima-boundary.js?v=1.76"></script>
-  <script src="world-boundary.js?v=1.76"></script>
-  <script src="region-boundary.js?v=1.76"></script>
-  <script src="regions.js?v=1.76"></script>
+  <script src="config.js?v=1.77"></script>
+  <script src="hiroshima-boundary.js?v=1.77"></script>
+  <script src="world-boundary.js?v=1.77"></script>
+  <script src="region-boundary.js?v=1.77"></script>
+  <script src="regions.js?v=1.77"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="app.js?v=1.76"></script>
-  <script src="multiplayer.js?v=1.76"></script>
+  <script src="changelog.js?v=1.77"></script>
+  <script src="app.js?v=1.77"></script>
+  <script src="multiplayer.js?v=1.77"></script>
 </body>
 </html>
