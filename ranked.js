@@ -199,35 +199,44 @@ function rankEmblem(tierId, size = 48, div = 0) {
   </svg>`;
 }
 
-// チャンピオンだけの特別なマーク（金の縁、二段の翼、宝石の冠、控えめな後光）
+// チャンピオンだけの特別なマーク（燕尾の旗、コンパスの星、冠、三枚の翼）
 function championEmblem(size) {
   const u = `re${++emblemSeq}`;
   const px = Math.round(size * 1.16);
-  const star = (cx, cy, outer, inner, n, rot = 0) => Array.from({ length: n * 2 }, (_, i) => {
-    const r = i % 2 ? inner : outer;
-    const t = rot + (i * Math.PI) / n;
-    return `${(cx + r * Math.sin(t)).toFixed(1)},${(cy - r * Math.cos(t)).toFixed(1)}`;
-  }).join(" ");
-  const feather = `<path d="M11 10C0 9-9 18-11 31c5-5 11-7 18-7z" fill="url(#${u}g)" stroke="#7f5005" stroke-width=".7"/><path d="M10 22C0 23-8 31-10 42c5-4 10-6 17-6z" fill="url(#${u}b)" stroke="#fff3b0" stroke-width="1"/>`;
-  return `<svg class="rank-emblem" viewBox="-14 -14 92 92" width="${px}" height="${px}" aria-hidden="true">
+  const wing = `<path d="M108 92 46 60 30 92 100 128z" fill="url(#${u}a)" stroke="#c6f7ff" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M108 138 38 118 28 152 104 170z" fill="url(#${u}b)" stroke="#8fe8ff" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M108 182 54 178 50 208 106 214z" fill="url(#${u}a)" stroke="#c6f7ff" stroke-width="2.5" stroke-linejoin="round"/>`;
+  return `<svg class="rank-emblem" viewBox="12 0 296 296" width="${px}" height="${px}" aria-hidden="true">
     <defs>
-      <linearGradient id="${u}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fe3ff"/><stop offset=".5" stop-color="#1ea2f2"/><stop offset="1" stop-color="#0a2a78"/></linearGradient>
-      <linearGradient id="${u}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6c2"/><stop offset=".5" stop-color="#f7c23a"/><stop offset="1" stop-color="#b9770e"/></linearGradient>
-      <radialGradient id="${u}h"><stop offset=".3" stop-color="#8fe8ff" stop-opacity=".45"/><stop offset="1" stop-color="#28b4ff" stop-opacity="0"/></radialGradient>
-      <linearGradient id="${u}d" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#7fdcff"/></linearGradient>
+      <radialGradient id="${u}h"><stop offset=".25" stop-color="#7fe3ff" stop-opacity=".42"/><stop offset="1" stop-color="#28b4ff" stop-opacity="0"/></radialGradient>
+      <linearGradient id="${u}i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#c6f7ff"/><stop offset="1" stop-color="#62d6ff"/></linearGradient>
+      <linearGradient id="${u}a" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fe8ff"/><stop offset=".55" stop-color="#1ea2f2"/><stop offset="1" stop-color="#0d3f9c"/></linearGradient>
+      <linearGradient id="${u}b" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3cc4ff"/><stop offset="1" stop-color="#0a2a78"/></linearGradient>
+      <linearGradient id="${u}n" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0a2a66"/><stop offset=".6" stop-color="#071b47"/><stop offset="1" stop-color="#04102e"/></linearGradient>
+      <linearGradient id="${u}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6c2"/><stop offset=".55" stop-color="#f7c23a"/><stop offset="1" stop-color="#b9770e"/></linearGradient>
     </defs>
-    <circle cx="32" cy="30" r="45" fill="url(#${u}h)"/>
-    <polygon points="${star(32, 30, 41, 34, 16)}" fill="#28b4ff" opacity=".32"/>
-    ${feather}<g transform="translate(64 0) scale(-1 1)">${feather}</g>
-    <path d="M32 3 57 12v20c0 15-12 25-25 29C19 57 7 47 7 32V12z" fill="url(#${u}g)" stroke="#7f5005" stroke-width=".8" stroke-linejoin="round"/>
-    <path d="M32 7 53.5 14.8V32c0 12.7-10.2 21.5-21.5 25.3C20.7 53.5 10.5 44.7 10.5 32V14.8z" fill="url(#${u}b)" stroke="#fff3b0" stroke-width=".8"/>
-    <path d="M32 7 53.5 14.8V27C42 22 22 22 10.5 27V14.8z" fill="#fff" opacity=".13"/>
-    <path d="M16 39 13 19l9 7.5L32 11l10 15.5 9-7.5-3 20z" fill="url(#${u}g)" stroke="#7f5005" stroke-width="1" stroke-linejoin="round"/>
-    <circle cx="13" cy="18" r="2.6" fill="#fff" stroke="#b9770e" stroke-width=".8"/><circle cx="32" cy="9.5" r="3" fill="#fff" stroke="#b9770e" stroke-width=".8"/><circle cx="51" cy="18" r="2.6" fill="#fff" stroke="#b9770e" stroke-width=".8"/>
-    <rect x="16" y="40.5" width="32" height="6" rx="2" fill="url(#${u}g)" stroke="#7f5005" stroke-width=".8"/>
-    <circle cx="23" cy="43.5" r="1.7" fill="#28b4ff"/><circle cx="32" cy="43.5" r="1.9" fill="#e5392f"/><circle cx="41" cy="43.5" r="1.7" fill="#28b4ff"/>
-    <path d="M32 21l7.5 6.5L32 38l-7.5-10.5z" fill="url(#${u}d)" stroke="#0a2a78" stroke-width="1"/><path d="M24.5 27.5h15M32 21v17" stroke="#28b4ff" stroke-width=".8" opacity=".8"/>
-    <polygon points="${star(32, -3, 5.5, 1.6, 4)}" fill="#fff"/>
+    <circle cx="160" cy="160" r="146" fill="url(#${u}h)"/>
+    <polygon points="160,30 272,95 272,225 160,290 48,225 48,95" fill="#0a2a66" fill-opacity=".55" stroke="#62d6ff" stroke-opacity=".55" stroke-width="3" stroke-linejoin="round"/>
+    <polygon points="160,44 260,102 260,218 160,276 60,218 60,102" fill="none" stroke="#c6f7ff" stroke-opacity=".3" stroke-width="1.5" stroke-linejoin="round"/>
+    ${wing}<g transform="translate(320 0) scale(-1 1)">${wing}</g>
+    <rect x="96" y="60" width="128" height="10" rx="5" fill="url(#${u}g)" stroke="#7f5005"/>
+    <circle cx="96" cy="65" r="8" fill="url(#${u}g)" stroke="#7f5005"/><circle cx="224" cy="65" r="8" fill="url(#${u}g)" stroke="#7f5005"/>
+    <path d="M108 68H212V270L160 236 108 270z" fill="url(#${u}n)" stroke="url(#${u}i)" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M117 77H203V252L160 224 117 252z" fill="none" stroke="#28b4ff" stroke-width="1.8" stroke-linejoin="round"/>
+    <g transform="translate(160 128)">
+      <polygon points="0,-44 8,-8 44,0 8,8 0,44 -8,8 -44,0 -8,-8" fill="url(#${u}i)" stroke="#0a2a66" stroke-width="1.5" stroke-linejoin="round"/>
+      <polygon points="0,-24 5,-5 24,0 5,5 0,24 -5,5 -24,0 -5,-5" fill="#28b4ff" transform="rotate(45)" opacity=".9"/>
+      <circle r="7.5" fill="url(#${u}g)" stroke="#7f5005"/><circle r="3" cx="-1.5" cy="-1.5" fill="#fff" opacity=".85"/>
+    </g>
+    <path d="M128 204 160 182 192 204v11l-32-22-32 22z" fill="url(#${u}i)"/>
+    <path d="M136 228 160 211 184 228v9l-24-17-24 17z" fill="#62d6ff"/>
+    <g stroke-linejoin="round">
+      <path d="M124 54 118 22l14 10 12-20 16 24 16-24 12 20 14-10-6 32z" fill="url(#${u}i)" stroke="#0a2a66" stroke-width="1.8"/>
+      <rect x="124" y="50" width="72" height="9" rx="3" fill="url(#${u}g)" stroke="#7f5005"/>
+      <circle cx="118" cy="20" r="4.5" fill="url(#${u}g)" stroke="#7f5005" stroke-width=".8"/><circle cx="144" cy="10" r="4.5" fill="url(#${u}g)" stroke="#7f5005" stroke-width=".8"/>
+      <circle cx="176" cy="10" r="4.5" fill="url(#${u}g)" stroke="#7f5005" stroke-width=".8"/><circle cx="202" cy="20" r="4.5" fill="url(#${u}g)" stroke="#7f5005" stroke-width=".8"/>
+      <polygon points="160,26 167,38 160,50 153,38" fill="#28b4ff" stroke="#fff" stroke-width="1.5"/>
+    </g>
   </svg>`;
 }
 
