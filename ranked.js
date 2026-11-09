@@ -332,7 +332,7 @@ function rankedSubmit(timedOut) {
   if (r.npcPick) return finishRankedRound(g);
   shortenRankedTimer();
   rankedNote(`ピックしました。${r.npc.name} を待っています…`);
-  scheduleNpcPick(g, randomBetween(1.5, 7));
+  scheduleNpcPick(g, randomBetween(1, 4));
   renderRankedHud();
 }
 
@@ -372,6 +372,7 @@ function finishRankedRound(g) {
   state.map.setOptions({ draggableCursor: null });
   setScreen("result");
   renderRankedHud(change);
+  renderRoundStrip();
   const last = g.index + 1 >= g.rounds || (!r.placing && (r.myLife <= 0 || r.npcLife <= 0));
   const headline = diff === 0 ? "引き分け！"
     : r.placing ? (diff > 0 ? "このラウンドはあなたの勝ち！" : `${r.npc.name} の勝ち`)
@@ -382,16 +383,19 @@ function finishRankedRound(g) {
     <div class="rs-side rs-left">
       <div class="rs-big rs-score" data-count="${mine.score}">0</div>
       <div class="rs-cap">あなた ・ ${missed ? "時間切れ" : formatDistance(mine.distance)}</div>
+      ${r.placing ? "" : lifeDrainHtml(change.myFrom, r.myLife, MATCH_LIFE)}
       ${answerCountryHtml(g, g.answer)}
     </div>
     <div class="rs-side rs-right">
       <div class="rs-big rs-score">${npc.score.toLocaleString()}</div>
       <div class="rs-cap">${escapeHtml(r.npc.name)} ・ ${formatDistance(npc.distance)}</div>
+      ${r.placing ? "" : lifeDrainHtml(change.npcFrom, r.npcLife, MATCH_LIFE)}
     </div>`;
   $("btn-next").textContent = last ? "結果を見る" : "次のラウンドへ";
   $("btn-end").hidden = true;
   setResultButtons(false, false);
   $("result").hidden = false;
+  animateLifeDrain($("result-text"));
   animateCounts($("result-text"));
   fitResults([mine, { guess: npc.guess, answer: g.answer }], { top: 130, bottom: 90, left: 60, right: 60 });
 }
@@ -862,7 +866,6 @@ function renderRankedHud(change) {
   const mult = r.placing ? "" : `<em class="rh-mult"><b>×${ROUND_MULTIPLIERS[Math.min(g.index, ROUND_MULTIPLIERS.length - 1)]}</b></em>`;
   hud.innerHTML = `
     ${rankedSideHtml("red", true, me.avatar.glyph, me.avatar.color, me.name, rank.rp)}
-    <div class="rh-round"><b>${r.placing ? `認定戦 ${r.matchNo} / ${PLACEMENT_MATCHES}` : "コンペティティブ"}</b><span>ラウンド ${g.index + 1} / ${g.rounds}</span></div>
     ${mult}
     ${rankedSideHtml("blue", false, r.npc.glyph, r.npc.color, r.npc.name, r.npc.rp)}`;
   const max = r.placing ? g.rounds * MAX_SCORE : MATCH_LIFE;

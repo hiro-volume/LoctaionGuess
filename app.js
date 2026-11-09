@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.95";
+const APP_VERSION = "1.96";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -2194,9 +2194,11 @@ function hintHtml(g, answer) {
 function renderRoundStrip() {
   const g = state.game;
   const strip = $("round-strip");
-  const show = !!g && g.mode !== "life" && !g.team && !g.ranked && Number.isFinite(g.rounds);
+  const show = !!g && g.mode !== "life" && !g.team && Number.isFinite(g.rounds);
   strip.hidden = !show;
   if (!show) return;
+  strip.querySelector(".rd-head span").textContent = !g.ranked ? "ラウンド"
+    : g.ranked.placing ? `認定戦 ${g.ranked.matchNo} / ${PLACEMENT_MATCHES}` : "コンペティティブ";
   const scores = g.multi ? Array.from(g.roundScores || [], (n) => n || 0) : g.results.map((r) => r.score);
   // 結果の画面で、いま終わったラウンドの点数だけポンと弾ませる
   const justDone = app.className === "screen-result" && scores.length === g.index + 1;
@@ -2460,7 +2462,7 @@ function renderLifeHud() {
   const show = !!(g && g.mode === "life" && !g.team);
   $("life-hud").hidden = !show;
   $("ranked-hud").hidden = !(g && g.ranked);
-  $("info-card").hidden = show || !!(g && g.ranked);
+  $("info-card").hidden = show;
   if (!show) return;
   const fill = document.querySelector("#life-hud .lh-fill");
   const ratio = g.life / g.maxLife;
