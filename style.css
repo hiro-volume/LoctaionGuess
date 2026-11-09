@@ -2446,3 +2446,67 @@ html.no-anim #btn-checkpoint.cp-pop { animation: none; }
 .log-head small { margin-left: auto; color: var(--muted); font-size: 11px; }
 #bell-log ul { margin: 2px 0 0; padding-left: 16px; color: var(--muted); font-size: 11px; }
 #bell-log ul li { display: list-item; padding: 0; background: none; border: 0; }
+
+/* ================================================================ ラウンド制: ラウンドごとの点数の帯 */
+#info-card:has(#round-strip:not([hidden])) .info { display: none; }
+.round-strip {
+  display: grid; grid-template-columns: auto auto; grid-template-areas: "head total" "slots total";
+  column-gap: 12px; row-gap: 3px; padding: 0 6px; align-items: center;
+}
+.rd-head { grid-area: head; display: flex; align-items: baseline; gap: 8px; font-size: 11px; color: var(--muted); padding-left: 4px; min-width: 0; }
+.rd-head b { color: #e8ecf2; font-size: 12px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-slots { grid-area: slots; display: grid; grid-template-columns: repeat(5, 52px); gap: 3px; }
+.round-strip.many .rd-slots { grid-template-columns: repeat(10, 42px); }
+.rd { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px 0 2px; border-radius: 8px; background: rgba(255,255,255,.04); }
+.rd svg { width: 19px; height: 24px; display: block; }
+.rd svg path { fill: rgba(255,255,255,.16); transition: fill .2s; }
+.rd svg text { font-size: 13px; font-weight: 800; fill: rgba(255,255,255,.5); font-family: var(--font-display); }
+.rd small { min-height: 14px; font-size: 12px; line-height: 14px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.rd.done svg path { fill: var(--accent); }
+.rd.done svg text { fill: #08121f; }
+.rd.now { background: rgba(47,179,107,.16); box-shadow: inset 0 0 0 1px rgba(47,179,107,.55); }
+.rd.now svg path { fill: var(--btn); }
+.rd.now svg text { fill: #fff; }
+.rd.just small { display: inline-block; animation: numPop .45s cubic-bezier(.2,1.6,.4,1); }
+html.no-anim .rd.just small { animation: none; }
+.rd-total { grid-area: total; display: flex; flex-direction: column; align-items: center; gap: 1px; padding-left: 12px; border-left: 1px solid rgba(255,255,255,.12); min-width: 66px; }
+.rd-total span { font-size: 11px; color: var(--muted); }
+.rd-total b { font-size: 21px; font-weight: 900; font-variant-numeric: tabular-nums; }
+
+/* 結果の画面でも、地図の上の真ん中に出す */
+.screen-result #info-card:has(#round-strip:not([hidden])) {
+  display: flex; position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5;
+  background: rgba(17, 21, 28, .88); border: 1px solid rgba(255,255,255,.15);
+  border-radius: 10px; padding: 8px 6px; box-shadow: 0 4px 16px rgba(0,0,0,.35);
+}
+@media (max-width: 1200px) { .screen-result #info-card:has(#round-strip:not([hidden])) { top: 56px; } }
+
+/* 帯が長くなるときは、方位と残り時間を帯の左の空いたところの真ん中に寄せる */
+@media (min-width: 721px) {
+  #stage:has(#round-strip.many:not([hidden])) #heading-tape,
+  #stage:has(#round-strip.many:not([hidden])) #timer-pill:not([hidden]) { left: calc((100% - var(--strip-w, 0px)) / 2); }
+}
+@media (min-width: 721px) and (max-width: 1100px) {
+  #stage:has(#round-strip:not([hidden])) #heading-tape,
+  #stage:has(#round-strip:not([hidden])) #timer-pill:not([hidden]) { left: calc((100% - var(--strip-w, 0px)) / 2); }
+}
+@media (max-width: 1000px) {
+  .round-strip.many .rd-slots { grid-template-columns: repeat(5, 46px); }
+}
+
+@media (max-width: 720px) {
+  .screen-game #info-card:has(#round-strip:not([hidden])) { padding: 5px 4px; }
+  .round-strip { width: 100%; grid-template-columns: 1fr auto; grid-template-areas: "slots total"; padding: 0 2px; column-gap: 8px; }
+  .rd-head { display: none; }
+  .rd-slots, .round-strip.many .rd-slots { grid-template-columns: repeat(5, 1fr); gap: 2px; }
+  .rd { padding: 2px 0 1px; }
+  .rd svg { width: 15px; height: 19px; }
+  .rd small { font-size: 11px; min-height: 13px; line-height: 13px; }
+  .rd-total { min-width: 56px; padding-left: 8px; }
+  .rd-total b { font-size: 16px; }
+  .rd-total span { font-size: 10px; }
+  /* 10ラウンドは2段になるので、その下に方位と残り時間を並べる */
+  #stage:has(#round-strip.many:not([hidden])) #heading-tape { top: 104px; }
+  #stage:has(#round-strip.many:not([hidden])) #timer-pill:not([hidden]) { top: 136px; }
+  .screen-result #info-card:has(#round-strip:not([hidden])) { top: 54px; left: 10px; right: 10px; transform: none; padding: 5px 4px; }
+}

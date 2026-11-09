@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.77";
+const APP_VERSION = "1.78";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -2084,6 +2084,33 @@ function bindGameKeys() {
   refreshKeyTitles();
 }
 
+// ---------------------------------------------------------------- ラウンドごとの点数（右上の帯）
+
+// ラウンド制のゲームで、ラウンドごとの点数と合計を見せる（ライフ制・チーム戦では出さない）
+function renderRoundStrip() {
+  const g = state.game;
+  const strip = $("round-strip");
+  const show = !!g && g.mode !== "life" && !g.team && Number.isFinite(g.rounds);
+  strip.hidden = !show;
+  if (!show) return;
+  const scores = g.multi ? Array.from(g.roundScores || [], (n) => n || 0) : g.results.map((r) => r.score);
+  // 結果の画面で、いま終わったラウンドの点数だけポンと弾ませる
+  const justDone = app.className === "screen-result" && scores.length === g.index + 1;
+  strip.classList.toggle("many", g.rounds > 5);
+  $("rd-area").textContent = g.area.name;
+  $("rd-slots").innerHTML = Array.from({ length: g.rounds }, (_, i) => {
+    const done = i < scores.length;
+    const cls = done ? `done${justDone && i === scores.length - 1 ? " just" : ""}` : i === g.index ? "now" : "";
+    return `<div class="rd ${cls}" aria-label="ラウンド ${i + 1}${done ? `: ${scores[i]} 点` : ""}">
+      <svg viewBox="0 0 24 30" aria-hidden="true"><path d="M12 1A10 10 0 0 0 2 11c0 7 10 18 10 18s10-11 10-18A10 10 0 0 0 12 1z"/><text x="12" y="15.5" text-anchor="middle">${i + 1}</text></svg>
+      <small>${done ? scores[i].toLocaleString() : ""}</small>
+    </div>`;
+  }).join("");
+  setCountingNumber($("rd-total"), scores.reduce((s, n) => s + n, 0));
+  // 帯が長いときに、方位と残り時間を帯のよけた真ん中に寄せるための幅
+  requestAnimationFrame(() => $("stage").style.setProperty("--strip-w", `${$("info-card").offsetWidth + 24}px`));
+}
+
 // ---------------------------------------------------------------- 結果の国旗
 
 // 国名は、地図データの正式名称だと長いものを短くする
@@ -3064,6 +3091,7 @@ async function startRound() {
   $("info-area").textContent = g.area.name;
   $("info-round").textContent = g.mode === "life" ? `${g.index + 1}` : `${g.index + 1} / ${g.rounds}`;
   setCountingNumber($("info-score"), g.results.reduce((s, r) => s + r.score, 0));
+  renderRoundStrip();
   renderHudLife();
   setScreen("game");
   drawArea(g.area);
@@ -3338,6 +3366,7 @@ function submitGuess(timedOut = false) {
   state.map.setOptions({ draggableCursor: null });
 
   setScreen("result");
+  renderRoundStrip();
   const last = g.mode === "life" ? g.life <= 0 : g.index + 1 >= g.rounds;
   const right = g.mode === "life"
     ? `<div class="rs-big rs-damage">−${result.damage.toLocaleString()}</div>

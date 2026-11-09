@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.77">
+  <link rel="stylesheet" href="style.css?v=1.78">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -510,6 +510,12 @@
         <div class="info"><span>エリア</span><b id="info-area"></b></div>
         <div class="info"><span>ラウンド</span><b id="info-round"></b></div>
         <div class="info"><span>スコア</span><b id="info-score"></b></div>
+        <!-- ラウンド制: ラウンドごとの点数と合計 -->
+        <div class="round-strip" id="round-strip" hidden>
+          <div class="rd-head"><span>ラウンド</span><b id="rd-area"></b></div>
+          <div class="rd-slots" id="rd-slots"></div>
+          <div class="rd-total"><span>合計</span><b id="rd-total">0</b></div>
+        </div>
         <div class="info" id="info-life-box" hidden>
           <span>ライフ</span><b id="info-life"></b>
           <span class="lifebar"><span></span></span>
@@ -810,15 +816,15 @@
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.77"></script>
-  <script src="hiroshima-boundary.js?v=1.77"></script>
-  <script src="world-boundary.js?v=1.77"></script>
-  <script src="region-boundary.js?v=1.77"></script>
-  <script src="regions.js?v=1.77"></script>
+  <script src="config.js?v=1.78"></script>
+  <script src="hiroshima-boundary.js?v=1.78"></script>
+  <script src="world-boundary.js?v=1.78"></script>
+  <script src="region-boundary.js?v=1.78"></script>
+  <script src="regions.js?v=1.78"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="changelog.js?v=1.77"></script>
-  <script src="app.js?v=1.77"></script>
-  <script src="multiplayer.js?v=1.77"></script>
+  <script src="changelog.js?v=1.78"></script>
+  <script src="app.js?v=1.78"></script>
+  <script src="multiplayer.js?v=1.78"></script>
 </body>
 </html>

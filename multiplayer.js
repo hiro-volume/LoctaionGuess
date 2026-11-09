@@ -710,6 +710,7 @@ function beginMultiRound(msg) {
   $("info-area").textContent = g.area.name;
   $("info-round").textContent = Number.isFinite(g.rounds) ? `${g.index + 1} / ${g.rounds}` : `${g.index + 1}`;
   setCountingNumber($("info-score"), g.total);
+  renderRoundStrip();
   renderHudLife();
   renderTeamHud();
   renderMpBoard();
@@ -1126,6 +1127,8 @@ function showMultiResult(msg) {
     g.history.push({ index: msg.index, ...msg.team });
   }
   renderTeamHud(msg.team);
+  (g.roundScores = g.roundScores || [])[msg.index] = mine ? mine.score : 0;
+  renderRoundStrip();
   $("result-text").innerHTML = `
     ${mine ? `<div class="rs-reaction"><span class="reaction${g.hardcore ? " extra" : ""}">${isRegionMode(g) ? regionReaction(g, mine) : reactionFor(missed ? null : mine.distance, g.hardcore)}</span></div>` : ""}
     <div class="rs-meta"><b>ラウンド ${msg.index + 1}${Number.isFinite(g.rounds) ? ` / ${g.rounds}` : ""}</b>${landmarkHtml(answer)}${mapsLink(answer)}</div>
