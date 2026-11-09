@@ -859,10 +859,11 @@ function renderRankedHud(change) {
   if (!r) return;
   const me = myProfile();
   const rank = loadRank();
-  const mult = r.placing ? "" : `<em class="rh-mult">×${ROUND_MULTIPLIERS[Math.min(g.index, ROUND_MULTIPLIERS.length - 1)]}</em>`;
+  const mult = r.placing ? "" : `<em class="rh-mult"><b>×${ROUND_MULTIPLIERS[Math.min(g.index, ROUND_MULTIPLIERS.length - 1)]}</b></em>`;
   hud.innerHTML = `
     ${rankedSideHtml("red", false, r.npc.glyph, r.npc.color, r.npc.name, r.npc.rp)}
-    <div class="rh-round"><b>${r.placing ? `認定戦 ${r.matchNo} / ${PLACEMENT_MATCHES}` : "コンペティティブ"}</b><span>ラウンド ${g.index + 1} / ${g.rounds}</span>${mult}</div>
+    <div class="rh-round"><b>${r.placing ? `認定戦 ${r.matchNo} / ${PLACEMENT_MATCHES}` : "コンペティティブ"}</b><span>ラウンド ${g.index + 1} / ${g.rounds}</span></div>
+    ${mult}
     ${rankedSideHtml("blue", true, me.avatar.glyph, me.avatar.color, me.name, rank.rp)}`;
   const max = r.placing ? g.rounds * MAX_SCORE : MATCH_LIFE;
   const sides = [
