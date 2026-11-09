@@ -599,6 +599,122 @@ function finishRankShow(rp) {
   });
 }
 
+// ---- チャンピオンに到達したときの、全画面のお祝い
+
+// 打ち上げ花火と紙吹雪。止めるときは返した関数を呼ぶ
+function startChampionFireworks(canvas) {
+  const ctx = canvas.getContext("2d");
+  const fit = () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  };
+  fit();
+  window.addEventListener("resize", fit);
+  const COLORS = ["#62d6ff", "#c6f7ff", "#ffffff", "#ffd23f", "#28b4ff", "#ff6fa3"];
+  const pick = () => COLORS[Math.floor(rand() * COLORS.length)];
+  const sparks = [];
+  const confetti = Array.from({ length: 150 }, () => ({
+    x: rand() * canvas.width, y: -rand() * canvas.height * 1.4, vy: 1.6 + rand() * 2.6, sway: rand() * 6, size: 5 + rand() * 7, rot: rand() * 6, spin: (rand() - 0.5) * 0.25, color: pick(),
+  }));
+  const shell = () => {
+    const x = canvas.width * (0.12 + rand() * 0.76);
+    const y = canvas.height * (0.12 + rand() * 0.48);
+    const color = pick();
+    const count = 90 + Math.floor(rand() * 60);
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2;
+      const speed = 2 + rand() * 6.5;
+      sparks.push({ x, y, px: x, py: y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 1, fade: 0.008 + rand() * 0.012, color: rand() < 0.25 ? "#ffffff" : color });
+    }
+  };
+  let running = true;
+  let nextShell = 0;
+  const begin = performance.now();
+  const step = (now) => {
+    if (!running) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (now >= nextShell) {
+      shell();
+      if (now - begin < 900) shell();
+      nextShell = now + 260 + rand() * 520;
+    }
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineCap = "round";
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const p = sparks[i];
+      p.px = p.x;
+      p.py = p.y;
+      p.vx *= 0.985;
+      p.vy = p.vy * 0.985 + 0.05;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= p.fade;
+      if (p.life <= 0) {
+        sparks.splice(i, 1);
+        continue;
+      }
+      ctx.globalAlpha = p.life;
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(p.px, p.py);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 0.95;
+    confetti.forEach((c) => {
+      c.y += c.vy;
+      c.rot += c.spin;
+      if (c.y > canvas.height + 20) c.y = -20;
+      ctx.save();
+      ctx.translate(c.x + Math.sin(c.y / 40 + c.sway) * 16, c.y);
+      ctx.rotate(c.rot);
+      ctx.fillStyle = c.color;
+      ctx.fillRect(-c.size / 2, -c.size / 3, c.size, c.size * 0.62);
+      ctx.restore();
+    });
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+  return () => {
+    running = false;
+    window.removeEventListener("resize", fit);
+  };
+}
+
+function playChampionShow(rp) {
+  return new Promise((resolve) => {
+    const me = myProfile();
+    const box = document.createElement("div");
+    box.id = "champion-show";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-modal", "true");
+    box.setAttribute("aria-label", "チャンピオンに到達しました");
+    box.innerHTML = `
+      <div class="cs-rays"></div>
+      <canvas class="cs-fx"></canvas>
+      <div class="cs-flash"></div>
+      <div class="cs-body">
+        <div class="cs-emblem">${rankEmblem("champion", 300)}</div>
+        <h1 class="cs-title" aria-label="CHAMPION">${[..."CHAMPION"].map((ch, i) => `<span style="--i:${i}">${ch}</span>`).join("")}</h1>
+        <p class="cs-rankname rank-c-champion">チャンピオン到達</p>
+        <p class="cs-player">${escapeHtml(me.name)} ・ ${rp.toLocaleString()} RP</p>
+        <p class="cs-line">最高ランクの頂点へ。世界はもう、あなたの庭です。</p>
+        <button type="button" class="btn-hero small cs-ok">続ける</button>
+      </div>`;
+    document.body.appendChild(box);
+    const stop = state.prefs && state.prefs.anim ? startChampionFireworks(box.querySelector(".cs-fx")) : () => {};
+    const ok = box.querySelector(".cs-ok");
+    ok.addEventListener("click", () => {
+      stop();
+      box.remove();
+      resolve();
+    }, { once: true });
+  });
+}
+
 async function playRankShow(show, rp) {
   const now = rankOf(rp);
   const animate = !!(state.prefs && state.prefs.anim);
@@ -675,6 +791,8 @@ async function playRankShow(show, rp) {
     if (!alive()) return;
     setRankBar(rankPct(now), 700);
     await wait(1100);
+    if (!alive()) return;
+    if (now.tier.id === "champion") await playChampionShow(rp);
   } else {
     setRankBar(0, 700);
     await wait(760);
