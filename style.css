@@ -2391,8 +2391,13 @@ html.no-anim .timer-ring .bar { transition: none; filter: none; }
 #btn-checkpoint.cp-pop { animation: numPop .4s cubic-bezier(.2,1.6,.4,1); }
 html.no-anim #btn-checkpoint.cp-pop { animation: none; }
 
-/* 押している間は、景色と残り時間だけにする */
-#stage.hide-ui > :not(#pano):not(#timer-pill) { visibility: hidden; }
+/* 表示を隠す: 景色とボタンだけにする（設定や読み込みの画面は隠さない） */
+#stage.hide-ui > :not(#pano):not(#game-controls):not(#game-settings):not(#loading):not(#round-countdown) { visibility: hidden; }
+#stage.hide-ui #game-controls > :not(#btn-hide-ui) { visibility: hidden; }
+#btn-hide-ui .eye-off { display: none; }
+#btn-hide-ui.active .eye-on { display: none; }
+#btn-hide-ui.active .eye-off { display: block; }
+#btn-hide-ui.active, #btn-hide-ui.active:hover { background: var(--accent); border-color: var(--accent); color: #08121f; }
 
 /* ================================================================ 設定: 全般とキー設定のタブ */
 #gs-general { display: flex; flex-direction: column; gap: 6px; }

@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.83";
+const APP_VERSION = "1.84";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -454,6 +454,7 @@ function drawArea(area, fit = true) {
 function setScreen(name) {
   app.className = `screen-${name}`;
   setDockFull(false);
+  setHideUi(false);
   $("topbar").hidden = !["title", "mode", "select", "lobby"].includes(name);
   if (state.prefs) applyPrefs();
   // 古いバージョンだとわかっていたら、メニューに戻ったところで遊べないようにする
@@ -1912,7 +1913,7 @@ const KEY_ACTIONS = [
     { id: "cpBack", name: "チェックポイントに戻る", desc: "置いた場所へ戻る（1回だけ）", key: "KeyC" },
     { id: "undo", name: "一手戻す", desc: "ひとつ前にいた場所に戻る", key: "KeyZ" },
     { id: "north", name: "北を向く", desc: "カメラを北に向ける", key: "KeyN" },
-    { id: "hideUi", name: "画面の表示を隠す", desc: "押している間、景色と残り時間だけにする", key: "KeyV" },
+    { id: "hideUi", name: "表示を隠す／戻す", desc: "押すたびに、景色とこのボタンだけの画面に切り替える", key: "KeyV" },
   ] },
   { group: "移動", items: [
     { id: "forward", name: "前に進む", desc: "向いている方向の道へ進む", key: "KeyW" },
@@ -1985,7 +1986,26 @@ function pressLook(id) {
 function releaseHeldKeys() {
   heldKeys.clear();
   heldLook.clear();
-  $("stage").classList.remove("hide-ui");
+}
+
+// 表示を隠す: 景色とこのボタンだけにする（Google のロゴなどの表記は、ストリートビューの一部なので残る）
+function setHideUi(on) {
+  const stage = $("stage");
+  if (!stage || stage.classList.contains("hide-ui") === !!on) return;
+  stage.classList.toggle("hide-ui", !!on);
+  const btn = $("btn-hide-ui");
+  btn.classList.toggle("active", !!on);
+  btn.setAttribute("aria-pressed", String(!!on));
+  // 道の上の矢印も一緒に隠す（クリックで進むのはそのまま）
+  const g = state.game;
+  if (state.pano && g) state.pano.setOptions({ linksControl: !on && !!g.move });
+  refreshHideUiTitle();
+}
+
+function refreshHideUiTitle() {
+  const label = `${$("stage").classList.contains("hide-ui") ? "表示を戻す" : "表示を隠す"}（${keyLabel("hideUi")}）`;
+  $("btn-hide-ui").title = label;
+  $("btn-hide-ui").setAttribute("aria-label", label);
 }
 
 function clickIfShown(id) {
@@ -2000,7 +2020,7 @@ const KEY_RUN = {
   cpBack: returnToCheckpoint,
   undo: undoMove,
   north: () => $("compass").click(),
-  hideUi: () => $("stage").classList.add("hide-ui"),
+  hideUi: () => setHideUi(!$("stage").classList.contains("hide-ui")),
   forward: () => stepPano(false),
   back: () => stepPano(true),
   left: () => pressLook("left"),
@@ -2013,7 +2033,7 @@ const KEY_RUN = {
   },
 };
 // 押し続けても1回だけ動かすもの
-const KEY_ONCE = new Set(["guess", "start", "cpSet", "cpBack", "north", "fullscreen"]);
+const KEY_ONCE = new Set(["guess", "start", "cpSet", "cpBack", "north", "hideUi", "fullscreen"]);
 
 function stopKeyCapture() {
   state.keyCapture = null;
@@ -2066,7 +2086,6 @@ function onGameKeyUp(e) {
   if (!id) return;
   heldKeys.delete(e.code);
   if (id === "left" || id === "right") heldLook.delete(id);
-  if (id === "hideUi") $("stage").classList.remove("hide-ui");
 }
 
 function renderKeyList() {
@@ -2088,6 +2107,7 @@ function refreshKeyTitles() {
   $("btn-zoom-in").title = `ズームイン（${keyLabel("zoomIn")}）`;
   $("btn-zoom-out").title = `ズームアウト（${keyLabel("zoomOut")}）`;
   $("compass").title = `クリックで北を向く（${keyLabel("north")}）`;
+  refreshHideUiTitle();
   // 結果画面の「続けるには ○○ を押して」も、今のキーに合わせる
   $("rs-key").querySelector("kbd").textContent = keyLabel("guess");
   $("rs-key").hidden = !keyOf("guess");
@@ -2121,6 +2141,7 @@ function bindGameKeys() {
     renderKeyList();
     refreshKeyTitles();
   });
+  $("btn-hide-ui").addEventListener("click", () => setHideUi(!$("stage").classList.contains("hide-ui")));
   $("btn-checkpoint").addEventListener("click", () => {
     if (state.game && state.game.checkpoint) returnToCheckpoint();
     else setCheckpoint();
