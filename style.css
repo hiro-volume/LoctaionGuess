@@ -2651,7 +2651,7 @@ html.no-anim .rs-hint { animation: none; }
   padding: 3px 12px; border-radius: 999px; background: rgba(11,17,32,.82); border: 1px solid rgba(255,255,255,.14); font-size: 11px; color: #cdd6e8;
 }
 .rh-round b { font-size: 11px; color: #fff; }
-#stage:has(#ranked-hud:not([hidden])) #hurry-note { top: 146px; }
+#stage:has(#ranked-hud:not([hidden])) #hurry-note { top: 134px; }
 /* 結果の画面: 左上のラウンド表示を、体力バーの下に下げる */
 .screen-result:has(#ranked-hud:not([hidden])) { --tbar: 84px; }
 .screen-result #ranked-hud .rh-round { top: 70px; }
@@ -2768,21 +2768,7 @@ html.no-anim .rk-stage.burst .rk-rays, html.no-anim .rk-stage.burst .rk-ring, ht
 html.no-anim #champion-show, html.no-anim #champion-show * { animation: none !important; }
 html.no-anim .cs-flash { display: none; }
 
-/* ================================================================ コンペティティブ: ラウンドと倍率の液体ガラス */
-.rh-round {
-  align-items: center; padding: 4px 6px 4px 14px; overflow: hidden;
-  background: linear-gradient(135deg, rgba(255,255,255,.2), rgba(255,255,255,.05) 55%, rgba(255,255,255,.14));
-  border: 1px solid rgba(255,255,255,.42);
-  -webkit-backdrop-filter: blur(12px) saturate(190%); backdrop-filter: blur(12px) saturate(190%);
-  box-shadow: 0 8px 24px rgba(0,0,0,.28), inset 0 1px 1px rgba(255,255,255,.7), inset 0 -1px 2px rgba(255,255,255,.22), inset 0 -8px 14px rgba(120,190,255,.12);
-  color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.55);
-}
-.rh-round::before {
-  content: ""; position: absolute; left: 8px; right: 8px; top: 1px; height: 45%; border-radius: 999px; pointer-events: none;
-  background: linear-gradient(180deg, rgba(255,255,255,.42), rgba(255,255,255,0));
-}
-.rh-round > * { position: relative; }
-.rh-round { padding-right: 14px; }
+/* ================================================================ コンペティティブ: 倍率の液体ガラス */
 /* 倍率: 自分の体力バーのすぐ右に、角の丸い少し歪んだ四角形のガラスで大きく出す */
 .rh-mult {
   position: absolute; top: 8px; left: calc(12px + min(34vw, 360px) + 12px); z-index: 1;
@@ -2803,7 +2789,6 @@ html.no-anim .cs-flash { display: none; }
   .rh-mult b { font-size: 24px; }
 }
 @media (max-width: 720px) {
-  .rh-round { padding: 2px 11px; }
   /* スマホ: 2本のバーの間に置けるように、バーを少し短くする */
   #ranked-hud .tg { width: calc(50vw - 42px); }
   .rh-mult { top: 8px; left: 50%; right: auto; margin-left: -27px; min-width: 54px; height: 38px; padding: 0 6px; border-radius: 11px; }
