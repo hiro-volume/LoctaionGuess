@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.81";
+const APP_VERSION = "1.82";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -1808,6 +1808,7 @@ function stopRoundCountdown() {
 function resetRoundTools() {
   const g = state.game;
   g.checkpoint = null;
+  g.cpUsedAt = null;
   g.trail = [];
   state.lastPano = null;
   $("btn-checkpoint").hidden = !g.move;
@@ -1815,16 +1816,18 @@ function resetRoundTools() {
 }
 
 // 置く前: 押すと置ける ／ 置いた場所にいる間: 押せない ／ 移動したら: 押すと戻れる
+// 戻るのは1回きり。戻るとチェックポイントはなくなり、そこから移動すると、また置けるようになる
 function updateCheckpointButton() {
   const btn = $("btn-checkpoint");
   const g = state.game;
   const cp = g && g.checkpoint;
   const away = !!(cp && state.pano && state.pano.getPano() !== cp.pano);
-  btn.disabled = !!cp && !away;
+  const justUsed = !!(g && !cp && g.cpUsedAt && state.pano && state.pano.getPano() === g.cpUsedAt);
+  btn.disabled = (!!cp && !away) || justUsed;
   btn.classList.toggle("cp-set", !!cp);
   const label = cp
     ? (away ? `チェックポイントに戻る（${keyLabel("cpBack")}）` : "チェックポイントにいます")
-    : `チェックポイントを置く（${keyLabel("cpSet")}）`;
+    : justUsed ? "移動すると、また置けます" : `チェックポイントを置く（${keyLabel("cpSet")}）`;
   btn.title = label;
   btn.setAttribute("aria-label", label);
 }
@@ -1833,6 +1836,8 @@ function updateCheckpointButton() {
 function setCheckpoint(again = false) {
   const g = state.game;
   if (!g || !g.answer || !g.move || !state.pano || state.spectating || (g.checkpoint && !again)) return;
+  if (g.cpUsedAt && state.pano.getPano() === g.cpUsedAt) return;
+  g.cpUsedAt = null;
   g.checkpoint = { pano: state.pano.getPano(), pov: { ...state.pano.getPov() }, zoom: state.pano.getZoom() };
   updateCheckpointButton();
   const btn = $("btn-checkpoint");
@@ -1845,6 +1850,9 @@ function returnToCheckpoint() {
   const g = state.game;
   const cp = g && g.checkpoint;
   if (!cp || !state.pano || state.spectating || state.pano.getPano() === cp.pano) return;
+  // 戻れるのは1回だけ
+  g.checkpoint = null;
+  g.cpUsedAt = cp.pano;
   const restore = () => {
     state.pano.setPov(cp.pov);
     state.pano.setZoom(cp.zoom);
@@ -1852,6 +1860,7 @@ function returnToCheckpoint() {
   google.maps.event.addListenerOnce(state.pano, "pano_changed", () => setTimeout(restore, 0));
   state.pano.setPano(cp.pano);
   restore();
+  updateCheckpointButton();
 }
 
 // 動いた先を覚えておく（一手戻すため）。チェックポイントのボタンの状態もここで変わる
@@ -1900,7 +1909,7 @@ const KEY_ACTIONS = [
     { id: "guess", name: "決定する／次へ", desc: "ピンを決定する。結果画面では次へ進む", key: "Space" },
     { id: "start", name: "出発地点に戻る", desc: "ラウンドの最初の場所に戻る", key: "KeyR" },
     { id: "cpSet", name: "チェックポイントを置く", desc: "今いる場所に置く（置き直しもできる）", key: "Shift+KeyC" },
-    { id: "cpBack", name: "チェックポイントに戻る", desc: "置いた場所へ戻る", key: "KeyC" },
+    { id: "cpBack", name: "チェックポイントに戻る", desc: "置いた場所へ戻る（1回だけ）", key: "KeyC" },
     { id: "undo", name: "一手戻す", desc: "ひとつ前にいた場所に戻る", key: "KeyZ" },
     { id: "north", name: "北を向く", desc: "カメラを北に向ける", key: "KeyN" },
     { id: "hideUi", name: "画面の表示を隠す", desc: "押している間、景色と残り時間だけにする", key: "KeyV" },
