@@ -1852,8 +1852,10 @@ body.team-game #hurry-note { top: 132px; }
 /* 画面全体を少し暗くして、数え終わるまでは地図やストリートビューを触れないようにする */
 .screen-game #round-countdown:not([hidden]) {
   position: absolute; inset: 0; z-index: 20; display: grid; place-items: center;
-  background: rgba(6, 10, 20, .8); backdrop-filter: blur(8px);
+  background: rgba(6, 10, 20, .8);
 }
+/* 後ろをぼかすのは backdrop-filter ではなく、後ろの要素そのものにかける（ブラウザのタブに触れたときの黒い線を防ぐ） */
+#stage:has(#round-countdown:not([hidden])) > :not(#round-countdown) { filter: blur(8px); }
 .rc-ring {
   width: 170px; height: 170px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   background: radial-gradient(circle, rgba(11,17,32,.9) 60%, rgba(11,17,32,.65));
@@ -2385,7 +2387,6 @@ html.no-anim .timer-ring .bar { transition: none; filter: none; }
 }
 
 /* チェックポイント: 置いたら緑の旗に。置いた瞬間にポンと弾む */
-#btn-checkpoint.cp-set { color: var(--btn-hi); }
 #btn-checkpoint.cp-set svg path { fill: currentColor; fill-opacity: .35; }
 #btn-checkpoint.cp-pop { animation: numPop .4s cubic-bezier(.2,1.6,.4,1); }
 html.no-anim #btn-checkpoint.cp-pop { animation: none; }
@@ -2395,7 +2396,8 @@ html.no-anim #btn-checkpoint.cp-pop { animation: none; }
 
 /* ================================================================ 設定: 全般とキー設定のタブ */
 #gs-general { display: flex; flex-direction: column; gap: 6px; }
-.gs-panel { max-height: calc(var(--app-h) - 32px); overflow-y: auto; transition: width .2s; padding-right: 4px; }
+.gs-panel { transition: width .2s; }
+#gs-keys-list { max-height: calc(var(--app-h) - 300px); overflow-y: auto; padding-right: 4px; }
 .gs-panel.wide { width: min(860px, 100%); }
 .gs-tabs { display: flex; justify-content: center; gap: 6px; margin: -8px 0 14px; }
 .gs-tabs button {
@@ -2515,3 +2517,10 @@ html.no-anim .rd.just small { animation: none; }
 @media (min-width: 721px) {
   .screen-game #map-dock { width: 300px; height: calc(190px + 60px); }
 }
+
+/* ================================================================ ランキング: 部門をくわしく */
+.board-sub { flex-wrap: wrap; width: fit-content; max-width: 100%; margin-bottom: 8px; }
+.board-detail { margin: 0 0 16px; font-size: 12px; color: var(--muted); }
+#board-groups button.extra.active { background: linear-gradient(135deg, #e5392f, #ff7a29); box-shadow: 0 2px 8px rgba(229,57,47,.45); }
+.p-rules { font-size: 10px; color: var(--muted); max-width: 100%; text-align: center; line-height: 1.3; }
+.r-name small { display: block; font-size: 10px; font-weight: 500; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

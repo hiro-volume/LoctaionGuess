@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.79";
+const APP_VERSION = "1.80";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -1265,15 +1265,29 @@ function boardOf(g) {
   return isRegionMode(g) ? `${base}${pool}@${g.guessMode}` : `${base}${pool}`;
 }
 
-function boardLabel(key) {
+// ランキングの部門のキーを読み解く。group: rounds / life / extra（エクストラは別の枠）
+function boardInfo(key) {
   const [rulePart, guess] = key.split("@");
   const famous = rulePart.endsWith("~famous");
-  const rule = rulePart.replace("~famous", "");
-  const [mode, a, b, x] = rule.split("-");
-  const suffix = (famous ? "・有名な場所" : "") + (GUESS_MODES[guess] ? `・${GUESS_MODES[guess].noun}当て` : "");
-  if (mode === "rounds") return `${a}ラウンド${suffix}`;
-  const label = a === "custom" ? `ライフ ${Number(b).toLocaleString()}` : `ライフ・${DIFFICULTY_NAMES[a] || a}`;
-  return (x ? `${label}・🔥エクストラ` : label) + suffix;
+  const [mode, a, b, x] = rulePart.replace("~famous", "").split("-");
+  const noun = GUESS_MODES[guess] ? `${GUESS_MODES[guess].noun}当て` : "";
+  const suffix = (famous ? "・有名な場所" : "") + (noun ? `・${noun}` : "");
+  const pool = `${noun || "地点当て"} ・ ${famous ? "有名な場所だけ" : "すべての場所"}`;
+  if (mode === "rounds") {
+    return { group: "rounds", order: Number(a), tab: `${a}ラウンド${suffix}`, label: `ラウンド制・${a}ラウンド${suffix}`, detail: `ラウンド制 ・ ${a}ラウンド ・ ${pool}` };
+  }
+  const life = `${DIFFICULTY_NAMES[a] || a}（ライフ ${Number(b).toLocaleString()}）`;
+  return {
+    group: x ? "extra" : "life",
+    order: Number(b),
+    tab: `${life}${suffix}`,
+    label: `${x ? "🔥エクストラ・" : ""}ライフ制・${life}${suffix}`,
+    detail: `${x ? "🔥エクストラ ・ " : ""}ライフ制 ・ ${life} ・ ${pool}`,
+  };
+}
+
+function boardLabel(key) {
+  return boardInfo(key).label;
 }
 
 // 並べ方: ラウンド制は点数が高い順、ライフ制は生き残ったラウンド数 → 点数の順。同点なら早い方が上
@@ -1585,13 +1599,30 @@ function bindScoreDialog() {
 
 function renderRanking(areaId, key) {
   const boards = loadScores()[areaId] || {};
-  const keys = Object.keys(boards).filter((k) => boards[k].length)
-    .sort((a, b) => (a.startsWith("life") - b.startsWith("life")) || parseInt(a.split("-")[1], 10) - parseInt(b.split("-")[1], 10));
-  // いま選んでいるルールの部門があればそれを、なければ記録のある最初の部門を出す
+  const groupOrder = ["rounds", "life", "extra"];
+  const keys = Object.keys(boards).filter((k) => boards[k].length).sort((a, b) => {
+    const x = boardInfo(a);
+    const y = boardInfo(b);
+    return groupOrder.indexOf(x.group) - groupOrder.indexOf(y.group) || x.order - y.order || a.localeCompare(b);
+  });
+  // いま選んでいるルールの部門があればそれを、なければ同じ種類の部門、それもなければ最初の部門を出す
+  const wantGroup = state.mode !== "life" ? "rounds" : $("opt-hardcore").checked ? "extra" : "life";
   const current = state.mode === "life" ? null : `rounds-${$("opt-rounds").value}`;
-  const active = key || (keys.includes(current) ? current : keys[0]);
-  $("board-tabs").innerHTML = keys.map((k) => `<button data-board="${k}" class="${k === active ? "active" : ""}">${boardLabel(k)}</button>`).join("");
+  const active = key || (keys.includes(current) ? current : keys.find((k) => boardInfo(k).group === wantGroup) || keys[0]);
+  const activeGroup = active ? boardInfo(active).group : null;
+  // 1段目: ラウンド制・ライフ制・エクストラ ／ 2段目: その中の部門 ／ 3行目: 部門のくわしい条件
+  const groupNames = { rounds: "ラウンド制", life: "ライフ制", extra: "🔥エクストラ" };
+  $("board-groups").innerHTML = groupOrder.filter((g) => keys.some((k) => boardInfo(k).group === g))
+    .map((g) => `<button data-group="${g}" class="${g === activeGroup ? "active" : ""}${g === "extra" ? " extra" : ""}">${groupNames[g]}</button>`).join("");
+  $("board-groups").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    renderRanking(areaId, keys.find((k) => boardInfo(k).group === b.dataset.group));
+  }));
+  const inGroup = keys.filter((k) => boardInfo(k).group === activeGroup);
+  $("board-tabs").innerHTML = inGroup.map((k) => `<button data-board="${k}" class="${k === active ? "active" : ""}">${boardInfo(k).tab}</button>`).join("");
+  $("board-tabs").hidden = !inGroup.length;
   $("board-tabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => renderRanking(areaId, b.dataset.board)));
+  $("board-detail").textContent = active ? boardInfo(active).detail : "";
+  $("board-detail").hidden = !active;
 
   const list = active ? boards[active] : [];
   $("ranking-empty").hidden = list.length > 0;
@@ -1599,6 +1630,9 @@ function renderRanking(areaId, key) {
   const main = (e) => (life ? `${e.rounds} ラウンド` : `${e.score.toLocaleString()} 点`);
   const sub = (e) => (life ? `${e.score.toLocaleString()} 点 ・ ${formatPlayTime(e.timeMs)}` : formatPlayTime(e.timeMs));
   const date = (e) => new Date(e.date).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" });
+  // 同じ部門の中でも違う条件（移動・見回し・ズーム・制限時間）。部門でわかるものは出さない
+  const conds = (e) => escapeHtml((e.rules || "").replace(/[（）]/g, "").split("・")
+    .filter((t) => t && !/エクストラ|当て|有名な場所/.test(t)).join("・"));
 
   // 1〜3位は表彰台（左から 2位・1位・3位）
   const medals = ["gold", "silver", "bronze"];
@@ -1611,6 +1645,7 @@ function renderRanking(areaId, key) {
       <b class="p-name">${escapeHtml(e.name)}</b>
       <span class="p-score">${main(e)}</span>
       <span class="p-time">${sub(e)}</span>
+      <span class="p-rules">${conds(e)}</span>
       <div class="step"><span>${i + 1}</span></div>
     </div>`;
   }).join("");
@@ -1620,7 +1655,7 @@ function renderRanking(areaId, key) {
     <li style="--d:${i}">
       <span class="r-rank">${i + 4}</span>
       <span class="avatar small">${avatarHtml(e.icon || (e.glyph ? { glyph: e.glyph, color: e.color } : null))}</span>
-      <span class="r-name">${escapeHtml(e.name)}</span>
+      <span class="r-name">${escapeHtml(e.name)}<small>${conds(e)}</small></span>
       <span class="r-score">${main(e)}</span>
       <span class="r-time">${sub(e)}</span>
       <span class="r-date">${date(e)}</span>
@@ -3730,7 +3765,6 @@ function openGameSettings() {
   setSettingsTab("general");
   releaseHeldKeys();
   $("game-settings").hidden = false;
-  $("btn-resume").focus();
 }
 
 function closeGameSettings() {
