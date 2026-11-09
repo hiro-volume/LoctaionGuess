@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.74";
+const APP_VERSION = "1.75";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -1749,19 +1749,49 @@ function stopRoundCountdown() {
   $("round-countdown").hidden = true;
 }
 
+// 残り時間の枠のまわりを一周するバー。rest は残りの割合（1 = 満タン、0 = なくなった）
+// 上の真ん中から時計回りに、なくなっていく
+const TIMER_RING_SECONDS = 15;
+const RING_PAD = 5; // 枠の外にはみ出す分
+function updateTimerRing(pill, rest) {
+  const svg = $("timer-ring");
+  const w = pill.offsetWidth;
+  const h = pill.offsetHeight;
+  // 枠の大きさが変わったとき（最初やスマホで地図を開いたときなど）だけ、形を作り直す
+  if (svg.dataset.size !== `${w}x${h}`) {
+    svg.dataset.size = `${w}x${h}`;
+    svg.style.width = `${w + RING_PAD * 2}px`;
+    svg.style.height = `${h + RING_PAD * 2}px`;
+    const x = 2.5, y = 2.5, W = w + 5, H = h + 5, r = H / 2, cx = x + W / 2;
+    const d = `M${cx} ${y}H${x + W - r}A${r} ${r} 0 0 1 ${x + W - r} ${y + H}H${x + r}A${r} ${r} 0 0 1 ${x + r} ${y}H${cx}`;
+    svg.querySelectorAll("path").forEach((p) => p.setAttribute("d", d));
+    svg.dataset.len = 2 * (W - 2 * r) + 2 * Math.PI * r;
+  }
+  const len = Number(svg.dataset.len);
+  const bar = svg.querySelector(".bar");
+  bar.style.strokeDasharray = `${len} ${len}`;
+  // 減った分だけ線の始まりを先へ送る（Safari は負の値が効かないので、1周分足した正の値にする）
+  bar.style.strokeDashoffset = 2 * len - (1 - rest) * len;
+  pill.classList.add("ring-on");
+}
+
 // seconds を渡すと、その秒数から数え直す（マルチプレイで誰かが回答して、残りが短くなったとき）
 function startTimer(seconds = state.game.timeLimit) {
   stopTimer();
   const pill = $("timer-pill");
   pill.hidden = !seconds;
-  pill.classList.remove("urgent", "beat");
+  pill.classList.remove("urgent", "beat", "ring-on");
   if (!seconds) return;
   const deadline = Date.now() + seconds * 1000;
+  // 制限時間が 15 秒より短いときは、その時間で一周する
+  const ringTotal = Math.min(TIMER_RING_SECONDS, seconds) * 1000;
   state.timerDeadline = deadline;
   let shown = null;
   let flashed = false;
   const tick = () => {
-    const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    const ms = deadline - Date.now();
+    const left = Math.max(0, Math.ceil(ms / 1000));
+    if (ms <= ringTotal) updateTimerRing(pill, Math.max(0, ms) / ringTotal);
     if (left === shown) return;
     shown = left;
     $("timer-text").textContent = formatTime(left);

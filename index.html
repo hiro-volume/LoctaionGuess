@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.74">
+  <link rel="stylesheet" href="style.css?v=1.75">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -500,6 +500,8 @@
       <div id="timer-pill" hidden>
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 9v4l2.5 2M9.5 2.5h5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
         <b id="timer-text">0:00</b>
+        <!-- 残り15秒から、まわりを一周して減っていくバー -->
+        <svg id="timer-ring" class="timer-ring" aria-hidden="true"><path class="track"/><path class="bar"/></svg>
       </div>
       <!-- 右上の情報カード -->
       <div id="info-card">
@@ -790,14 +792,14 @@
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.74"></script>
-  <script src="hiroshima-boundary.js?v=1.74"></script>
-  <script src="world-boundary.js?v=1.74"></script>
-  <script src="region-boundary.js?v=1.74"></script>
-  <script src="regions.js?v=1.74"></script>
+  <script src="config.js?v=1.75"></script>
+  <script src="hiroshima-boundary.js?v=1.75"></script>
+  <script src="world-boundary.js?v=1.75"></script>
+  <script src="region-boundary.js?v=1.75"></script>
+  <script src="regions.js?v=1.75"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="app.js?v=1.74"></script>
-  <script src="multiplayer.js?v=1.74"></script>
+  <script src="app.js?v=1.75"></script>
+  <script src="multiplayer.js?v=1.75"></script>
 </body>
 </html>

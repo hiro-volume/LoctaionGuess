@@ -2350,3 +2350,12 @@ body:has(#settings-sheet:not([hidden])) #topbar { display: none; }
   }
   #stage:has(#map-dock.m-full) #hurry-note { z-index: 25; }
 }
+
+/* ================================================================ 残り15秒: 枠のまわりを一周して減っていくバー */
+.timer-ring { display: none; position: absolute; left: -5px; top: -5px; pointer-events: none; overflow: visible; }
+#timer-pill.ring-on .timer-ring { display: block; }
+.timer-ring path { fill: none; stroke-width: 3.5; stroke-linecap: round; }
+.timer-ring .track { stroke: rgba(11,17,32,.6); stroke-width: 5.5; }
+.timer-ring .bar { stroke: #ffd23f; filter: drop-shadow(0 0 4px rgba(255,210,63,.7)); transition: stroke-dashoffset .25s linear, stroke .3s; }
+#timer-pill.urgent .timer-ring .bar { stroke: #fff; filter: drop-shadow(0 0 4px rgba(255,255,255,.8)); }
+html.no-anim .timer-ring .bar { transition: none; filter: none; }
