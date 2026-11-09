@@ -507,6 +507,9 @@ function decorateSheetForMulti() {
   // 個人戦はラウンド制とライフ制（ライフが尽きた人から脱落）。
   // チーム戦はロビーで決めたライフで戦うので、モードの選択を出さない
   document.querySelector('#mode-tabs [data-mode="life"]').hidden = false;
+  // コンペティティブは一人用（NPC との対戦）なので、マルチプレイではボタンごと出さない
+  document.querySelector('#mode-tabs [data-mode="ranked"]').hidden = multi;
+  if (multi && state.mode === "ranked") state.mode = "rounds";
   setMode(state.mode);
   $("mode-tabs").hidden = team;
   $("team-note").hidden = !team;

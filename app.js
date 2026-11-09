@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.85";
+const APP_VERSION = "1.86";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -1358,6 +1358,7 @@ function renderTopbar() {
   const me = myProfile();
   $("tb-avatar").innerHTML = playerAvatarHtml({ name: me.name, avatar: me.avatar, color: me.avatar.color });
   $("tb-name").textContent = me.name;
+  renderRankProfile();
 }
 
 const profileForm = { icon: null, glyph: AVATAR_GLYPHS[0], color: AVATAR_COLORS[1] };
@@ -1369,6 +1370,7 @@ function openProfile() {
   $("pf-glyphs").innerHTML = AVATAR_GLYPHS.map((g) => `<button class="pf-glyph" data-g="${g}" aria-label="${g}">${g}</button>`).join("");
   $("pf-colors").innerHTML = AVATAR_COLORS.map((c) => `<button class="swatch" data-c="${c}" style="--c:${c}" aria-label="色 ${c}"></button>`).join("");
   renderProfileForm();
+  renderRankProfile();
   $("profile-dialog").hidden = false;
   $("pf-name").focus();
 }
@@ -2192,7 +2194,7 @@ function hintHtml(g, answer) {
 function renderRoundStrip() {
   const g = state.game;
   const strip = $("round-strip");
-  const show = !!g && g.mode !== "life" && !g.team && Number.isFinite(g.rounds);
+  const show = !!g && g.mode !== "life" && !g.team && !g.ranked && Number.isFinite(g.rounds);
   strip.hidden = !show;
   if (!show) return;
   const scores = g.multi ? Array.from(g.roundScores || [], (n) => n || 0) : g.results.map((r) => r.score);
@@ -2334,6 +2336,9 @@ function setMode(mode) {
   $("rounds-row").hidden = mode !== "rounds";
   $("life-row").hidden = mode !== "life";
   $("custom-life-row").hidden = $("opt-difficulty").value !== "custom";
+  $("ranked-info").hidden = mode !== "ranked";
+  $("settings-sheet").classList.toggle("ranked-mode", mode === "ranked");
+  if (mode === "ranked") renderRankedSheet();
 }
 
 function selectedLife() {
@@ -2454,7 +2459,8 @@ function renderLifeHud() {
   const g = state.game;
   const show = !!(g && g.mode === "life" && !g.team);
   $("life-hud").hidden = !show;
-  $("info-card").hidden = show;
+  $("ranked-hud").hidden = !(g && g.ranked);
+  $("info-card").hidden = show || !!(g && g.ranked);
   if (!show) return;
   const fill = document.querySelector("#life-hud .lh-fill");
   const ratio = g.life / g.maxLife;
@@ -3115,6 +3121,10 @@ const LEGEND = `<div class="legend">
 async function startGame() {
   if (state.outdated) return showUpdateGateIfIdle();
   if (state.mp && state.mp.role === "host") return hostStartGame();
+  if (state.mode === "ranked") {
+    saveSettings();
+    return openRanked(findArea(state.selectedAreaId));
+  }
   if (!ensureMap()) return;
   closeSettings();
   const mode = state.mode;
@@ -3183,6 +3193,7 @@ async function startRound() {
   clearGameMarkers();
   g.guess = null;
   g.answer = null;
+  if (g.ranked) rankedRoundReset(g);
   $("timer-pill").hidden = true;
   $("result").hidden = true;
   $("btn-guess").disabled = true;
@@ -3229,6 +3240,7 @@ async function startRound() {
     if (state.game !== g || app.className !== "screen-game") return;
     g.roundStartedAt = Date.now();
     startTimer();
+    if (g.ranked) rankedRoundStart(g);
   });
 }
 
@@ -3442,6 +3454,7 @@ function showPinRipple(pos) {
 
 // timedOut: 制限時間切れで自動的に呼ばれたとき
 function submitGuess(timedOut = false) {
+  if (state.game && state.game.ranked) return rankedSubmit(timedOut);
   if (state.game && state.game.multi) return submitMultiGuess(timedOut);
   const g = state.game;
   if (!g || !g.answer || app.className !== "screen-game") return;
@@ -3514,6 +3527,7 @@ function nextRound() {
   if (state.game && state.game.multi) return multiNext();
   const g = state.game;
   g.index += 1;
+  if (g.ranked) return rankedOver(g) ? rankedFinish(g) : startRound();
   const over = g.mode === "life" ? g.life <= 0 : g.index >= g.rounds;
   if (!over) return startRound();
   showFinal();
@@ -3841,6 +3855,7 @@ function closeGameSettings() {
 }
 
 function exitGame() {
+  if (state.game && state.game.ranked) return confirmRankedExit();
   if (state.game && state.game.multi) return exitMultiGame();
   closeGameSettings();
   stopTimer();

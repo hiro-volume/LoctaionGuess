@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LocationGuess</title>
   <!-- タブのアイコン（ファビコン）と、スマホのホーム画面に追加したときのアイコン -->
-  <link rel="icon" href="favicon.svg?v=1.85" type="image/svg+xml">
-  <link rel="icon" href="favicon-32.png?v=1.85" sizes="32x32" type="image/png">
+  <link rel="icon" href="favicon.svg?v=1.86" type="image/svg+xml">
+  <link rel="icon" href="favicon-32.png?v=1.86" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="theme-color" content="#0e1a33">
   <!-- 招待リンクを LINE・Discord・X などに貼ったときに出るプレビュー（OGP） -->
@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.85">
+  <link rel="stylesheet" href="style.css?v=1.86">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -261,7 +261,9 @@
             <div class="tabs" id="mode-tabs">
               <button data-mode="rounds" class="tab active">ラウンド制</button>
               <button data-mode="life" class="tab">ライフ制</button>
+              <button data-mode="ranked" class="tab">コンペティティブ</button>
             </div>
+            <div id="ranked-info" class="ranked-info" hidden></div>
             <!-- 当て方（全世界は「国」、日本は「都道府県」も選べる） -->
             <!-- 全世界: どこからでも出すか、有名な場所だけにするか -->
             <div id="pool-row" hidden>
@@ -367,6 +369,9 @@
     </div>
 
     <!-- 範囲エディタの左パネル -->
+    <!-- コンペティティブ: 試合の前と後の画面 -->
+    <section id="ranked-screen"></section>
+
     <aside id="panel">
       <section id="editor-panel">
         <button id="btn-cancel-area-top" class="btn-back" title="マップ選択へ戻る" aria-label="マップ選択へ戻る"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -485,6 +490,7 @@
       <!-- 残り 15 秒になると、画面の 4 辺が赤く光る -->
       <div id="danger-edge" hidden></div>
       <!-- シングルのライフ制: 右上にライフのバー（その下にエリア・ラウンド・スコア） -->
+      <div id="ranked-hud" hidden></div>
       <div id="life-hud" hidden>
         <div class="lh-row">
           <div class="lh-bar"><i class="lh-fill"></i><b class="lh-life" id="lh-life">0</b></div>
@@ -775,7 +781,7 @@
   <!-- 右上: お知らせ（ベル）と、自分のアイコン（押すとプロフィールを編集） -->
   <div id="topbar" hidden>
     <button id="btn-bell" class="tb-bell" aria-label="お知らせ" aria-expanded="false"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span id="bell-badge" class="tb-badge" hidden>0</span></button>
-    <button id="btn-profile" class="tb-user" title="プロフィールを編集"><span id="tb-avatar"></span><span id="tb-name" class="tb-name"></span></button>
+    <button id="btn-profile" class="tb-user" title="プロフィールを編集"><span id="tb-avatar"></span><span id="tb-name" class="tb-name"></span><span id="tb-rank" class="tb-rank"></span></button>
     <section id="bell-panel" class="bell-panel" hidden aria-label="お知らせ">
       <div class="bell-tabs" role="tablist">
         <button data-bell-tab="notices" class="active" role="tab">お知らせ</button>
@@ -793,6 +799,7 @@
     <div class="dialog profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-title">
       <h3 id="profile-title">プロフィール</h3>
       <div class="pf-preview"><span id="pf-avatar"></span></div>
+      <div id="pf-rank" class="pf-rank"></div>
       <div class="field">
         <label for="pf-name">名前</label>
         <input type="text" id="pf-name" maxlength="16" placeholder="名無しの旅人">
@@ -827,17 +834,18 @@
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.85"></script>
-  <script src="hiroshima-boundary.js?v=1.85"></script>
-  <script src="world-boundary.js?v=1.85"></script>
-  <script src="region-boundary.js?v=1.85"></script>
-  <script src="regions.js?v=1.85"></script>
+  <script src="config.js?v=1.86"></script>
+  <script src="hiroshima-boundary.js?v=1.86"></script>
+  <script src="world-boundary.js?v=1.86"></script>
+  <script src="region-boundary.js?v=1.86"></script>
+  <script src="regions.js?v=1.86"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="changelog.js?v=1.85"></script>
-  <script src="hints.js?v=1.85"></script>
-  <script src="hint-photos.js?v=1.85"></script>
-  <script src="app.js?v=1.85"></script>
-  <script src="multiplayer.js?v=1.85"></script>
+  <script src="changelog.js?v=1.86"></script>
+  <script src="hints.js?v=1.86"></script>
+  <script src="hint-photos.js?v=1.86"></script>
+  <script src="ranked.js?v=1.86"></script>
+  <script src="app.js?v=1.86"></script>
+  <script src="multiplayer.js?v=1.86"></script>
 </body>
 </html>

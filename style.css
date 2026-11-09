@@ -2565,3 +2565,107 @@ html.no-anim .rs-hint { animation: none; }
   .rs-hint.has-photo .rs-hint-close { top: 6px; right: 6px; background: transparent; color: var(--muted); }
   .rs-hint-credit { font-size: 9px; max-width: 170px; }
 }
+
+/* ================================================================ コンペティティブ */
+#settings-sheet.ranked-mode #pool-row, #settings-sheet.ranked-mode #guess-row, #settings-sheet.ranked-mode .sheet-col:nth-child(2) { display: none !important; }
+#settings-sheet.ranked-mode .sheet-body { grid-template-columns: 1fr; }
+#mode-tabs .tab[hidden] { display: none; }
+.ranked-info { margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); }
+.ri-rank { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ri-rank small { color: var(--muted); font-size: 12px; }
+.ranked-info .help { margin: 8px 0 0; }
+.rank-label { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: 13px; }
+.rank-label.muted { color: var(--muted); }
+.rank-emblem { flex: none; display: block; filter: drop-shadow(0 3px 6px rgba(0,0,0,.45)); }
+
+#ranked-screen { display: none; }
+.screen-ranked #ranked-screen {
+  display: flex; flex: 1; width: 100%; height: 100%; overflow-y: auto; align-items: center; justify-content: center; gap: 56px; padding: 24px;
+  background:
+    linear-gradient(120deg, rgba(56,189,248,.1), transparent 40%),
+    repeating-linear-gradient(115deg, rgba(255,255,255,.025) 0 2px, transparent 2px 46px),
+    radial-gradient(1000px 640px at 40% 35%, #15294d, #070c18 75%);
+}
+.rk-main { display: flex; flex-direction: column; align-items: center; text-align: center; max-width: 620px; flex: 0 1 620px; }
+.rk-eyebrow { margin: 0; font-family: var(--font-display); font-size: 13px; font-weight: 800; letter-spacing: .3em; color: var(--accent); }
+.rk-title { margin: 6px 0 4px; font-size: clamp(34px, 6vw, 58px); font-weight: 900; line-height: 1.1; }
+.rk-title.win { color: #6be39a; }
+.rk-title.lose { color: #ff8a80; }
+.rk-sub { margin: 0; font-size: 15px; color: #cdd6e8; }
+.rk-versus { display: flex; align-items: center; justify-content: center; gap: 34px; margin: 30px 0 22px; }
+.rk-player { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 170px; }
+.rk-player > b { font-size: 15px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-silhouette { width: 96px; height: 96px; display: grid; place-items: center; border-radius: 50%; font-size: 46px; font-weight: 900; color: rgba(255,255,255,.5); background: rgba(255,255,255,.06); border: 2px dashed rgba(255,255,255,.25); }
+.rk-vs { font-family: var(--font-display); font-size: 34px; font-weight: 900; font-style: italic; color: var(--accent); text-shadow: 0 0 24px rgba(56,189,248,.6); }
+.rk-pips { display: flex; gap: 8px; }
+.rk-pips span { padding: 8px 18px; border-radius: 10px; font-size: 13px; font-weight: 800; color: var(--muted); background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); }
+.rk-pips .now { color: #fff; border-color: var(--accent); background: rgba(56,189,248,.16); }
+.rk-pips .win { color: #6be39a; border-color: rgba(107,227,154,.5); }
+.rk-pips .lose { color: #ff8a80; border-color: rgba(255,138,128,.45); }
+.rk-rule { margin: 14px 0 0; font-size: 13px; color: var(--muted); }
+.rk-actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 14px; margin-top: 24px; }
+.rk-progress { display: flex; flex-direction: column; align-items: center; gap: 6px; width: min(320px, 100%); margin-top: 6px; font-size: 12px; color: var(--muted); }
+.rk-bar { display: block; width: 100%; height: 8px; border-radius: 4px; overflow: hidden; background: rgba(255,255,255,.12); }
+.rk-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #6be39a); }
+.rk-reveal { margin: 18px 0 8px; animation: rkReveal .7s cubic-bezier(.2,1.5,.4,1) both; }
+.rk-reveal .rank-emblem { filter: drop-shadow(0 0 26px rgba(120,200,255,.55)); }
+html.no-anim .rk-reveal { animation: none; }
+@keyframes rkReveal { from { opacity: 0; transform: scale(.4) rotate(-12deg); } to { opacity: 1; transform: none; } }
+.rk-rankname { margin: 0; font-size: 26px; font-weight: 900; }
+.rk-delta { margin: 4px 0 0; font-weight: 800; }
+.rk-delta.up, .rk-move.up { color: #6be39a; }
+.rk-delta.down, .rk-move.down { color: #ff8a80; }
+.rk-move { margin: 6px 0 0; font-weight: 900; }
+.rk-ladder { flex: none; display: flex; flex-direction: column; gap: 6px; padding-left: 26px; border-left: 2px solid rgba(255,255,255,.14); }
+.rk-step { display: flex; align-items: center; gap: 12px; padding: 5px 16px 5px 8px; border-radius: 12px; opacity: .55; }
+.rk-step b { font-size: 14px; }
+.rk-step.current { opacity: 1; background: rgba(56,189,248,.14); box-shadow: inset 0 0 0 1px rgba(56,189,248,.5); }
+
+/* 試合中の体力 */
+#ranked-hud { display: none; }
+.screen-game #ranked-hud:not([hidden]), .screen-result #ranked-hud:not([hidden]) {
+  display: flex; flex-direction: column; gap: 5px; position: absolute; top: 12px; right: 12px; z-index: 5; width: 320px;
+  padding: 8px 10px; border-radius: 12px; background: rgba(17, 21, 28, .88); border: 1px solid rgba(255,255,255,.15); box-shadow: 0 4px 16px rgba(0,0,0,.35);
+}
+.rh-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; color: var(--muted); }
+.rh-head b { color: #fff; font-size: 12px; }
+.rh-row { display: flex; align-items: center; gap: 8px; }
+.rh-row .p-avatar { width: 28px; height: 28px; font-size: 14px; flex: none; }
+.rh-who { display: flex; flex-direction: column; min-width: 0; width: 104px; flex: none; }
+.rh-who > b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rh-who .rank-label { font-size: 10px; font-weight: 700; color: var(--muted); gap: 3px; }
+.rh-bar { flex: 1; min-width: 0; height: 10px; border-radius: 5px; overflow: hidden; background: rgba(255,255,255,.14); display: block; }
+.rh-bar i { display: block; height: 100%; transition: width .6s ease; }
+.rh-num { min-width: 40px; text-align: right; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; margin-left: auto; }
+
+/* プロフィールと右上のランク */
+.pf-rank { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 0 0 12px; padding: 8px 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); text-align: left; }
+.pf-rank > div { display: flex; flex-direction: column; gap: 1px; }
+.pf-rank small { font-size: 11px; color: var(--muted); }
+.pf-rank b { font-size: 17px; }
+.pf-rank span { font-size: 12px; color: var(--muted); }
+.tb-rank { display: inline-flex; }
+.tb-rank:empty { display: none; }
+
+@media (max-width: 900px) {
+  .screen-ranked #ranked-screen { flex-direction: column; justify-content: flex-start; gap: 22px; padding: 28px 16px 24px; }
+  .rk-main { flex: none; width: 100%; }
+  .rk-ladder { flex-direction: row; flex-wrap: wrap; justify-content: center; padding-left: 0; border-left: 0; border-top: 2px solid rgba(255,255,255,.14); padding-top: 12px; }
+  .rk-step { flex-direction: column; gap: 2px; padding: 4px 8px; }
+  .rk-step b { font-size: 11px; }
+}
+@media (max-width: 720px) {
+  .rk-versus { gap: 14px; margin: 20px 0 16px; }
+  .rk-player { width: 120px; }
+  .rk-vs { font-size: 24px; }
+  .rk-pips span { padding: 7px 10px; font-size: 12px; }
+  .screen-game #ranked-hud:not([hidden]) { left: 10px; right: 10px; top: 10px; width: auto; padding: 6px 8px; gap: 3px; }
+  .screen-result #ranked-hud:not([hidden]) { left: 10px; right: 10px; top: 54px; width: auto; padding: 6px 8px; gap: 3px; }
+  .rh-row .p-avatar { width: 22px; height: 22px; font-size: 12px; }
+  .rh-who { width: 92px; }
+  #stage:has(#ranked-hud:not([hidden])) #heading-tape { top: 116px; }
+  #stage:has(#ranked-hud:not([hidden])) #timer-pill:not([hidden]) { top: 148px; }
+  #stage:has(#ranked-hud:not([hidden])) #hurry-note { top: 188px; }
+  #stage:has(#map-dock.m-full) #ranked-hud { visibility: hidden; }
+  #stage:has(#map-dock.m-full) #timer-pill:not([hidden]) { top: 11px; }
+}
