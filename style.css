@@ -2651,7 +2651,7 @@ html.no-anim .rs-hint { animation: none; }
   padding: 3px 12px; border-radius: 999px; background: rgba(11,17,32,.82); border: 1px solid rgba(255,255,255,.14); font-size: 11px; color: #cdd6e8;
 }
 .rh-round b { font-size: 11px; color: #fff; }
-#stage:has(#ranked-hud:not([hidden])) #hurry-note { top: 134px; }
+#stage:has(#ranked-hud:not([hidden])) #hurry-note { top: 146px; }
 /* 結果の画面: 左上のラウンド表示を、体力バーの下に下げる */
 .screen-result:has(#ranked-hud:not([hidden])) { --tbar: 84px; }
 .screen-result #ranked-hud .rh-round { top: 70px; }
@@ -2767,3 +2767,31 @@ html.no-anim .rk-stage.burst .rk-rays, html.no-anim .rk-stage.burst .rk-ring, ht
 @keyframes csUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 html.no-anim #champion-show, html.no-anim #champion-show * { animation: none !important; }
 html.no-anim .cs-flash { display: none; }
+
+/* ================================================================ コンペティティブ: ラウンドと倍率の液体ガラス */
+.rh-round {
+  align-items: center; padding: 4px 6px 4px 14px; overflow: hidden;
+  background: linear-gradient(135deg, rgba(255,255,255,.2), rgba(255,255,255,.05) 55%, rgba(255,255,255,.14));
+  border: 1px solid rgba(255,255,255,.42);
+  -webkit-backdrop-filter: blur(12px) saturate(190%); backdrop-filter: blur(12px) saturate(190%);
+  box-shadow: 0 8px 24px rgba(0,0,0,.28), inset 0 1px 1px rgba(255,255,255,.7), inset 0 -1px 2px rgba(255,255,255,.22), inset 0 -8px 14px rgba(120,190,255,.12);
+  color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.55);
+}
+.rh-round::before {
+  content: ""; position: absolute; left: 8px; right: 8px; top: 1px; height: 45%; border-radius: 999px; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.42), rgba(255,255,255,0));
+}
+.rh-round > * { position: relative; }
+.rh-round:not(:has(.rh-mult)) { padding-right: 14px; }
+.rh-mult {
+  display: inline-grid; place-items: center; min-width: 40px; height: 24px; padding: 0 9px; margin-left: 2px; border-radius: 999px;
+  font-family: var(--font-display); font-style: normal; font-size: 14px; font-weight: 900; letter-spacing: .02em; color: #fff;
+  background: radial-gradient(120% 140% at 30% 15%, rgba(255,255,255,.62), rgba(180,225,255,.2) 45%, rgba(56,189,248,.28));
+  border: 1px solid rgba(255,255,255,.72);
+  box-shadow: 0 3px 10px rgba(14,60,110,.35), inset 0 1px 2px rgba(255,255,255,.95), inset 0 -3px 6px rgba(56,189,248,.35);
+  text-shadow: 0 1px 4px rgba(6,40,80,.75);
+}
+@media (max-width: 720px) {
+  .rh-round { padding: 2px 4px 2px 11px; }
+  .rh-mult { min-width: 34px; height: 20px; font-size: 12px; padding: 0 7px; }
+}
