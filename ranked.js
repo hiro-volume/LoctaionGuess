@@ -5,15 +5,15 @@
 const STORE_RANK = "lg.rank";
 const RANK_DIVISION_RP = 100;
 const RANK_TIERS = [
-  { id: "bronze", name: "ブロンズ", start: 0, divs: 3 },
-  { id: "silver", name: "シルバー", start: 300, divs: 3 },
-  { id: "gold", name: "ゴールド", start: 600, divs: 3 },
-  { id: "master", name: "マスター", start: 900, divs: 3 },
-  { id: "champion", name: "チャンピオン", start: 1200, divs: 1 },
+  { id: "bronze", name: "ブロンズ", start: 0, divs: 4 },
+  { id: "silver", name: "シルバー", start: 400, divs: 4 },
+  { id: "gold", name: "ゴールド", start: 800, divs: 4 },
+  { id: "master", name: "マスター", start: 1200, divs: 4 },
+  { id: "champion", name: "チャンピオン", start: 1600, divs: 1 },
 ];
 const PLACEMENT_MATCHES = 3;
 const PLACEMENT_ROUNDS = 3;
-const PLACEMENT_MAX_RP = 899; // 認定戦で上がれるのはゴールド 3 まで（マスターからは上級者）
+const PLACEMENT_MAX_RP = 1099; // 認定戦で上がれるのはゴールド 3 まで（マスターからは上級者）
 const MATCH_ROUNDS = 5;
 const MATCH_LIFE = 6000;
 const MATCH_TIME = 120;
@@ -29,7 +29,7 @@ const NPC_GLYPHS = ["🦉", "🦊", "🐧", "🐱", "🦝", "🧭", "🗺️", "
 const NPC_COLORS = ["#3b82f6", "#a855f7", "#f97316", "#ec4899", "#14b8a6", "#e5392f"];
 
 // ランクごとの NPC の強さ。平均点はこの点を結んだ線の上。チャンピオン帯はかなり強い
-const NPC_SKILL_POINTS = [[0, 1300], [300, 2200], [600, 3000], [900, 3800], [1200, 4550], [1500, 4850]];
+const NPC_SKILL_POINTS = [[0, 1300], [400, 2200], [800, 3000], [1200, 3800], [1600, 4550], [2000, 4850]];
 // ピックするまでの秒数 [最短, 最長]（強いほど早い）
 const NPC_PICK_DELAY = { bronze: [40, 85], silver: [35, 75], gold: [28, 65], master: [18, 50], champion: [10, 32] };
 
@@ -66,7 +66,7 @@ function makeNpc(rp) {
 // NPC の答え: まず取れそうな点を決めて、その点になる距離だけ正解からずらす
 function makeNpcGuess(g) {
   const { npc } = g.ranked;
-  const sd = npc.rp >= 1200 ? 320 : npc.rp >= 900 ? 500 : 800;
+  const sd = npc.rp >= 1600 ? 320 : npc.rp >= 1200 ? 500 : 800;
   const target = Math.max(150, Math.min(4990, npcMeanScore(npc.rp) + randomNormal() * sd));
   const decay = areaSizeMeters(g.area) * 0.07;
   const distance = -Math.log(target / MAX_SCORE) * decay;
@@ -84,7 +84,11 @@ function makeNpcGuess(g) {
 // ---- ランクの保存と表示
 
 function loadRank() {
-  return { rp: null, placement: [], wins: 0, losses: 0, ...loadJSON(STORE_RANK, {}) };
+  const rank = { rp: null, placement: [], wins: 0, losses: 0, ...loadJSON(STORE_RANK, {}) };
+  // 各ランクが 3 段階だったころ（v1.86）の記録は、4 段階の数え方に直す
+  if (rank.rp != null && !rank.divs4) rank.rp = Math.round((rank.rp * 4) / 3);
+  rank.divs4 = true;
+  return rank;
 }
 
 function saveRank(r) {
@@ -177,7 +181,7 @@ function opponentRpForNext(rank) {
   // 認定戦: 勝つと相手が強く、負けると弱くなる
   const wins = rank.placement.filter((m) => m.win).length;
   const losses = rank.placement.length - wins;
-  return Math.max(120, Math.min(780, 400 + wins * 180 - losses * 120));
+  return Math.max(160, Math.min(1040, 530 + wins * 240 - losses * 160));
 }
 
 function openRanked(area) {
@@ -410,14 +414,14 @@ function rankDelta(rp, win, margin) {
 function judgePlacement(list) {
   const avg = list.reduce((s, m) => s + m.avg, 0) / list.length;
   const wins = list.filter((m) => m.win).length;
-  const rp = Math.max(0, Math.min(PLACEMENT_MAX_RP, Math.round((avg / 4200) * 800) + wins * 20));
+  const rp = Math.max(0, Math.min(PLACEMENT_MAX_RP, Math.round((avg / 4200) * 1050) + wins * 25));
   return { rp, avg: Math.round(avg), wins };
 }
 
 function placementComment(j) {
-  if (j.rp >= 800) return "どのラウンドも正確でした。認定戦で上がれるいちばん上の帯です。ここから先は実力で。";
-  if (j.rp >= 600) return "安定して近くに刺せています。手がかりをしっかり読めています。";
-  if (j.rp >= 300) return "国や地域の見当はついています。あと一歩、細かい手がかりを拾えると伸びます。";
+  if (j.rp >= 1000) return "どのラウンドも正確でした。認定戦で上がれるいちばん上の帯です。ここから先は実力で。";
+  if (j.rp >= 800) return "安定して近くに刺せています。手がかりをしっかり読めています。";
+  if (j.rp >= 400) return "国や地域の見当はついています。あと一歩、細かい手がかりを拾えると伸びます。";
   return "まずは文字と道路の特徴から覚えていきましょう。伸びしろはたっぷりあります。";
 }
 
