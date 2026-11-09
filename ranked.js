@@ -342,6 +342,7 @@ function finishRankedRound(g) {
   const npc = r.npcPick;
   g.results.push(mine);
   recordRound(g.area.id, mine);
+  const change = { myFrom: r.placing ? r.myTotal : r.myLife, npcFrom: r.placing ? r.npcTotal : r.npcLife };
   r.myTotal += mine.score;
   r.npcTotal += npc.score;
   const diff = mine.score - npc.score;
@@ -365,7 +366,7 @@ function finishRankedRound(g) {
   addOverlay(new MapLabel(npc.guess, r.npc.name, "tag"));
   state.map.setOptions({ draggableCursor: null });
   setScreen("result");
-  renderRankedHud();
+  renderRankedHud(change);
   const last = g.index + 1 >= g.rounds || (!r.placing && (r.myLife <= 0 || r.npcLife <= 0));
   const headline = diff === 0 ? "引き分け！"
     : r.placing ? (diff > 0 ? "このラウンドはあなたの勝ち！" : `${r.npc.name} の勝ち`)
@@ -387,7 +388,7 @@ function finishRankedRound(g) {
   setResultButtons(false, false);
   $("result").hidden = false;
   animateCounts($("result-text"));
-  fitResults([mine, { guess: npc.guess, answer: g.answer }], { top: 70, bottom: 90, left: 60, right: 60 });
+  fitResults([mine, { guess: npc.guess, answer: g.answer }], { top: 130, bottom: 90, left: 60, right: 60 });
 }
 
 function rankedOver(g) {
@@ -440,22 +441,21 @@ function rankedFinish(g, forfeit = false) {
   const win = !forfeit && rankedDidWin(g);
   const rank = loadRank();
   const before = rank.rp;
+  const verdict = forfeit ? "途中で終了" : win ? "勝利！" : "敗北";
+  const verdictCls = forfeit || !win ? "lose" : "win";
   let body;
+  let show = null;
   if (r.placing) {
     const avg = g.results.length ? r.myTotal / g.results.length : 0;
     rank.placement = [...rank.placement, { avg: forfeit ? 0 : avg, win }];
     if (rank.placement.length >= PLACEMENT_MATCHES) {
       const j = judgePlacement(rank.placement);
       rank.rp = j.rp;
-      const named = rankOf(j.rp);
-      body = `<p class="rk-eyebrow">PLACEMENT COMPLETE</p>
-        <div class="rk-reveal">${rankEmblem(named.tier.id, 132)}</div>
-        <h2 class="rk-title">${named.name}</h2>
-        <p class="rk-sub">認定戦の平均 ${j.avg.toLocaleString()} 点 ・ ${j.wins} 勝 ${PLACEMENT_MATCHES - j.wins} 敗</p>
-        <p class="rk-rule">${placementComment(j)}</p>`;
+      body = rankStageHtml("PLACEMENT COMPLETE", "判定中…", "", rankEmblem(null, 128), "？？？", "", "");
+      show = { kind: "placement", to: j.rp, sub: `認定戦の平均 ${j.avg.toLocaleString()} 点 ・ ${j.wins} 勝 ${PLACEMENT_MATCHES - j.wins} 敗`, note: placementComment(j) };
     } else {
       body = `<p class="rk-eyebrow">PLACEMENT ${rank.placement.length} / ${PLACEMENT_MATCHES}</p>
-        <h2 class="rk-title ${win ? "win" : "lose"}">${forfeit ? "途中で終了" : win ? "勝利！" : "敗北"}</h2>
+        <h2 class="rk-title rk-slam ${verdictCls}">${verdict}</h2>
         <p class="rk-sub">あなた ${r.myTotal.toLocaleString()} 点 ・ ${escapeHtml(r.npc.name)} ${r.npcTotal.toLocaleString()} 点</p>`;
     }
   } else {
@@ -464,29 +464,222 @@ function rankedFinish(g, forfeit = false) {
     rank.rp = Math.max(0, before + delta);
     rank[win ? "wins" : "losses"] += 1;
     const was = rankOf(before);
-    const now = rankOf(rank.rp);
-    const moved = was.name === now.name ? "" : rank.rp > before ? `<p class="rk-move up">▲ ${now.name} に昇格！</p>` : `<p class="rk-move down">▼ ${now.name} に降格</p>`;
-    body = `<p class="rk-eyebrow">MATCH RESULT</p>
-      <h2 class="rk-title ${win ? "win" : "lose"}">${forfeit ? "途中で終了" : win ? "勝利！" : "敗北"}</h2>
-      <p class="rk-sub">体力 あなた ${r.myLife.toLocaleString()} ・ ${escapeHtml(r.npc.name)} ${r.npcLife.toLocaleString()}</p>
-      <div class="rk-reveal small">${rankEmblem(now.tier.id, 96)}</div>
-      <h3 class="rk-rankname">${now.name}</h3>
-      <p class="rk-delta ${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta} RP（${rank.rp.toLocaleString()} RP）</p>
-      ${moved}
-      <div class="rk-progress">${rankProgressHtml(rank.rp)}</div>`;
+    body = rankStageHtml("MATCH RESULT", verdict, `体力 あなた ${r.myLife.toLocaleString()} ・ ${escapeHtml(r.npc.name)} ${r.npcLife.toLocaleString()}`,
+      rankEmblem(was.tier.id, 128), was.name, verdictCls, `<p class="rk-delta ${delta >= 0 ? "up" : "down"}" id="rk-delta"></p>
+      <div class="rk-progress"><i class="rk-bar"><i id="rk-fill"></i></i><span id="rk-left"></span></div>`);
+    show = { kind: "match", from: before, to: rank.rp, delta };
   }
   saveRank(rank);
   renderRankProfile();
   setScreen("ranked");
   $("ranked-screen").innerHTML = `<div class="rk-main rk-result">${body}
-      <div class="rk-actions">
+      <div class="rk-actions${show ? " wait" : ""}" id="rk-actions">
         <button id="rk-again" class="btn-hero small">続ける</button>
         <button id="rk-back" class="btn-ghost">マップ選択に戻る</button>
       </div>
-    </div>${ladderHtml(rank.rp)}`;
+    </div>${ladderHtml(show ? (show.kind === "match" ? show.from : null) : rank.rp)}`;
   state.game = null;
   $("rk-again").addEventListener("click", showRankedLobby);
   $("rk-back").addEventListener("click", showHome);
+  if (show) playRankShow(show, rank.rp);
+}
+
+function rankStageHtml(eyebrow, title, sub, emblem, name, cls, extra) {
+  return `<p class="rk-eyebrow">${eyebrow}</p>
+    <h2 class="rk-title rk-slam ${cls}" id="rk-head">${title}</h2>
+    <p class="rk-sub" id="rk-sub">${sub}</p>
+    <div class="rk-stage" id="rk-stage">
+      <div class="rk-rays"></div><div class="rk-ring"></div><div class="rk-flash"></div>
+      <div class="rk-emblem" id="rk-emblem">${emblem}</div>
+      <canvas id="rk-fx" width="640" height="640"></canvas>
+    </div>
+    <p class="rk-banner" id="rk-banner"></p>
+    <h3 class="rk-rankname" id="rk-name">${name}</h3>
+    ${extra}
+    <p class="rk-rule" id="rk-note"></p>`;
+}
+
+// ---- ランクが決まる・上がる・下がるときの演出
+
+// 紙吹雪（down は灰色の破片が落ちる）
+function rankParticles(colors, count, power, down) {
+  const canvas = $("rk-fx");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const c = canvas.width / 2;
+  const list = Array.from({ length: count }, () => {
+    const angle = down ? Math.PI / 2 + (rand() - 0.5) * 2 : rand() * Math.PI * 2;
+    const speed = power * (0.35 + rand() * 0.75);
+    return {
+      x: c, y: c, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - (down ? 0 : 2),
+      size: 4 + rand() * 8, rot: rand() * 6, spin: (rand() - 0.5) * 0.4, color: colors[Math.floor(rand() * colors.length)], life: 1,
+    };
+  });
+  const started = performance.now();
+  const step = (now) => {
+    if (!canvas.isConnected) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const fade = 1 - (now - started) / 2000;
+    if (fade <= 0) return;
+    list.forEach((p) => {
+      p.vy += 0.16;
+      p.vx *= 0.985;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.spin;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, fade * 1.6);
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 3, p.size, p.size * 0.66);
+      ctx.restore();
+    });
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function rankBurst(tierId, big) {
+  const stage = $("rk-stage");
+  if (!stage) return;
+  const [hi, mid] = EMBLEM_COLORS[tierId];
+  stage.style.setProperty("--rk-c", mid);
+  stage.style.setProperty("--rk-hi", hi);
+  stage.classList.remove("burst", "big");
+  void stage.offsetWidth;
+  stage.classList.add("burst");
+  if (big) stage.classList.add("big");
+  rankParticles([hi, mid, "#ffffff", "#ffd23f"], big ? 260 : 130, big ? 15 : 10, false);
+}
+
+function slamEmblem(tierId, cls = "slam") {
+  const box = $("rk-emblem");
+  box.innerHTML = rankEmblem(tierId, 128);
+  box.classList.remove("slam", "drop", "pulse");
+  void box.offsetWidth;
+  box.classList.add(cls);
+}
+
+function setRankBar(pct, ms) {
+  const fill = $("rk-fill");
+  if (!fill) return;
+  fill.style.transition = ms ? `width ${ms}ms cubic-bezier(.3,.8,.3,1)` : "none";
+  fill.style.width = `${pct}%`;
+}
+
+const rankPct = (r) => (r.next ? (r.into / r.next) * 100 : 100);
+
+function showRankBanner(text, cls) {
+  const b = $("rk-banner");
+  b.textContent = text;
+  b.className = `rk-banner show ${cls}`;
+}
+
+function finishRankShow(rp) {
+  const act = $("rk-actions");
+  if (act) act.classList.remove("wait");
+  // 右のランク表を、新しいランクに合わせる
+  const cur = rankOf(rp);
+  document.querySelectorAll("#ranked-screen .rk-step").forEach((el, i) => {
+    const ids = [...RANK_TIERS].reverse().map((t) => t.id);
+    el.classList.toggle("current", ids[i] === cur.tier.id);
+  });
+}
+
+async function playRankShow(show, rp) {
+  const now = rankOf(rp);
+  const animate = !!(state.prefs && state.prefs.anim);
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, animate ? ms : 0));
+  const alive = () => !!$("rk-stage");
+
+  if (show.kind === "placement") {
+    if (animate) {
+      // ルーレットのようにランクのマークを切り替えて、だんだん遅くする
+      const order = [...RANK_TIERS.map((t) => t.id).slice(0, 3)];
+      const spins = 14;
+      for (let i = 0; i < spins; i++) {
+        if (!alive()) return;
+        $("rk-emblem").innerHTML = rankEmblem(order[i % order.length], 128);
+        await wait(70 + i * i * 2.2);
+      }
+    }
+    if (!alive()) return;
+    $("rk-head").textContent = "ランク決定";
+    $("rk-head").classList.add("win");
+    $("rk-sub").textContent = show.sub;
+    slamEmblem(now.tier.id);
+    $("rk-name").textContent = now.name;
+    $("rk-name").classList.add("reveal");
+    if (animate) rankBurst(now.tier.id, true);
+    showRankBanner("PLACED!", "up");
+    $("rk-note").textContent = show.note;
+    await wait(1400);
+    if (alive()) finishRankShow(rp);
+    return;
+  }
+
+  const was = rankOf(show.from);
+  const delta = $("rk-delta");
+  const left = $("rk-left");
+  const leftText = (r, value) => (r.next ? `次のランクまで ${r.next - r.into} RP` : `${value.toLocaleString()} RP`);
+  setRankBar(rankPct(was), 0);
+  left.textContent = leftText(was, show.from);
+  delta.innerHTML = `<span id="rk-num">0</span> RP`;
+  const sign = show.delta >= 0 ? "+" : "−";
+  await wait(650);
+  if (!alive()) return;
+  // RP を数えながら増減させる
+  const num = $("rk-num");
+  if (animate) {
+    tweenNumber(num, 0, Math.abs(show.delta), 800, sign);
+  } else {
+    num.textContent = `${sign}${Math.abs(show.delta)}`;
+  }
+  const changed = was.name !== now.name;
+  const up = show.delta >= 0;
+  if (!changed) {
+    setRankBar(rankPct(now), 900);
+    if (animate) {
+      $("rk-emblem").classList.remove("pulse");
+      void $("rk-emblem").offsetWidth;
+      $("rk-emblem").classList.add("pulse");
+      if (up) rankParticles([EMBLEM_COLORS[now.tier.id][0], "#ffffff"], 40, 7, false);
+    }
+    await wait(1000);
+  } else if (up) {
+    setRankBar(100, 700);
+    await wait(760);
+    if (!alive()) return;
+    const tierUp = was.tier.id !== now.tier.id;
+    slamEmblem(now.tier.id);
+    $("rk-name").textContent = now.name;
+    $("rk-name").classList.add("reveal");
+    if (animate) rankBurst(now.tier.id, tierUp);
+    showRankBanner(tierUp ? "TIER UP!" : "RANK UP!", "up");
+    setRankBar(0, 0);
+    await wait(120);
+    if (!alive()) return;
+    setRankBar(rankPct(now), 700);
+    await wait(1100);
+  } else {
+    setRankBar(0, 700);
+    await wait(760);
+    if (!alive()) return;
+    slamEmblem(now.tier.id, "drop");
+    $("rk-name").textContent = now.name;
+    $("rk-stage").classList.add("hurt");
+    if (animate) rankParticles(["#6b7280", "#9ca3af", "#374151"], 70, 5, true);
+    showRankBanner("RANK DOWN", "down");
+    setRankBar(100, 0);
+    await wait(120);
+    if (!alive()) return;
+    setRankBar(rankPct(now), 700);
+    await wait(1000);
+  }
+  if (!alive()) return;
+  left.textContent = leftText(now, rp);
+  finishRankShow(rp);
 }
 
 // 設定の「ゲームを終了する」: ランク戦では負け扱いになる
@@ -504,15 +697,20 @@ async function confirmRankedExit() {
   rankedFinish(g, true);
 }
 
-function hpRow(cls, avatar, name, rankHtml, life, total, placing) {
-  const value = placing
-    ? `<b class="rh-num">${total.toLocaleString()}</b>`
-    : `<i class="rh-bar"><i style="width:${(life / MATCH_LIFE) * 100}%;background:${lifeColor(life / MATCH_LIFE)}"></i></i><b class="rh-num">${life.toLocaleString()}</b>`;
-  return `<div class="rh-row ${cls}">${avatar}<div class="rh-who"><b>${escapeHtml(name)}</b>${rankHtml}</div>${value}</div>`;
+// 体力バー1本分（チーム戦と同じ部品）
+function rankedSideHtml(cls, mine, glyph, color, name, rp) {
+  return `<div class="tg ${cls}${mine ? " mine" : ""}">
+    <span class="tg-badge" style="background:${color}">${glyph}</span>
+    <div class="tg-main">
+      <div class="tg-bar"><i class="tg-ghost"></i><i class="tg-fill"></i><b class="tg-life">0</b></div>
+      <div class="tg-meta"><small class="tg-name">${escapeHtml(name)}</small>${rankLabelHtml(rp, 16)}<span class="tg-you">あなた</span></div>
+    </div>
+    <span class="tg-dmg"></span>
+  </div>`;
 }
 
-// 試合中の右上: 自分と相手の体力（認定戦は合計点）
-function renderRankedHud() {
+// 試合中の上: 左に相手、右に自分の体力（認定戦は合計点）。change があれば、結果の画面で減るところを見せる
+function renderRankedHud(change) {
   const g = state.game;
   const hud = $("ranked-hud");
   const r = g && g.ranked;
@@ -522,7 +720,42 @@ function renderRankedHud() {
   const rank = loadRank();
   const mult = r.placing ? "" : ` ・ ×${ROUND_MULTIPLIERS[Math.min(g.index, ROUND_MULTIPLIERS.length - 1)]}`;
   hud.innerHTML = `
-    <div class="rh-head"><b>${r.placing ? `認定戦 ${r.matchNo} / ${PLACEMENT_MATCHES}` : "コンペティティブ"}</b><span>ラウンド ${g.index + 1} / ${g.rounds}${mult}</span></div>
-    ${hpRow("me", playerAvatarHtml({ name: me.name, avatar: me.avatar, color: me.avatar.color }), me.name, rankLabelHtml(rank.rp, 16), r.myLife, r.myTotal, r.placing)}
-    ${hpRow("npc", `<span class="p-avatar glyph" style="--c:${r.npc.color};--pc:${r.npc.color}">${r.npc.glyph}</span>`, r.npc.name, rankLabelHtml(r.npc.rp, 16), r.npcLife, r.npcTotal, r.placing)}`;
+    ${rankedSideHtml("red", false, r.npc.glyph, r.npc.color, r.npc.name, r.npc.rp)}
+    <div class="rh-round"><b>${r.placing ? `認定戦 ${r.matchNo} / ${PLACEMENT_MATCHES}` : "コンペティティブ"}</b><span>ラウンド ${g.index + 1} / ${g.rounds}${mult}</span></div>
+    ${rankedSideHtml("blue", true, me.avatar.glyph, me.avatar.color, me.name, rank.rp)}`;
+  const max = r.placing ? g.rounds * MAX_SCORE : MATCH_LIFE;
+  const sides = [
+    { el: hud.querySelector(".tg.red"), now: r.placing ? r.npcTotal : r.npcLife, from: change ? change.npcFrom : null, color: "#e5392f" },
+    { el: hud.querySelector(".tg.blue"), now: r.placing ? r.myTotal : r.myLife, from: change ? change.myFrom : null, color: "#2563eb" },
+  ];
+  const paint = (s, ratio) => (r.placing ? `linear-gradient(180deg, ${s.color}, ${s.color}cc)` : lifeColor(ratio));
+  sides.forEach((s) => {
+    const from = s.from == null ? s.now : s.from;
+    const fill = s.el.querySelector(".tg-fill");
+    const ghost = s.el.querySelector(".tg-ghost");
+    const num = s.el.querySelector(".tg-life");
+    const dmg = s.el.querySelector(".tg-dmg");
+    fill.style.transition = ghost.style.transition = "none";
+    fill.style.width = ghost.style.width = `${(from / max) * 100}%`;
+    fill.style.background = paint(s, from / max);
+    num.textContent = from.toLocaleString();
+    if (from === s.now) return;
+    dmg.classList.toggle("gain", r.placing);
+    dmg.textContent = r.placing ? `+${(s.now - from).toLocaleString()}` : `−${(from - s.now).toLocaleString()}`;
+    setTimeout(() => {
+      if (!s.el.isConnected) return;
+      fill.style.transition = "";
+      fill.style.width = `${(s.now / max) * 100}%`;
+      fill.style.background = paint(s, s.now / max);
+      ghost.style.transition = r.placing ? "none" : "width .9s ease .5s";
+      ghost.style.width = `${(s.now / max) * 100}%`;
+      countNumber(num, from, s.now);
+      dmg.classList.add("show");
+      if (!r.placing) {
+        s.el.classList.remove("hit");
+        void s.el.offsetWidth;
+        s.el.classList.add("hit");
+      }
+    }, 700);
+  });
 }

@@ -2607,10 +2607,6 @@ html.no-anim .rs-hint { animation: none; }
 .rk-progress { display: flex; flex-direction: column; align-items: center; gap: 6px; width: min(320px, 100%); margin-top: 6px; font-size: 12px; color: var(--muted); }
 .rk-bar { display: block; width: 100%; height: 8px; border-radius: 4px; overflow: hidden; background: rgba(255,255,255,.12); }
 .rk-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #6be39a); }
-.rk-reveal { margin: 18px 0 8px; animation: rkReveal .7s cubic-bezier(.2,1.5,.4,1) both; }
-.rk-reveal .rank-emblem { filter: drop-shadow(0 0 26px rgba(120,200,255,.55)); }
-html.no-anim .rk-reveal { animation: none; }
-@keyframes rkReveal { from { opacity: 0; transform: scale(.4) rotate(-12deg); } to { opacity: 1; transform: none; } }
 .rk-rankname { margin: 0; font-size: 26px; font-weight: 900; }
 .rk-delta { margin: 4px 0 0; font-weight: 800; }
 .rk-delta.up, .rk-move.up { color: #6be39a; }
@@ -2620,23 +2616,6 @@ html.no-anim .rk-reveal { animation: none; }
 .rk-step { display: flex; align-items: center; gap: 12px; padding: 5px 16px 5px 8px; border-radius: 12px; opacity: .55; }
 .rk-step b { font-size: 14px; }
 .rk-step.current { opacity: 1; background: rgba(56,189,248,.14); box-shadow: inset 0 0 0 1px rgba(56,189,248,.5); }
-
-/* 試合中の体力 */
-#ranked-hud { display: none; }
-.screen-game #ranked-hud:not([hidden]), .screen-result #ranked-hud:not([hidden]) {
-  display: flex; flex-direction: column; gap: 5px; position: absolute; top: 12px; right: 12px; z-index: 5; width: 320px;
-  padding: 8px 10px; border-radius: 12px; background: rgba(17, 21, 28, .88); border: 1px solid rgba(255,255,255,.15); box-shadow: 0 4px 16px rgba(0,0,0,.35);
-}
-.rh-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; color: var(--muted); }
-.rh-head b { color: #fff; font-size: 12px; }
-.rh-row { display: flex; align-items: center; gap: 8px; }
-.rh-row .p-avatar { width: 28px; height: 28px; font-size: 14px; flex: none; }
-.rh-who { display: flex; flex-direction: column; min-width: 0; width: 104px; flex: none; }
-.rh-who > b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rh-who .rank-label { font-size: 10px; font-weight: 700; color: var(--muted); gap: 3px; }
-.rh-bar { flex: 1; min-width: 0; height: 10px; border-radius: 5px; overflow: hidden; background: rgba(255,255,255,.14); display: block; }
-.rh-bar i { display: block; height: 100%; transition: width .6s ease; }
-.rh-num { min-width: 40px; text-align: right; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; margin-left: auto; }
 
 /* プロフィールと右上のランク */
 .pf-rank { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 0 0 12px; padding: 8px 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); text-align: left; }
@@ -2659,13 +2638,78 @@ html.no-anim .rk-reveal { animation: none; }
   .rk-player { width: 120px; }
   .rk-vs { font-size: 24px; }
   .rk-pips span { padding: 7px 10px; font-size: 12px; }
-  .screen-game #ranked-hud:not([hidden]) { left: 10px; right: 10px; top: 10px; width: auto; padding: 6px 8px; gap: 3px; }
-  .screen-result #ranked-hud:not([hidden]) { left: 10px; right: 10px; top: 54px; width: auto; padding: 6px 8px; gap: 3px; }
-  .rh-row .p-avatar { width: 22px; height: 22px; font-size: 12px; }
-  .rh-who { width: 92px; }
-  #stage:has(#ranked-hud:not([hidden])) #heading-tape { top: 116px; }
-  #stage:has(#ranked-hud:not([hidden])) #timer-pill:not([hidden]) { top: 148px; }
-  #stage:has(#ranked-hud:not([hidden])) #hurry-note { top: 188px; }
+}
+
+/* ================================================================ コンペティティブ: チーム戦と同じ体力バー（左に相手、右に自分） */
+#ranked-hud { display: none; }
+.screen-game #ranked-hud:not([hidden]), .screen-result #ranked-hud:not([hidden]) { display: block; position: absolute; inset: 0 0 auto 0; z-index: 6; pointer-events: none; }
+#ranked-hud .tg-badge { font-size: 22px; }
+#ranked-hud .tg-meta .rank-label { font-size: 10px; font-weight: 700; color: #dfe5f0; gap: 3px; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+#ranked-hud .tg-name { letter-spacing: 0; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rh-round {
+  position: absolute; top: 104px; left: 50%; transform: translateX(-50%); display: flex; align-items: baseline; gap: 8px; white-space: nowrap;
+  padding: 3px 12px; border-radius: 999px; background: rgba(11,17,32,.82); border: 1px solid rgba(255,255,255,.14); font-size: 11px; color: #cdd6e8;
+}
+.rh-round b { font-size: 11px; color: #fff; }
+#stage:has(#ranked-hud:not([hidden])) #hurry-note { top: 134px; }
+/* 結果の画面: 左上のラウンド表示を、体力バーの下に下げる */
+.screen-result:has(#ranked-hud:not([hidden])) { --tbar: 84px; }
+.screen-result #ranked-hud .rh-round { top: 70px; }
+@media (max-width: 720px) {
+  #ranked-hud .tg-badge { font-size: 16px; }
+  #ranked-hud .tg-name { max-width: 76px; }
+  #ranked-hud .tg-meta .rank-label b { display: none; }
+  .rh-round { top: 70px; font-size: 10px; padding: 2px 10px; }
+  .rh-round b { display: none; }
+  .screen-result #ranked-hud .rh-round { top: 62px; }
+  #stage:has(#ranked-hud:not([hidden])) #heading-tape { top: 96px; }
+  #stage:has(#ranked-hud:not([hidden])) #timer-pill:not([hidden]) { top: 128px; }
+  #stage:has(#ranked-hud:not([hidden])) #hurry-note { top: 170px; }
   #stage:has(#map-dock.m-full) #ranked-hud { visibility: hidden; }
   #stage:has(#map-dock.m-full) #timer-pill:not([hidden]) { top: 11px; }
 }
+
+/* ================================================================ コンペティティブ: ランクの演出 */
+.rk-slam { animation: rkSlam .55s cubic-bezier(.2,1.6,.35,1) both; }
+@keyframes rkSlam { from { opacity: 0; transform: scale(2.2); letter-spacing: .2em; } to { opacity: 1; transform: none; } }
+.rk-stage { --rk-c: #38bdf8; --rk-hi: #ffffff; position: relative; width: 170px; height: 170px; margin: 12px 0 2px; display: grid; place-items: center; }
+.rk-emblem { position: relative; z-index: 2; }
+.rk-emblem .rank-emblem { filter: drop-shadow(0 8px 18px rgba(0,0,0,.55)); }
+.rk-emblem.slam { animation: rkEmblemSlam .7s cubic-bezier(.2,1.7,.35,1) both; }
+.rk-emblem.drop { animation: rkEmblemDrop .8s cubic-bezier(.4,0,.6,1) both; }
+.rk-emblem.pulse { animation: rkEmblemPulse .7s ease; }
+@keyframes rkEmblemSlam { 0% { transform: scale(2.6) rotate(-14deg); opacity: 0; } 55% { transform: scale(.88) rotate(3deg); opacity: 1; } 100% { transform: none; } }
+@keyframes rkEmblemDrop { 0% { transform: translateY(-30px) rotate(10deg) scale(1.1); opacity: 0; } 55% { transform: translateY(10px) rotate(-5deg); opacity: 1; } 75% { transform: translateX(-6px); } 88% { transform: translateX(6px); } 100% { transform: none; } }
+@keyframes rkEmblemPulse { 40% { transform: scale(1.12); filter: brightness(1.35); } }
+.rk-rays, .rk-ring, .rk-flash { position: absolute; left: 50%; top: 50%; border-radius: 50%; pointer-events: none; opacity: 0; }
+.rk-rays {
+  width: 560px; height: 560px; margin: -280px 0 0 -280px; z-index: 0;
+  background: repeating-conic-gradient(from 0deg, var(--rk-c) 0 9deg, transparent 9deg 24deg);
+  -webkit-mask-image: radial-gradient(circle, #000 18%, transparent 68%); mask-image: radial-gradient(circle, #000 18%, transparent 68%);
+}
+.rk-ring { width: 150px; height: 150px; margin: -75px 0 0 -75px; z-index: 1; border: 6px solid var(--rk-hi); }
+.rk-flash { width: 420px; height: 420px; margin: -210px 0 0 -210px; z-index: 3; background: radial-gradient(circle, #fff 12%, var(--rk-hi) 28%, transparent 66%); }
+.rk-stage.burst .rk-rays { animation: rkRays 3.6s ease-out both; }
+.rk-stage.burst .rk-ring { animation: rkRing .95s ease-out both; }
+.rk-stage.burst .rk-flash { animation: rkFlash .6s ease-out both; }
+.rk-stage.burst.big .rk-ring { animation: rkRing .95s ease-out both, rkRing .95s .28s ease-out both; }
+@keyframes rkRays { 0% { opacity: 0; transform: rotate(0deg) scale(.4); } 18% { opacity: .85; } 72% { opacity: .55; } 100% { opacity: .22; transform: rotate(120deg) scale(1.08); } }
+@keyframes rkRing { from { opacity: 1; transform: scale(.5); } to { opacity: 0; transform: scale(3.2); } }
+@keyframes rkFlash { from { opacity: 1; transform: scale(.25); } to { opacity: 0; transform: scale(1.5); } }
+#rk-fx { position: absolute; left: 50%; top: 50%; width: 640px; height: 640px; margin: -320px 0 0 -320px; z-index: 4; pointer-events: none; }
+.rk-stage.hurt .rk-emblem .rank-emblem { filter: saturate(.55) brightness(.75) drop-shadow(0 6px 12px rgba(0,0,0,.6)); }
+.rk-banner { min-height: 30px; margin: 4px 0 0; font-family: var(--font-display); font-size: 25px; font-weight: 900; font-style: italic; letter-spacing: .08em; opacity: 0; }
+.rk-banner.show { animation: rkBanner .6s cubic-bezier(.2,1.6,.35,1) both; }
+.rk-banner.up { background: linear-gradient(90deg, #ffd23f, #fff, #6be39a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.rk-banner.down { color: #ff8a80; }
+@keyframes rkBanner { from { opacity: 0; transform: translateY(14px) scale(.6); } to { opacity: 1; transform: none; } }
+.rk-rankname.reveal { animation: rkSlam .5s .08s cubic-bezier(.2,1.6,.35,1) both; }
+#rk-fill { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), #6be39a); box-shadow: 0 0 10px rgba(107,227,154,.6); }
+.rk-delta { font-size: 20px; font-variant-numeric: tabular-nums; }
+.rk-actions.wait { opacity: 0; pointer-events: none; }
+.rk-actions { transition: opacity .35s; }
+html.no-anim .rk-slam, html.no-anim .rk-emblem, html.no-anim .rk-banner.show, html.no-anim .rk-rankname.reveal { animation: none; opacity: 1; }
+html.no-anim .rk-stage.burst .rk-rays, html.no-anim .rk-stage.burst .rk-ring, html.no-anim .rk-stage.burst .rk-flash { animation: none; }
+#ranked-screen { overflow-x: hidden; }
+/* 放射の光は文字の後ろに */
+.rk-main > :not(.rk-stage) { position: relative; z-index: 1; }
