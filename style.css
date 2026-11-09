@@ -2675,11 +2675,11 @@ html.no-anim .rs-hint { animation: none; }
 }
 .rk-ring { width: 150px; height: 150px; margin: -75px 0 0 -75px; z-index: 1; border: 6px solid var(--rk-hi); }
 .rk-flash { width: 420px; height: 420px; margin: -210px 0 0 -210px; z-index: 3; background: radial-gradient(circle, #fff 12%, var(--rk-hi) 28%, transparent 66%); }
-.rk-stage.burst .rk-rays { animation: rkRays 3.6s ease-out both; }
-.rk-stage.burst .rk-ring { animation: rkRing .95s ease-out both; }
+.rk-stage.burst .rk-rays { opacity: .6; animation: rkRaysIn .7s ease-out both, rkRaysSpin 16s linear infinite; }
+.rk-stage.burst .rk-ring { animation: rkRing 1.8s ease-out infinite; }
 .rk-stage.burst .rk-flash { animation: rkFlash .6s ease-out both; }
-.rk-stage.burst.big .rk-ring { animation: rkRing .95s ease-out both, rkRing .95s .28s ease-out both; }
-@keyframes rkRays { 0% { opacity: 0; transform: rotate(0deg) scale(.4); } 18% { opacity: .85; } 72% { opacity: .55; } 100% { opacity: .22; transform: rotate(120deg) scale(1.08); } }
+@keyframes rkRaysIn { from { opacity: 0; } to { opacity: .6; } }
+@keyframes rkRaysSpin { to { transform: rotate(360deg); } }
 @keyframes rkRing { from { opacity: 1; transform: scale(.5); } to { opacity: 0; transform: scale(3.2); } }
 @keyframes rkFlash { from { opacity: 1; transform: scale(.25); } to { opacity: 0; transform: scale(1.5); } }
 #rk-fx { position: absolute; left: 50%; top: 50%; width: 640px; height: 640px; margin: -320px 0 0 -320px; z-index: 4; pointer-events: none; }
@@ -2830,11 +2830,11 @@ html.no-anim .cs-flash { display: none; }
 .rk-dots i.on { opacity: 1; box-shadow: 0 0 6px currentColor; }
 .pf-rank { cursor: pointer; transition: border-color .2s, background .2s; }
 .pf-rank:hover { border-color: var(--accent); background: rgba(56,189,248,.08); }
-#rank-chart { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 16px; background: rgba(5,8,16,.82); overflow-y: auto; }
-.rc-panel { position: relative; width: min(1040px, 100%); padding: 22px 24px; border-radius: 18px; background: linear-gradient(180deg, #15264a, #0b1427); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 24px 60px rgba(0,0,0,.6); }
+#rank-chart { position: fixed; inset: 0; z-index: 120; display: grid; place-items: start center; padding: 16px; background: rgba(5,8,16,.82); overflow-y: auto; }
+.rc-panel { position: relative; margin: auto 0; width: min(1040px, 100%); padding: 22px 24px; border-radius: 18px; background: linear-gradient(180deg, #15264a, #0b1427); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 24px 60px rgba(0,0,0,.6); }
 .rc-panel h3 { margin: 0 0 8px; font-size: 26px; font-weight: 900; text-align: center; }
 .rc-lead { margin: 0 auto 18px; max-width: 760px; font-size: 13px; line-height: 1.75; color: #cdd6e8; }
-.rc-close { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.08); color: #fff; font-size: 18px; cursor: pointer; }
+.rc-close { position: absolute; top: 12px; right: 12px; z-index: 2; display: grid; place-items: center; padding: 0; line-height: 1; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.08); color: #fff; font-size: 18px; cursor: pointer; }
 .rc-grid { display: flex; justify-content: center; gap: 10px; }
 .rc-tier { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .rc-tier h4 { margin: 0 0 6px; font-size: 15px; font-weight: 900; }
@@ -2857,3 +2857,6 @@ html.no-anim .cs-flash { display: none; }
   .rc-champ .rc-rank { width: auto; }
 }
 @media (max-width: 900px) { .rk-step-text { align-items: center; } }
+
+/* コンペティティブを選んでいるときは、マップのランキングは出さない */
+#settings-sheet.ranked-mode #ranking, #settings-sheet.ranked-mode #btn-to-ranking { display: none !important; }

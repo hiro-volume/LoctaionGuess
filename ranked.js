@@ -115,6 +115,43 @@ const EMBLEM_COLORS = {
 };
 let emblemSeq = 0;
 
+// ランクごとの盾の形。outer は外形、frame は段階 2 からの二重の枠、shine は右上の光、pipY / pipGap は段階の点の位置
+const EMBLEM_SHAPES = {
+  shield: {
+    outer: "M32 5 55 13v19c0 14-11 23-23 27C20 55 9 46 9 32V13z",
+    frame: "M32 10.5 50.5 17V32c0 11-8.5 18.8-18.5 22.3C22 50.8 13.5 43 13.5 32V17z",
+    shine: "M32 10 50 16.5V32c0 11-8.5 18.5-18 22", pipY: 51, pipGap: 6.5, scale: 0.86,
+  },
+  diamond: {
+    outer: "M32 2 61 31 32 60 3 31z",
+    frame: "M32 8.5 54.5 31 32 53.5 9.5 31z",
+    shine: "M32 8 54 30", pipY: 43, pipGap: 5.6, scale: 0.7,
+  },
+  pentagon: {
+    outer: "M32 3 60 23 49 60H15L4 23z",
+    frame: "M32 9.5 54 25 45 54.5H19L10 25z",
+    shine: "M32 9 54 24.5", pipY: 51, pipGap: 6.5, scale: 0.9,
+  },
+};
+const TIER_SHAPES = { bronze: "shield", silver: "diamond", gold: "pentagon", none: "shield" };
+
+// 正多角形の頂点
+function polygonPoints(cx, cy, r, n, rot = 0) {
+  return Array.from({ length: n }, (_, i) => {
+    const t = rot + (i * 2 * Math.PI) / n;
+    return `${(cx + r * Math.sin(t)).toFixed(1)},${(cy - r * Math.cos(t)).toFixed(1)}`;
+  }).join(" ");
+}
+
+// マスターの本体: 左右に角ばった板、金属の太い枠、その中に宝石をはめた盾
+function masterBody(u, hi, mid, lo) {
+  const plate = `<path d="M15 10 3 18v29l12 10 7-6V15z" fill="url(#${u}p)" stroke="${hi}" stroke-width="1.6" stroke-linejoin="round"/><path d="M4 32h13" stroke="${hi}" stroke-width="1.2" opacity=".7"/>`;
+  return `${plate}<g transform="translate(64 0) scale(-1 1)">${plate}</g>
+    <path d="M32 4 53 11v23c0 13-10 21-21 26C21 55 11 47 11 34V11z" fill="url(#${u}m)" stroke="${lo}" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M32 11 47 16v18c0 9.5-7 15.5-15 19.5C24 49.5 17 43.5 17 34V16z" fill="url(#${u})" stroke="${lo}" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M42 14.5 47 16v8z" fill="#fff" opacity=".35"/>`;
+}
+
 // div は 1〜4（数字が大きいほど飾りが豪華になる）。0 は段階なしの表示
 function rankEmblem(tierId, size = 48, div = 0) {
   if (tierId === "champion") return championEmblem(size);
@@ -122,15 +159,18 @@ function rankEmblem(tierId, size = 48, div = 0) {
   const [hi, mid, lo] = EMBLEM_COLORS[id];
   const u = `re${++emblemSeq}`;
   const px = Math.round(size * 1.16);
+  const master = id === "master";
+  const shape = EMBLEM_SHAPES[TIER_SHAPES[id] || "shield"];
   const marks = {
     none: `<text x="32" y="42" text-anchor="middle" font-size="30" font-weight="900" font-family="sans-serif" fill="${hi}">?</text>`,
     bronze: `<path d="M19 34 32 23l13 11v8L32 31l-13 11z" fill="${hi}"/>`,
     silver: `<path d="M19 27 32 16l13 11v7L32 23l-13 11z" fill="${hi}"/><path d="M19 38 32 27l13 11v7L32 34l-13 11z" fill="${hi}" opacity=".8"/>`,
     gold: `<path d="M32 14l5 10.5 11.5 1.3-8.5 7.8 2.4 11.4L32 39.3 21.6 45l2.4-11.4-8.5-7.8L27 24.5z" fill="${hi}" stroke="${lo}" stroke-width="1.5" stroke-linejoin="round"/>`,
-    master: `<path d="M32 12l12 11-12 24-12-24z" fill="${hi}"/><path d="M32 12v35M20 23h24" stroke="${lo}" stroke-width="1.8" opacity=".6"/>`,
+    master: `<polygon points="${polygonPoints(32, 30, 14, 8, Math.PI / 8)}" fill="${lo}" stroke="url(#${u}m)" stroke-width="3.4" stroke-linejoin="round"/><polygon points="${polygonPoints(32, 30, 8.5, 8, Math.PI / 8)}" fill="url(#${u}g)"/><path d="M32 21.5v17M23.5 30h17" stroke="#fff" stroke-width=".9" opacity=".55"/>`,
   };
   // 飾り: 2 で二重の枠、3 で翼、4 で大きな翼と冠と後光
-  const frame = div >= 2 ? `<path d="M32 10.5 50.5 17V32c0 11-8.5 18.8-18.5 22.3C22 50.8 13.5 43 13.5 32V17z" fill="none" stroke="${hi}" stroke-width="1.3" opacity=".75"/>` : "";
+  const frame = div >= 2 && !master ? `<path d="${shape.frame}" fill="none" stroke="${hi}" stroke-width="1.3" stroke-linejoin="round" opacity=".75"/>` : "";
+  const inner = div >= 2 && master ? `<path d="M32 14.5 44 18.5V34c0 7.5-5.5 12.5-12 16-6.5-3.5-12-8.5-12-16V18.5z" fill="none" stroke="${hi}" stroke-width="1" opacity=".7"/>` : "";
   const wing = div >= 4
     ? `<path d="M11 13C1 13-7 21-8 32c4-4 9-6 15-6z" fill="${hi}"/><path d="M10 25C2 26-5 32-6 42c4-3 8-5 13-5z" fill="${mid}" stroke="${hi}" stroke-width="1"/><path d="M10 37c-6 1-10 5-12 12 4-2 8-4 13-4z" fill="${hi}" opacity=".85"/>`
     : div >= 3
@@ -139,14 +179,22 @@ function rankEmblem(tierId, size = 48, div = 0) {
   const wings = wing ? `${wing}<g transform="translate(64 0) scale(-1 1)">${wing}</g>` : "";
   const crown = div >= 4 ? `<path d="M20 11l-2-11 7 5 7-10 7 10 7-5-2 11z" fill="${hi}" stroke="${lo}" stroke-width="1.3" stroke-linejoin="round"/><circle cx="32" cy="-5" r="2.2" fill="#fff"/>` : "";
   const halo = div >= 4 ? `<circle cx="32" cy="30" r="39" fill="url(#${u}h)"/>` : "";
-  const pips = div ? Array.from({ length: div }, (_, i) => `<circle cx="${32 + (i - (div - 1) / 2) * 6.5}" cy="51" r="2.1" fill="${hi}" stroke="${lo}" stroke-width=".8"/>`).join("") : "";
+  const pipY = master ? 48.5 : shape.pipY;
+  const pipGap = master ? 5.2 : shape.pipGap;
+  const pips = div ? Array.from({ length: div }, (_, i) => `<circle cx="${32 + (i - (div - 1) / 2) * pipGap}" cy="${pipY}" r="2.1" fill="${hi}" stroke="${lo}" stroke-width=".8"/>`).join("") : "";
+  const body = master
+    ? masterBody(u, hi, mid, lo)
+    : `<path d="${shape.outer}" fill="url(#${u})" stroke="${hi}" stroke-width="2.5" stroke-linejoin="round"/>${frame}<path d="${shape.shine}" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="2"/>`;
+  const scale = master ? 0.8 : shape.scale;
   return `<svg class="rank-emblem" viewBox="-10 -10 84 84" width="${px}" height="${px}" aria-hidden="true">
     <defs><linearGradient id="${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${mid}"/><stop offset="1" stop-color="${lo}"/></linearGradient>
+    <linearGradient id="${u}m" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="${hi}"/><stop offset=".7" stop-color="#ffffff"/><stop offset="1" stop-color="${hi}"/></linearGradient>
+    <linearGradient id="${u}p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${hi}"/><stop offset="1" stop-color="${mid}"/></linearGradient>
+    <radialGradient id="${u}g" cx=".35" cy=".3"><stop offset="0" stop-color="#ffffff"/><stop offset=".5" stop-color="${hi}"/><stop offset="1" stop-color="${mid}"/></radialGradient>
     <radialGradient id="${u}h"><stop offset=".45" stop-color="${hi}" stop-opacity=".55"/><stop offset="1" stop-color="${hi}" stop-opacity="0"/></radialGradient></defs>
     ${halo}${wings}${crown}
-    <path d="M32 5 55 13v19c0 14-11 23-23 27C20 55 9 46 9 32V13z" fill="url(#${u})" stroke="${hi}" stroke-width="2.5" stroke-linejoin="round"/>
-    ${frame}
-    <g transform="translate(32 28) scale(.86) translate(-32 -30)">${marks[id]}</g>
+    ${body}${inner}
+    <g transform="translate(32 ${master ? 30 : 28}) scale(${scale}) translate(-32 -30)">${marks[id]}</g>
     ${pips}
   </svg>`;
 }

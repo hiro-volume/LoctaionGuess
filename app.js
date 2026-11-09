@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.98";
+const APP_VERSION = "1.99";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -2245,6 +2245,9 @@ function updateTimerRing(pill, rest) {
     svg.dataset.size = `${w}x${h}`;
     svg.style.width = `${w + RING_PAD * 2}px`;
     svg.style.height = `${h + RING_PAD * 2}px`;
+    // 枠線の太さの分も差し引いて、タイマーのちょうど真ん中に重ねる
+    svg.style.left = `${-(RING_PAD + pill.clientLeft)}px`;
+    svg.style.top = `${-(RING_PAD + pill.clientTop)}px`;
     const x = 2.5, y = 2.5, W = w + 5, H = h + 5, r = H / 2, cx = x + W / 2;
     const d = `M${cx} ${y}H${x + W - r}A${r} ${r} 0 0 1 ${x + W - r} ${y + H}H${x + r}A${r} ${r} 0 0 1 ${x + r} ${y}H${cx}`;
     svg.querySelectorAll("path").forEach((p) => p.setAttribute("d", d));
