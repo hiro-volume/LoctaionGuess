@@ -781,18 +781,28 @@ async function playRankShow(show, rp) {
     await wait(760);
     if (!alive()) return;
     const tierUp = was.tier.id !== now.tier.id;
+    // チャンピオンは、ゲージが満タンになった瞬間に全画面のお祝いを出す（マークはその後で切り替える）
+    const toChampion = now.tier.id === "champion";
+    if (toChampion) await playChampionShow(rp);
+    if (!alive()) return;
     slamEmblem(now.tier.id);
     paintRankName(now);
     $("rk-name").classList.add("reveal");
-    if (animate) rankBurst(now.tier.id, tierUp);
+    if (animate) rankBurst(now.tier.id, tierUp && !toChampion);
     showRankBanner(tierUp ? "TIER UP!" : "RANK UP!", "up");
     setRankBar(0, 0);
     await wait(120);
     if (!alive()) return;
-    setRankBar(rankPct(now), 700);
-    await wait(1100);
-    if (!alive()) return;
-    if (now.tier.id === "champion") await playChampionShow(rp);
+    // お祝いのあとに、ポイントがたまっていくところを見せる
+    if (toChampion) {
+      left.innerHTML = `<span id="rk-charge">${now.tier.start.toLocaleString()}</span> RP`;
+      if (animate) tweenNumber($("rk-charge"), now.tier.start, rp, 1000);
+      setRankBar(100, 1000);
+      await wait(1300);
+    } else {
+      setRankBar(rankPct(now), 700);
+      await wait(1100);
+    }
   } else {
     setRankBar(0, 700);
     await wait(760);
