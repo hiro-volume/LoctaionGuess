@@ -2157,7 +2157,7 @@ html.no-anim .num-pop { animation: none; }
 /* ================================================================ スマホの幅 */
 /* タイトルの写真クレジット: PC ではそのまま、スマホや背の低い画面では押したときだけ開く */
 .credit-toggle { display: none; }
-@media (max-width: 720px), (max-height: 600px) {
+@media all {
   .credit-toggle {
     display: inline-flex; align-self: flex-start; padding: 6px 12px; border-radius: 999px; cursor: pointer;
     background: rgba(17,24,40,.6); color: rgba(238,241,246,.8); border: 1px solid rgba(255,255,255,.18);
@@ -2644,7 +2644,7 @@ html.no-anim .rs-hint { animation: none; }
 #ranked-hud { display: none; }
 .screen-game #ranked-hud:not([hidden]), .screen-result #ranked-hud:not([hidden]) { display: block; position: absolute; inset: 0 0 auto 0; z-index: 6; pointer-events: none; }
 #ranked-hud .tg-badge { font-size: 22px; }
-#ranked-hud .tg-meta .rank-label { font-size: 10px; font-weight: 700; color: #dfe5f0; gap: 3px; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+#ranked-hud .tg-meta .rank-label { font-size: 10px; font-weight: 700; gap: 3px; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
 #ranked-hud .tg-name { letter-spacing: 0; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rh-round {
   position: absolute; top: 104px; left: 50%; transform: translateX(-50%); display: flex; align-items: baseline; gap: 8px; white-space: nowrap;
@@ -2713,3 +2713,20 @@ html.no-anim .rk-stage.burst .rk-rays, html.no-anim .rk-stage.burst .rk-ring, ht
 #ranked-screen { overflow-x: hidden; }
 /* 放射の光は文字の後ろに */
 .rk-main > :not(.rk-stage) { position: relative; z-index: 1; }
+
+/* タイトルの写真クレジット（PC）: 残りゲーム数の行が折り返されないように、右下のボタンから上に開く */
+@media (min-width: 721px) {
+  .title-foot { flex-direction: row; align-items: flex-end; justify-content: space-between; }
+  .credit-toggle { align-self: auto; flex: none; }
+  #usage-mini { white-space: nowrap; }
+  #title-credit.show { position: absolute; right: 20px; bottom: calc(100% - 12px); width: min(640px, calc(100vw - 40px)); }
+}
+
+/* ランクの文字の色 */
+.rank-c-none { color: #9aa3b5; }
+.rank-c-bronze { color: #eeab70; }
+.rank-c-silver { color: #dbe3ef; }
+.rank-c-gold { color: #ffd23f; }
+.rank-c-master { color: #ff6fa3; text-shadow: 0 0 10px rgba(255,111,163,.4); }
+.rank-c-champion { color: #62d6ff; text-shadow: 0 0 12px rgba(98,214,255,.55); }
+.rk-step b, .rank-label b { color: inherit; }

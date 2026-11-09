@@ -139,9 +139,14 @@ function rankEmblem(tierId, size = 48) {
   </svg>`;
 }
 
+// ランクの色（style.css の .rank-c-○○）
+function rankColorClass(r) {
+  return `rank-c-${r ? r.tier.id : "none"}`;
+}
+
 function rankLabelHtml(rp, size = 28) {
   const r = rankOf(rp);
-  return `<span class="rank-label">${rankEmblem(r ? r.tier.id : null, size)}<b>${r ? r.name : "ランクなし"}</b></span>`;
+  return `<span class="rank-label ${rankColorClass(r)}">${rankEmblem(r ? r.tier.id : null, size)}<b>${r ? r.name : "ランクなし"}</b></span>`;
 }
 
 // プロフィールと右上の表示
@@ -151,7 +156,7 @@ function renderRankProfile() {
   const box = $("pf-rank");
   if (box) {
     box.innerHTML = `${rankEmblem(r ? r.tier.id : null, 56)}
-      <div><small>コンペティティブ</small><b>${r ? r.name : "ランクなし"}</b>
+      <div><small>コンペティティブ</small><b class="${rankColorClass(r)}">${r ? r.name : "ランクなし"}</b>
       <span>${r ? `${rank.rp.toLocaleString()} RP ・ ${rank.wins} 勝 ${rank.losses} 敗` : `認定戦 ${rank.placement.length} / ${PLACEMENT_MATCHES}`}</span></div>`;
   }
   const mini = $("tb-rank");
@@ -194,8 +199,8 @@ function openRanked(area) {
 function ladderHtml(rp) {
   const cur = rankOf(rp);
   return `<div class="rk-ladder">${[...RANK_TIERS].reverse().map((t) => `
-    <div class="rk-step${cur && cur.tier.id === t.id ? " current" : ""}">${rankEmblem(t.id, 44)}<b>${t.name}</b></div>`).join("")}
-    <div class="rk-step${cur ? "" : " current"}">${rankEmblem(null, 44)}<b>ランクなし</b></div>
+    <div class="rk-step rank-c-${t.id}${cur && cur.tier.id === t.id ? " current" : ""}">${rankEmblem(t.id, 44)}<b>${t.name}</b></div>`).join("")}
+    <div class="rk-step rank-c-none${cur ? "" : " current"}">${rankEmblem(null, 44)}<b>ランクなし</b></div>
   </div>`;
 }
 
@@ -553,6 +558,13 @@ function rankBurst(tierId, big) {
   rankParticles([hi, mid, "#ffffff", "#ffd23f"], big ? 260 : 130, big ? 15 : 10, false);
 }
 
+// 演出の中のランク名: 文字をランクの色にする
+function paintRankName(r) {
+  const el = $("rk-name");
+  el.textContent = r.name;
+  el.className = `rk-rankname ${el.classList.contains("reveal") ? "reveal " : ""}${rankColorClass(r)}`;
+}
+
 function slamEmblem(tierId, cls = "slam") {
   const box = $("rk-emblem");
   box.innerHTML = rankEmblem(tierId, 128);
@@ -609,7 +621,7 @@ async function playRankShow(show, rp) {
     $("rk-head").classList.add("win");
     $("rk-sub").textContent = show.sub;
     slamEmblem(now.tier.id);
-    $("rk-name").textContent = now.name;
+    paintRankName(now);
     $("rk-name").classList.add("reveal");
     if (animate) rankBurst(now.tier.id, true);
     showRankBanner("PLACED!", "up");
@@ -623,6 +635,7 @@ async function playRankShow(show, rp) {
   const delta = $("rk-delta");
   const left = $("rk-left");
   const leftText = (r, value) => (r.next ? `次のランクまで ${r.next - r.into} RP` : `${value.toLocaleString()} RP`);
+  paintRankName(was);
   setRankBar(rankPct(was), 0);
   left.textContent = leftText(was, show.from);
   delta.innerHTML = `<span id="rk-num">0</span> RP`;
@@ -653,7 +666,7 @@ async function playRankShow(show, rp) {
     if (!alive()) return;
     const tierUp = was.tier.id !== now.tier.id;
     slamEmblem(now.tier.id);
-    $("rk-name").textContent = now.name;
+    paintRankName(now);
     $("rk-name").classList.add("reveal");
     if (animate) rankBurst(now.tier.id, tierUp);
     showRankBanner(tierUp ? "TIER UP!" : "RANK UP!", "up");
@@ -667,7 +680,7 @@ async function playRankShow(show, rp) {
     await wait(760);
     if (!alive()) return;
     slamEmblem(now.tier.id, "drop");
-    $("rk-name").textContent = now.name;
+    paintRankName(now);
     $("rk-stage").classList.add("hurt");
     if (animate) rankParticles(["#6b7280", "#9ca3af", "#374151"], 70, 5, true);
     showRankBanner("RANK DOWN", "down");
