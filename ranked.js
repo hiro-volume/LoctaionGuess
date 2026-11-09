@@ -115,27 +115,71 @@ const EMBLEM_COLORS = {
 };
 let emblemSeq = 0;
 
-function rankEmblem(tierId, size = 48) {
+// div は 1〜4（数字が大きいほど飾りが豪華になる）。0 は段階なしの表示
+function rankEmblem(tierId, size = 48, div = 0) {
+  if (tierId === "champion") return championEmblem(size);
   const id = tierId || "none";
   const [hi, mid, lo] = EMBLEM_COLORS[id];
   const u = `re${++emblemSeq}`;
+  const px = Math.round(size * 1.16);
   const marks = {
-    none: `<text x="32" y="43" text-anchor="middle" font-size="32" font-weight="900" font-family="sans-serif" fill="${hi}">?</text>`,
-    bronze: `<path d="M19 36 32 25l13 11v8L32 33l-13 11z" fill="${hi}"/>`,
-    silver: `<path d="M19 30 32 19l13 11v7L32 26l-13 11z" fill="${hi}"/><path d="M19 42 32 31l13 11v7L32 38l-13 11z" fill="${hi}" opacity=".8"/>`,
-    gold: `<path d="M32 15l5 11 12 1.3-9 8 2.7 11.7L32 41l-10.7 6 2.7-11.7-9-8 12-1.3z" fill="${hi}" stroke="${lo}" stroke-width="1.5" stroke-linejoin="round"/>`,
-    master: `<path d="M32 13l13 12-13 26-13-26z" fill="${hi}"/><path d="M32 13v38M19 25h26" stroke="${lo}" stroke-width="1.8" opacity=".6"/><path d="M14 22c-6 4-8 12-5 20 2-5 4-7 9-9zM50 22c6 4 8 12 5 20-2-5-4-7-9-9z" fill="${hi}" opacity=".9"/>`,
-    champion: `<path d="M15 41l-3-20 11 8 9-16 9 16 11-8-3 20z" fill="${hi}" stroke="${lo}" stroke-width="1.5" stroke-linejoin="round"/><rect x="15" y="43" width="34" height="6" rx="2" fill="${hi}"/><circle cx="32" cy="32" r="4.5" fill="${mid}" stroke="${lo}" stroke-width="1.5"/>`,
+    none: `<text x="32" y="42" text-anchor="middle" font-size="30" font-weight="900" font-family="sans-serif" fill="${hi}">?</text>`,
+    bronze: `<path d="M19 34 32 23l13 11v8L32 31l-13 11z" fill="${hi}"/>`,
+    silver: `<path d="M19 27 32 16l13 11v7L32 23l-13 11z" fill="${hi}"/><path d="M19 38 32 27l13 11v7L32 34l-13 11z" fill="${hi}" opacity=".8"/>`,
+    gold: `<path d="M32 14l5 10.5 11.5 1.3-8.5 7.8 2.4 11.4L32 39.3 21.6 45l2.4-11.4-8.5-7.8L27 24.5z" fill="${hi}" stroke="${lo}" stroke-width="1.5" stroke-linejoin="round"/>`,
+    master: `<path d="M32 12l12 11-12 24-12-24z" fill="${hi}"/><path d="M32 12v35M20 23h24" stroke="${lo}" stroke-width="1.8" opacity=".6"/>`,
   };
-  const burst = id === "champion"
-    ? `<path d="M32 1l5 7 8-3 2 8 8 1-1 8 7 4-4 7 4 7-7 4 1 8-8 1-2 8-8-3-5 7-5-7-8 3-2-8-8-1 1-8-7-4 4-7-4-7 7-4-1-8 8-1 2-8 8 3z" fill="${mid}" opacity=".35"/>`
-    : "";
-  return `<svg class="rank-emblem" viewBox="0 0 64 64" width="${size}" height="${size}" aria-hidden="true">
-    <defs><linearGradient id="${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${mid}"/><stop offset="1" stop-color="${lo}"/></linearGradient></defs>
-    ${burst}
+  // 飾り: 2 で二重の枠、3 で翼、4 で大きな翼と冠と後光
+  const frame = div >= 2 ? `<path d="M32 10.5 50.5 17V32c0 11-8.5 18.8-18.5 22.3C22 50.8 13.5 43 13.5 32V17z" fill="none" stroke="${hi}" stroke-width="1.3" opacity=".75"/>` : "";
+  const wing = div >= 4
+    ? `<path d="M11 13C1 13-7 21-8 32c4-4 9-6 15-6z" fill="${hi}"/><path d="M10 25C2 26-5 32-6 42c4-3 8-5 13-5z" fill="${mid}" stroke="${hi}" stroke-width="1"/><path d="M10 37c-6 1-10 5-12 12 4-2 8-4 13-4z" fill="${hi}" opacity=".85"/>`
+    : div >= 3
+      ? `<path d="M10 20C3 22-3 29-4 38c4-3 7-5 12-5z" fill="${hi}"/><path d="M10 32c-5 1-9 5-11 11 4-2 7-4 12-4z" fill="${mid}" stroke="${hi}" stroke-width="1"/>`
+      : "";
+  const wings = wing ? `${wing}<g transform="translate(64 0) scale(-1 1)">${wing}</g>` : "";
+  const crown = div >= 4 ? `<path d="M20 11l-2-11 7 5 7-10 7 10 7-5-2 11z" fill="${hi}" stroke="${lo}" stroke-width="1.3" stroke-linejoin="round"/><circle cx="32" cy="-5" r="2.2" fill="#fff"/>` : "";
+  const halo = div >= 4 ? `<circle cx="32" cy="30" r="39" fill="url(#${u}h)"/>` : "";
+  const pips = div ? Array.from({ length: div }, (_, i) => `<circle cx="${32 + (i - (div - 1) / 2) * 6.5}" cy="51" r="2.1" fill="${hi}" stroke="${lo}" stroke-width=".8"/>`).join("") : "";
+  return `<svg class="rank-emblem" viewBox="-10 -10 84 84" width="${px}" height="${px}" aria-hidden="true">
+    <defs><linearGradient id="${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${mid}"/><stop offset="1" stop-color="${lo}"/></linearGradient>
+    <radialGradient id="${u}h"><stop offset=".45" stop-color="${hi}" stop-opacity=".55"/><stop offset="1" stop-color="${hi}" stop-opacity="0"/></radialGradient></defs>
+    ${halo}${wings}${crown}
     <path d="M32 5 55 13v19c0 14-11 23-23 27C20 55 9 46 9 32V13z" fill="url(#${u})" stroke="${hi}" stroke-width="2.5" stroke-linejoin="round"/>
-    <path d="M32 10 50 16.5V32c0 11-8.5 18.5-18 22" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="2"/>
-    ${marks[id]}
+    ${frame}
+    <g transform="translate(32 28) scale(.86) translate(-32 -30)">${marks[id]}</g>
+    ${pips}
+  </svg>`;
+}
+
+// チャンピオンだけの特別なマーク（金の縁、二段の翼、宝石の冠、控えめな後光）
+function championEmblem(size) {
+  const u = `re${++emblemSeq}`;
+  const px = Math.round(size * 1.16);
+  const star = (cx, cy, outer, inner, n, rot = 0) => Array.from({ length: n * 2 }, (_, i) => {
+    const r = i % 2 ? inner : outer;
+    const t = rot + (i * Math.PI) / n;
+    return `${(cx + r * Math.sin(t)).toFixed(1)},${(cy - r * Math.cos(t)).toFixed(1)}`;
+  }).join(" ");
+  const feather = `<path d="M11 10C0 9-9 18-11 31c5-5 11-7 18-7z" fill="url(#${u}g)" stroke="#7f5005" stroke-width=".7"/><path d="M10 22C0 23-8 31-10 42c5-4 10-6 17-6z" fill="url(#${u}b)" stroke="#fff3b0" stroke-width="1"/>`;
+  return `<svg class="rank-emblem" viewBox="-14 -14 92 92" width="${px}" height="${px}" aria-hidden="true">
+    <defs>
+      <linearGradient id="${u}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fe3ff"/><stop offset=".5" stop-color="#1ea2f2"/><stop offset="1" stop-color="#0a2a78"/></linearGradient>
+      <linearGradient id="${u}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6c2"/><stop offset=".5" stop-color="#f7c23a"/><stop offset="1" stop-color="#b9770e"/></linearGradient>
+      <radialGradient id="${u}h"><stop offset=".3" stop-color="#8fe8ff" stop-opacity=".45"/><stop offset="1" stop-color="#28b4ff" stop-opacity="0"/></radialGradient>
+      <linearGradient id="${u}d" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#7fdcff"/></linearGradient>
+    </defs>
+    <circle cx="32" cy="30" r="45" fill="url(#${u}h)"/>
+    <polygon points="${star(32, 30, 41, 34, 16)}" fill="#28b4ff" opacity=".32"/>
+    ${feather}<g transform="translate(64 0) scale(-1 1)">${feather}</g>
+    <path d="M32 3 57 12v20c0 15-12 25-25 29C19 57 7 47 7 32V12z" fill="url(#${u}g)" stroke="#7f5005" stroke-width=".8" stroke-linejoin="round"/>
+    <path d="M32 7 53.5 14.8V32c0 12.7-10.2 21.5-21.5 25.3C20.7 53.5 10.5 44.7 10.5 32V14.8z" fill="url(#${u}b)" stroke="#fff3b0" stroke-width=".8"/>
+    <path d="M32 7 53.5 14.8V27C42 22 22 22 10.5 27V14.8z" fill="#fff" opacity=".13"/>
+    <path d="M16 39 13 19l9 7.5L32 11l10 15.5 9-7.5-3 20z" fill="url(#${u}g)" stroke="#7f5005" stroke-width="1" stroke-linejoin="round"/>
+    <circle cx="13" cy="18" r="2.6" fill="#fff" stroke="#b9770e" stroke-width=".8"/><circle cx="32" cy="9.5" r="3" fill="#fff" stroke="#b9770e" stroke-width=".8"/><circle cx="51" cy="18" r="2.6" fill="#fff" stroke="#b9770e" stroke-width=".8"/>
+    <rect x="16" y="40.5" width="32" height="6" rx="2" fill="url(#${u}g)" stroke="#7f5005" stroke-width=".8"/>
+    <circle cx="23" cy="43.5" r="1.7" fill="#28b4ff"/><circle cx="32" cy="43.5" r="1.9" fill="#e5392f"/><circle cx="41" cy="43.5" r="1.7" fill="#28b4ff"/>
+    <path d="M32 21l7.5 6.5L32 38l-7.5-10.5z" fill="url(#${u}d)" stroke="#0a2a78" stroke-width="1"/><path d="M24.5 27.5h15M32 21v17" stroke="#28b4ff" stroke-width=".8" opacity=".8"/>
+    <polygon points="${star(32, -3, 5.5, 1.6, 4)}" fill="#fff"/>
   </svg>`;
 }
 
@@ -146,7 +190,7 @@ function rankColorClass(r) {
 
 function rankLabelHtml(rp, size = 28) {
   const r = rankOf(rp);
-  return `<span class="rank-label ${rankColorClass(r)}">${rankEmblem(r ? r.tier.id : null, size)}<b>${r ? r.name : "ランクなし"}</b></span>`;
+  return `<span class="rank-label ${rankColorClass(r)}">${rankEmblem(r ? r.tier.id : null, size, r ? r.div : 0)}<b>${r ? r.name : "ランクなし"}</b></span>`;
 }
 
 // プロフィールと右上の表示
@@ -155,13 +199,13 @@ function renderRankProfile() {
   const r = rankOf(rank.rp);
   const box = $("pf-rank");
   if (box) {
-    box.innerHTML = `${rankEmblem(r ? r.tier.id : null, 56)}
-      <div><small>コンペティティブ</small><b class="${rankColorClass(r)}">${r ? r.name : "ランクなし"}</b>
+    box.innerHTML = `${rankEmblem(r ? r.tier.id : null, 56, r ? r.div : 0)}
+      <div><small>コンペティティブ ・ 押すと全ランクを表示</small><b class="${rankColorClass(r)}">${r ? r.name : "ランクなし"}</b>
       <span>${r ? `${rank.rp.toLocaleString()} RP ・ ${rank.wins} 勝 ${rank.losses} 敗` : `認定戦 ${rank.placement.length} / ${PLACEMENT_MATCHES}`}</span></div>`;
   }
   const mini = $("tb-rank");
   if (mini) {
-    mini.innerHTML = rankEmblem(r ? r.tier.id : null, 22);
+    mini.innerHTML = rankEmblem(r ? r.tier.id : null, 22, r ? r.div : 0);
     mini.title = r ? r.name : "ランクなし";
   }
 }
@@ -198,11 +242,72 @@ function openRanked(area) {
 
 function ladderHtml(rp) {
   const cur = rankOf(rp);
-  return `<div class="rk-ladder">${[...RANK_TIERS].reverse().map((t) => `
-    <div class="rk-step rank-c-${t.id}${cur && cur.tier.id === t.id ? " current" : ""}">${rankEmblem(t.id, 44)}<b>${t.name}</b></div>`).join("")}
-    <div class="rk-step rank-c-none${cur ? "" : " current"}">${rankEmblem(null, 44)}<b>ランクなし</b></div>
+  const curIndex = cur ? RANK_TIERS.indexOf(cur.tier) : -1;
+  return `<div class="rk-ladder">${[...RANK_TIERS].reverse().map((t) => {
+    const here = !!cur && cur.tier.id === t.id;
+    const index = RANK_TIERS.indexOf(t);
+    // 点は、そのランクで到達した段階まで光る（下のランクは全部、上のランクは消えたまま）
+    const lit = index < curIndex ? 4 : here ? cur.div : 0;
+    const dots = t.divs > 1 ? `<span class="rk-dots">${[1, 2, 3, 4].map((n) => `<i class="${n <= lit ? "on" : ""}"></i>`).join("")}</span>` : "";
+    return `<div class="rk-step rank-c-${t.id}${here ? " current" : ""}">${rankEmblem(t.id, 44, t.divs > 1 ? (here ? cur.div : 1) : 0)}<div class="rk-step-text"><b>${t.name}</b>${dots}</div></div>`;
+  }).join("")}
+    <div class="rk-step rank-c-none${cur ? "" : " current"}">${rankEmblem(null, 44)}<div class="rk-step-text"><b>ランクなし</b></div></div>
   </div>`;
 }
+
+// ---- 全ランクの一覧（プロフィールのランクを押すと開く）
+
+function openRankChart() {
+  closeRankChart();
+  const rank = loadRank();
+  const cur = rankOf(rank.rp);
+  const isNow = (t, d) => !!cur && cur.tier.id === t.id && cur.div === d;
+  const box = document.createElement("div");
+  box.id = "rank-chart";
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-modal", "true");
+  box.setAttribute("aria-label", "コンペティティブのランク");
+  const tiers = RANK_TIERS.filter((t) => t.divs > 1).map((t) => `
+    <section class="rc-tier rank-c-${t.id}">
+      <h4>${t.name}</h4>
+      ${[4, 3, 2, 1].map((d) => `<div class="rc-rank${isNow(t, d) ? " now" : ""}">${rankEmblem(t.id, 58, d)}<small>${t.name} ${d}</small>${isNow(t, d) ? "<em>いま</em>" : ""}</div>`).join("")}
+    </section>`).join("");
+  const champ = RANK_TIERS.find((t) => t.id === "champion");
+  box.innerHTML = `
+    <div class="rc-panel">
+      <button type="button" class="rc-close" aria-label="閉じる">×</button>
+      <h3>コンペティティブのランク</h3>
+      <p class="rc-lead">最初に 3 ラウンドの認定戦を ${PLACEMENT_MATCHES} 回戦うと、ランクが決まります（認定戦で上がれるのはゴールド 3 まで）。そのあとは本戦に勝つとランクポイント（RP）が増え、負けると減ります。各ランクは 1〜4 の 4 段階で、数字が大きいほど上です。100 RP ごとに次の段階へ上がり、マークの飾りも豪華になります。マスターからは上級者の帯で、チャンピオンに段階はなく、RP に上限もありません。</p>
+      <div class="rc-grid">
+        ${tiers}
+        <section class="rc-tier rc-champ rank-c-champion">
+          <h4>${champ.name}</h4>
+          <div class="rc-rank${cur && cur.tier.id === "champion" ? " now" : ""}">${rankEmblem("champion", 116)}<small>${champ.name}</small>${cur && cur.tier.id === "champion" ? "<em>いま</em>" : ""}</div>
+        </section>
+      </div>
+      <div class="rc-none rank-c-none${cur ? "" : " now"}">${rankEmblem(null, 40)}<small>ランクなし（認定戦の前）</small>${cur ? "" : "<em>いま</em>"}</div>
+    </div>`;
+  document.body.appendChild(box);
+  box.addEventListener("click", (e) => {
+    if (e.target === box || e.target.closest(".rc-close")) closeRankChart();
+  });
+  box.querySelector(".rc-close").focus();
+}
+
+function closeRankChart() {
+  const box = document.getElementById("rank-chart");
+  if (box) box.remove();
+}
+
+document.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("#pf-rank")) openRankChart();
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.getElementById("rank-chart")) {
+    e.stopImmediatePropagation();
+    closeRankChart();
+  }
+}, true);
 
 function showRankedLobby() {
   const rank = loadRank();
@@ -368,7 +473,7 @@ function finishRankedRound(g) {
   g.guessMarker = null;
   drawRoundResult(mine, { showDistance: true, guessPin: true });
   addOverlay(new google.maps.Marker({ position: npc.guess, icon: pinIcon(r.npc.color, "guess", 0.85), title: r.npc.name, zIndex: 2 }));
-  addOverlay(new MapLabel(npc.guess, r.npc.name, "tag"));
+  addOverlay(new MapLabel(npc.guess, r.npc.name, "tag player"));
   state.map.setOptions({ draggableCursor: null });
   setScreen("result");
   renderRankedHud(change);
@@ -474,7 +579,7 @@ function rankedFinish(g, forfeit = false) {
     rank[win ? "wins" : "losses"] += 1;
     const was = rankOf(before);
     body = rankStageHtml("MATCH RESULT", verdict, `体力 あなた ${r.myLife.toLocaleString()} ・ ${escapeHtml(r.npc.name)} ${r.npcLife.toLocaleString()}`,
-      rankEmblem(was.tier.id, 128), was.name, verdictCls, `<p class="rk-delta ${delta >= 0 ? "up" : "down"}" id="rk-delta"></p>
+      rankEmblem(was.tier.id, 128, was.div), was.name, verdictCls, `<p class="rk-delta ${delta >= 0 ? "up" : "down"}" id="rk-delta"></p>
       <div class="rk-progress"><i class="rk-bar"><i id="rk-fill"></i></i><span id="rk-left"></span></div>`);
     show = { kind: "match", from: before, to: rank.rp, delta };
   }
@@ -569,9 +674,9 @@ function paintRankName(r) {
   el.className = `rk-rankname ${el.classList.contains("reveal") ? "reveal " : ""}${rankColorClass(r)}`;
 }
 
-function slamEmblem(tierId, cls = "slam") {
+function slamEmblem(r, cls = "slam") {
   const box = $("rk-emblem");
-  box.innerHTML = rankEmblem(tierId, 128);
+  box.innerHTML = rankEmblem(r.tier.id, 128, r.div);
   box.classList.remove("slam", "drop", "pulse");
   void box.offsetWidth;
   box.classList.add(cls);
@@ -596,11 +701,8 @@ function finishRankShow(rp) {
   const act = $("rk-actions");
   if (act) act.classList.remove("wait");
   // 右のランク表を、新しいランクに合わせる
-  const cur = rankOf(rp);
-  document.querySelectorAll("#ranked-screen .rk-step").forEach((el, i) => {
-    const ids = [...RANK_TIERS].reverse().map((t) => t.id);
-    el.classList.toggle("current", ids[i] === cur.tier.id);
-  });
+  const ladder = document.querySelector("#ranked-screen .rk-ladder");
+  if (ladder) ladder.outerHTML = ladderHtml(rp);
 }
 
 // ---- チャンピオンに到達したときの、全画面のお祝い
@@ -732,7 +834,7 @@ async function playRankShow(show, rp) {
       const spins = 14;
       for (let i = 0; i < spins; i++) {
         if (!alive()) return;
-        $("rk-emblem").innerHTML = rankEmblem(order[i % order.length], 128);
+        $("rk-emblem").innerHTML = rankEmblem(order[i % order.length], 128, (i % 4) + 1);
         await wait(70 + i * i * 2.2);
       }
     }
@@ -740,7 +842,7 @@ async function playRankShow(show, rp) {
     $("rk-head").textContent = "ランク決定";
     $("rk-head").classList.add("win");
     $("rk-sub").textContent = show.sub;
-    slamEmblem(now.tier.id);
+    slamEmblem(now);
     paintRankName(now);
     $("rk-name").classList.add("reveal");
     if (animate) rankBurst(now.tier.id, true);
@@ -789,7 +891,7 @@ async function playRankShow(show, rp) {
     const toChampion = now.tier.id === "champion";
     if (toChampion) await playChampionShow(rp);
     if (!alive()) return;
-    slamEmblem(now.tier.id);
+    slamEmblem(now);
     paintRankName(now);
     $("rk-name").classList.add("reveal");
     if (animate) rankBurst(now.tier.id, tierUp && !toChampion);
@@ -811,7 +913,7 @@ async function playRankShow(show, rp) {
     setRankBar(0, 700);
     await wait(760);
     if (!alive()) return;
-    slamEmblem(now.tier.id, "drop");
+    slamEmblem(now, "drop");
     paintRankName(now);
     $("rk-stage").classList.add("hurt");
     if (animate) rankParticles(["#6b7280", "#9ca3af", "#374151"], 70, 5, true);

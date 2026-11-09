@@ -2822,3 +2822,38 @@ html.no-anim .cs-flash { display: none; }
   .title-inner .btn-ghost { font-size: inherit; padding: 10px 24px; }
   .title-inner .btn-quick + .btn-ghost { margin-top: 12px; }
 }
+
+/* ================================================================ ランク: 段階の点と全ランクの一覧 */
+.rk-step-text { display: flex; flex-direction: column; gap: 4px; }
+.rk-dots { display: flex; gap: 4px; }
+.rk-dots i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .25; }
+.rk-dots i.on { opacity: 1; box-shadow: 0 0 6px currentColor; }
+.pf-rank { cursor: pointer; transition: border-color .2s, background .2s; }
+.pf-rank:hover { border-color: var(--accent); background: rgba(56,189,248,.08); }
+#rank-chart { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 16px; background: rgba(5,8,16,.82); overflow-y: auto; }
+.rc-panel { position: relative; width: min(1040px, 100%); padding: 22px 24px; border-radius: 18px; background: linear-gradient(180deg, #15264a, #0b1427); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 24px 60px rgba(0,0,0,.6); }
+.rc-panel h3 { margin: 0 0 8px; font-size: 26px; font-weight: 900; text-align: center; }
+.rc-lead { margin: 0 auto 18px; max-width: 760px; font-size: 13px; line-height: 1.75; color: #cdd6e8; }
+.rc-close { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.08); color: #fff; font-size: 18px; cursor: pointer; }
+.rc-grid { display: flex; justify-content: center; gap: 10px; }
+.rc-tier { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.rc-tier h4 { margin: 0 0 6px; font-size: 15px; font-weight: 900; }
+.rc-rank { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px; width: 100%; border-radius: 12px; }
+.rc-rank small { font-size: 11px; font-weight: 700; }
+.rc-rank.now, .rc-none.now { background: rgba(56,189,248,.14); box-shadow: inset 0 0 0 1px rgba(56,189,248,.55); }
+.rc-rank em, .rc-none em { font-style: normal; font-size: 10px; font-weight: 800; color: #0b1120; background: var(--btn-hi); padding: 0 7px; border-radius: 6px; }
+.rc-champ { justify-content: center; }
+.rc-champ .rc-rank small { font-size: 14px; font-weight: 900; }
+.rc-none { display: flex; align-items: center; justify-content: center; gap: 8px; width: fit-content; margin: 12px auto 0; padding: 4px 14px; border-radius: 12px; font-weight: 700; }
+.rc-none small { font-size: 12px; }
+@media (max-width: 860px) {
+  #rank-chart { place-items: start center; }
+  .rc-panel { padding: 18px 12px; }
+  .rc-panel h3 { font-size: 20px; padding: 0 30px; }
+  .rc-grid { flex-direction: column; gap: 12px; }
+  .rc-tier { flex: none; flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 2px; }
+  .rc-tier h4 { flex: 0 0 100%; text-align: center; margin: 0; }
+  .rc-rank { width: 23%; }
+  .rc-champ .rc-rank { width: auto; }
+}
+@media (max-width: 900px) { .rk-step-text { align-items: center; } }
