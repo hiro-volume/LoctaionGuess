@@ -2799,3 +2799,26 @@ html.no-anim .cs-flash { display: none; }
   #stage:has(#map-dock.m-full) #timer-pill:not([hidden]) { top: 11px; }
   .screen-result:has(#ranked-hud:not([hidden])) .rs-lifebar { width: 84px; height: 14px; }
 }
+
+/* ================================================================ タイトル画面のボタンを大きく */
+.title-inner .btn-hero:not(.small) { font-size: 25px; padding: 23px 76px; }
+.title-inner .btn-quick { padding: 14px 46px; margin-top: 16px; }
+.title-inner .btn-quick b { font-size: 20px; }
+.title-inner .btn-quick small { font-size: 13px; max-width: 340px; }
+.title-inner .btn-ghost { font-size: 17px; padding: 14px 34px; }
+.title-inner .btn-quick + .btn-ghost { margin-top: 16px; }
+@media (max-width: 720px) {
+  .title-inner .btn-hero:not(.small) { font-size: 22px; padding: 20px 62px; }
+  .title-inner .btn-quick { padding: 12px 34px; }
+  .title-inner .btn-quick b { font-size: 18px; }
+  .title-inner .btn-quick small { font-size: 12px; max-width: 290px; }
+}
+/* 背の低い画面では、はみ出さないように今までの大きさに */
+@media (max-height: 640px) {
+  .title-inner .btn-hero:not(.small) { font-size: 20px; padding: 18px 56px; }
+  .title-inner .btn-quick { padding: 10px 34px; margin-top: 12px; }
+  .title-inner .btn-quick b { font-size: 16px; }
+  .title-inner .btn-quick small { font-size: 11px; }
+  .title-inner .btn-ghost { font-size: inherit; padding: 10px 24px; }
+  .title-inner .btn-quick + .btn-ghost { margin-top: 12px; }
+}
