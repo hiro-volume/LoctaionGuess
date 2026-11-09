@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.84";
+const APP_VERSION = "1.85";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -2153,7 +2153,8 @@ function bindGameKeys() {
 
 // その国のヒントの候補（hints.js のものに、ドメインと左側通行のヒントを足す）
 function hintPool(iso, name) {
-  const pool = [...((window.LG_HINTS || {})[iso] || [])];
+  // 3 番目は写真を探すためのキー（「国コード:何番目か」）
+  const pool = ((window.LG_HINTS || {})[iso] || []).map(([title, text], i) => [title, text, `${iso}:${i}`]);
   if (!pool.length) return pool;
   const code = iso === "GBR" ? "uk" : (window.LG_ISO2 || {})[iso];
   if (code) pool.push([`「.${code}」のURL`, `看板やお店のURLの最後が「.${code}」なら、${name}の手がかりです。`]);
@@ -2172,12 +2173,16 @@ function hintHtml(g, answer) {
   g.hintsShown = g.hintsShown || new Set();
   let fresh = pool.filter(([title]) => !g.hintsShown.has(`${iso}:${title}`));
   if (!fresh.length) fresh = pool;
-  const [title, text] = fresh[Math.floor(rand() * fresh.length)];
+  const [title, text, key] = fresh[Math.floor(rand() * fresh.length)];
   g.hintsShown.add(`${iso}:${title}`);
-  return `<aside class="rs-hint" aria-label="ヒント">
+  const photo = key && (window.LG_HINT_PHOTOS || {})[key];
+  return `<aside class="rs-hint${photo ? " has-photo" : ""}" aria-label="ヒント">
     <button type="button" class="rs-hint-close" aria-label="ヒントを閉じる">×</button>
+    ${photo ? `<img class="rs-hint-photo" src="${escapeHtml(photo.src)}" alt="" onerror="this.remove()">` : ""}
     <div class="rs-hint-icon" aria-hidden="true">💡</div>
-    <div class="rs-hint-body"><small>ヒント</small><b>${escapeHtml(title)}</b><p>${escapeHtml(text)}</p></div>
+    <div class="rs-hint-body"><small>ヒント</small><b>${escapeHtml(title)}</b><p>${escapeHtml(text)}</p>
+      ${photo ? `<a class="rs-hint-credit" href="${escapeHtml(photo.link)}" target="_blank" rel="noopener">写真: ${escapeHtml(photo.credit)}</a>` : ""}
+    </div>
   </aside>`;
 }
 

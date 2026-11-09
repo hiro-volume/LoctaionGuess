@@ -2550,3 +2550,18 @@ html.no-anim .rs-hint { animation: none; }
   .rs-hint-body b { font-size: 13px; }
   .rs-hint-body p { font-size: 11px; line-height: 1.45; }
 }
+
+/* ヒントの写真 */
+.rs-hint.has-photo { flex-wrap: wrap; }
+.rs-hint-photo { flex: 0 0 100%; width: 100%; height: 150px; object-fit: cover; border-radius: 10px; }
+.rs-hint-credit { display: block; margin-top: 3px; font-size: 10px; color: var(--muted); text-decoration: underline; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
+.rs-hint.has-photo .rs-hint-body { flex: 1; }
+.rs-hint.has-photo .rs-hint-close { top: 16px; right: 16px; background: rgba(11,17,32,.75); color: #fff; }
+.rs-hint.has-photo { padding-right: 12px; }
+@media (max-width: 720px) {
+  .rs-hint.has-photo { flex-wrap: nowrap; padding-right: 28px; }
+  .rs-hint-photo { flex: 0 0 84px; width: 84px; height: 72px; }
+  .rs-hint.has-photo .rs-hint-icon { display: none; }
+  .rs-hint.has-photo .rs-hint-close { top: 6px; right: 6px; background: transparent; color: var(--muted); }
+  .rs-hint-credit { font-size: 9px; max-width: 170px; }
+}
