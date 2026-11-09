@@ -2253,3 +2253,22 @@ body:has(#settings-sheet:not([hidden])) #topbar { display: none; }
   #stage:has(#map-dock.m-full) #life-hud,
   #stage:has(#map-dock.m-full) #team-hud { visibility: hidden; }
 }
+
+/* ================================================================ スマホ: 回答マップは右下の小さな四角に収める */
+@media (max-width: 720px) {
+  .screen-game #map-dock:not(.m-full) {
+    width: 60px; height: 60px; right: 12px; bottom: 12px; gap: 0;
+    border-radius: 14px; overflow: visible; opacity: 1;
+  }
+  .screen-game #map-dock:not(.m-full) #btn-guess { display: none; }
+  .screen-game #map-dock:not(.m-full) .dock-expand {
+    inset: 0; height: auto; align-items: center; padding: 0; border-radius: 14px; color: #fff;
+    background: rgba(17,24,40,.92); border: 1px solid rgba(255,255,255,.25); box-shadow: 0 6px 18px rgba(0,0,0,.45);
+  }
+  /* ピンを置いたあとは、右上に印を出す */
+  .screen-game #map-dock.has-pin:not(.m-full) .dock-expand::after {
+    content: "✓"; position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%;
+    display: grid; place-items: center; background: var(--btn); color: #fff;
+    font-size: 13px; font-weight: 900; line-height: 1; border: 2px solid #111828;
+  }
+}

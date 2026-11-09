@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.71";
+const APP_VERSION = "1.72";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -3199,6 +3199,13 @@ function setDockFull(on) {
 function bindPhoneDock() {
   $("btn-dock-expand").addEventListener("click", () => setDockFull(true));
   $("btn-dock-close").addEventListener("click", () => setDockFull(false));
+  // 決定したら景色に戻す（マルチプレイでは、ほかの人を待つ間も同じ画面のままなので）
+  $("btn-guess").addEventListener("click", () => setDockFull(false));
+  // ピンを置いてあるかどうかを、小さい四角の印で見せる（決定ボタンが押せる＝ピンがある）
+  const guess = $("btn-guess");
+  const showPin = () => $("map-dock").classList.toggle("has-pin", !guess.disabled);
+  new MutationObserver(showPin).observe(guess, { attributes: true, attributeFilter: ["disabled"] });
+  showPin();
   // 画面を回してPCの幅になったら、全画面はやめる
   PHONE_QUERY.addEventListener("change", () => { if (!isPhoneLayout()) setDockFull(false); });
 }
