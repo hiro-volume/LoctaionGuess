@@ -1131,6 +1131,7 @@ function showMultiResult(msg) {
   renderRoundStrip();
   $("result-text").innerHTML = `
     ${mine ? `<div class="rs-reaction"><span class="reaction${g.hardcore ? " extra" : ""}">${isRegionMode(g) ? regionReaction(g, mine) : reactionFor(missed ? null : mine.distance, g.hardcore)}</span></div>` : ""}
+    ${hintHtml(g, answer)}
     <div class="rs-meta"><b>ラウンド ${msg.index + 1}${Number.isFinite(g.rounds) ? ` / ${g.rounds}` : ""}</b>${landmarkHtml(answer)}${mapsLink(answer)}</div>
     <div class="rs-side rs-left">
 ${isRegionMode(g) && !missed ? `

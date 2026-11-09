@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.82";
+const APP_VERSION = "1.83";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -2128,6 +2128,38 @@ function bindGameKeys() {
   refreshKeyTitles();
 }
 
+// ---------------------------------------------------------------- 全世界のヒント
+
+// その国のヒントの候補（hints.js のものに、ドメインと左側通行のヒントを足す）
+function hintPool(iso, name) {
+  const pool = [...((window.LG_HINTS || {})[iso] || [])];
+  if (!pool.length) return pool;
+  const code = iso === "GBR" ? "uk" : (window.LG_ISO2 || {})[iso];
+  if (code) pool.push([`「.${code}」のURL`, `看板やお店のURLの最後が「.${code}」なら、${name}の手がかりです。`]);
+  if ((window.LG_LEFT_DRIVING || []).includes(iso)) pool.push(["左側通行", `${name}は、車が道路の左側を走る国です。`]);
+  return pool;
+}
+
+// 全世界のマップの結果に、正解の国の見分け方を1つ出す（同じゲームでは、なるべく同じものを出さない）
+function hintHtml(g, answer) {
+  if (!state.prefs.hints || !g.area || g.area.type !== "world" || !answer) return "";
+  const iso = countryNear(answer.lat, answer.lng);
+  const country = iso && WORLD.find((c) => c.id === iso);
+  if (!country) return "";
+  const pool = hintPool(iso, COUNTRY_SHORT[iso] || country.name);
+  if (!pool.length) return "";
+  g.hintsShown = g.hintsShown || new Set();
+  let fresh = pool.filter(([title]) => !g.hintsShown.has(`${iso}:${title}`));
+  if (!fresh.length) fresh = pool;
+  const [title, text] = fresh[Math.floor(rand() * fresh.length)];
+  g.hintsShown.add(`${iso}:${title}`);
+  return `<aside class="rs-hint" aria-label="ヒント">
+    <button type="button" class="rs-hint-close" aria-label="ヒントを閉じる">×</button>
+    <div class="rs-hint-icon" aria-hidden="true">💡</div>
+    <div class="rs-hint-body"><small>ヒント</small><b>${escapeHtml(title)}</b><p>${escapeHtml(text)}</p></div>
+  </aside>`;
+}
+
 // ---------------------------------------------------------------- ラウンドごとの点数（右上の帯）
 
 // ラウンド制のゲームで、ラウンドごとの点数と合計を見せる（ライフ制・チーム戦では出さない）
@@ -3421,6 +3453,7 @@ function submitGuess(timedOut = false) {
   const roundText = g.mode === "life" ? `ラウンド ${g.index + 1}` : `ラウンド ${g.index + 1} / ${g.rounds}`;
   $("result-text").innerHTML = `
     <div class="rs-reaction"><span class="reaction${g.hardcore ? " extra" : ""}">${isRegionMode(g) ? regionReaction(g, result) : reactionFor(missed ? null : distance, g.hardcore)}</span></div>
+    ${hintHtml(g, g.answer)}
     <div class="rs-meta"><b>${roundText}</b>${landmarkHtml(g.answer)}${LEGEND}${mapsLink(g.answer)}</div>
     <div class="rs-side rs-left">${isRegionMode(g) && !missed ? `
       <div class="rs-big ${result.correct ? "rs-correct" : "rs-wrong"}">${result.correct ? "正解！" : "はずれ"}</div>
@@ -3733,7 +3766,7 @@ function addRipple(e) {
 
 // ---------------------------------------------------------------- ゲーム中の操作と設定
 
-const DEFAULT_PREFS = { compass: "both", mapType: "roadmap", anim: true, dockSize: 1, dockPinned: false };
+const DEFAULT_PREFS = { compass: "both", mapType: "roadmap", anim: true, hints: true, dockSize: 1, dockPinned: false };
 
 // 回答マップを広げたときの大きさ（横, 縦）。1 番目が今までの大きさ
 const DOCK_SIZES = [[440, 320], [600, 440], [820, 580], [1080, 760]];
@@ -3813,6 +3846,7 @@ function applyPrefs() {
   hybrid.title = noSatellite ? "エクストラモードでは航空写真は使えません" : "";
   $("gs-extra-note").hidden = !noSatellite;
   $("pref-anim").checked = p.anim;
+  $("pref-hints").checked = p.hints;
   applyDock();
 }
 
@@ -3829,6 +3863,14 @@ function bindPrefs() {
     state.prefs.anim = $("pref-anim").checked;
     saveJSON(STORE_PREFS, state.prefs);
     applyPrefs();
+  });
+  $("pref-hints").addEventListener("change", () => {
+    state.prefs.hints = $("pref-hints").checked;
+    saveJSON(STORE_PREFS, state.prefs);
+  });
+  $("result-text").addEventListener("click", (e) => {
+    const close = e.target.closest(".rs-hint-close");
+    if (close) close.closest(".rs-hint").remove();
   });
   $("pref-fullscreen").addEventListener("change", async () => {
     try {

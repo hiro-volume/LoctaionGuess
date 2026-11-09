@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LocationGuess</title>
   <!-- タブのアイコン（ファビコン）と、スマホのホーム画面に追加したときのアイコン -->
-  <link rel="icon" href="favicon.svg?v=1.82" type="image/svg+xml">
-  <link rel="icon" href="favicon-32.png?v=1.82" sizes="32x32" type="image/png">
+  <link rel="icon" href="favicon.svg?v=1.83" type="image/svg+xml">
+  <link rel="icon" href="favicon-32.png?v=1.83" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="theme-color" content="#0e1a33">
   <!-- 招待リンクを LINE・Discord・X などに貼ったときに出るプレビュー（OGP） -->
@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.82">
+  <link rel="stylesheet" href="style.css?v=1.83">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -676,6 +676,14 @@
             <input type="checkbox" id="pref-anim" class="switch">
           </label>
 
+          <label class="gs-row gs-switch">
+            <div class="gs-label">
+              <svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.8 10.6c.8.7 1.3 1.5 1.3 2.4h5c0-.9.5-1.7 1.3-2.4A6 6 0 0 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              全世界の結果にヒントを出す
+            </div>
+            <input type="checkbox" id="pref-hints" class="switch">
+          </label>
+
           <p class="gs-note" id="gs-timer-note" hidden>制限時間は、設定を開いている間も進みます。</p>
           </div>
 
@@ -818,15 +826,16 @@
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.82"></script>
-  <script src="hiroshima-boundary.js?v=1.82"></script>
-  <script src="world-boundary.js?v=1.82"></script>
-  <script src="region-boundary.js?v=1.82"></script>
-  <script src="regions.js?v=1.82"></script>
+  <script src="config.js?v=1.83"></script>
+  <script src="hiroshima-boundary.js?v=1.83"></script>
+  <script src="world-boundary.js?v=1.83"></script>
+  <script src="region-boundary.js?v=1.83"></script>
+  <script src="regions.js?v=1.83"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="changelog.js?v=1.82"></script>
-  <script src="app.js?v=1.82"></script>
-  <script src="multiplayer.js?v=1.82"></script>
+  <script src="changelog.js?v=1.83"></script>
+  <script src="hints.js?v=1.83"></script>
+  <script src="app.js?v=1.83"></script>
+  <script src="multiplayer.js?v=1.83"></script>
 </body>
 </html>
