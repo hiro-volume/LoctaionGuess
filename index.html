@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.72">
+  <link rel="stylesheet" href="style.css?v=1.73">
 </head>
 <body>
   <div id="app" class="screen-title">
@@ -404,7 +404,14 @@
           <button id="btn-undo" class="btn-soft" title="取り消す">↶</button>
         </div>
         <ul id="shape-list" class="shape-list" aria-label="置いた図形の一覧"></ul>
+        <!-- スマホ: 地図で描いたあと、名前などの入力へ進むボタン -->
+        <button id="btn-ed-next" class="primary ed-next" disabled>次へ：名前をつける</button>
 
+        <div id="ed-details">
+        <button id="btn-ed-prev" class="ed-prev" type="button">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>地図に戻る
+        </button>
+        <h2 class="ed-details-title">名前と見た目</h2>
         <div class="field">
           <label for="area-name">名前</label>
           <input type="text" id="area-name" placeholder="例: 宮島周辺">
@@ -435,6 +442,7 @@
         <div class="buttons">
           <button id="btn-cancel-area" class="secondary">キャンセル</button>
           <button id="btn-save-area" class="primary">保存する</button>
+        </div>
         </div>
       </section>
     </aside>
@@ -782,14 +790,14 @@
   <!-- 届いたリアクションが、ふわっと浮かんで消える場所 -->
   <div id="react-layer" aria-hidden="true"></div>
 
-  <script src="config.js?v=1.72"></script>
-  <script src="hiroshima-boundary.js?v=1.72"></script>
-  <script src="world-boundary.js?v=1.72"></script>
-  <script src="region-boundary.js?v=1.72"></script>
-  <script src="regions.js?v=1.72"></script>
+  <script src="config.js?v=1.73"></script>
+  <script src="hiroshima-boundary.js?v=1.73"></script>
+  <script src="world-boundary.js?v=1.73"></script>
+  <script src="region-boundary.js?v=1.73"></script>
+  <script src="regions.js?v=1.73"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="app.js?v=1.72"></script>
-  <script src="multiplayer.js?v=1.72"></script>
+  <script src="app.js?v=1.73"></script>
+  <script src="multiplayer.js?v=1.73"></script>
 </body>
 </html>

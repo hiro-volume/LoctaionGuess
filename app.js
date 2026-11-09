@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.72";
+const APP_VERSION = "1.73";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -1093,7 +1093,7 @@ function renderGuessTabs(area) {
   $("guess-row").hidden = modes.length < 2;
   $("guess-tabs").innerHTML = modes.map((m) =>
     `<button class="tab${m === state.guessMode ? " active" : ""}" data-guess="${m}">${GUESS_MODES[m].tab}</button>`).join("");
-  $("guess-help").textContent = GUESS_MODES[state.guessMode].help;
+  $("guess-help").textContent = GUESS_MODES[state.guessMode].help.replace("クリック", tapWord());
   // 国・都道府県を当てるときは、数メートル単位のエクストラモードは使えない
   const region = state.guessMode !== "pin";
   document.querySelector(".hardcore-row").hidden = region;
@@ -1112,7 +1112,7 @@ function bindPoolTabs() {
 }
 
 function guessIdleText(g) {
-  return isRegionMode(g) ? `${GUESS_MODES[g.guessMode].noun}をクリックして選ぶ` : "ピンをマップに配置する";
+  return isRegionMode(g) ? `${GUESS_MODES[g.guessMode].noun}を${tapWord()}して選ぶ` : "ピンをマップに配置する";
 }
 
 // 記録の点がどの区画（県・州など）か。何度も描き直すので結果を覚えておく
@@ -2052,6 +2052,7 @@ function openEditor(editId) {
   const editing = typeof editId === "string" ? loadJSON(STORE_AREAS, []).find((a) => a.id === editId) : null;
   state.editor = { tool: "circle", kind: "add", circles: [], polygon: null, added: [], excludes: [], selected: null, editingId: editing ? editing.id : null };
   setScreen("editor");
+  setEditorStep(false);
   $("editor-eyebrow").textContent = editing ? "EDIT" : "CREATE";
   $("editor-title").textContent = editing ? "範囲を編集" : "範囲を作る";
   $("btn-save-area").textContent = editing ? "変更を保存する" : "保存する";
@@ -2126,6 +2127,12 @@ function clearEditorShapes(withExcludes = true) {
   ed.polygon = null;
   ed.added = [];
   ed.selected = null;
+}
+
+// スマホの編集画面は「地図で描く」→「名前などを入れる」の2段階にする
+function setEditorStep(details) {
+  $("panel").classList.toggle("ed-info", !!details);
+  $("panel").scrollTop = 0;
 }
 
 function setTool(tool) {
@@ -2298,12 +2305,14 @@ function updateEditorStatus() {
   $("editor-status-card").classList.toggle("ready", ok);
   $("editor-status-icon").textContent = error ? "!" : ok ? "✓" : "…";
   $("editor-size").textContent = ok ? editorSizeText() : ed.tool === "circle" ? "まだ円がありません" : "頂点が3つ以上必要です";
-  $("editor-hint").textContent = ed.kind === "exclude"
+  $("editor-hint").textContent = (ed.kind === "exclude"
     ? "地図をクリックして、出題しない場所に赤い円を置こう"
     : ed.tool === "circle"
     ? (ed.circles.length ? "続けてクリックすると円を追加できます" : "地図をクリックして円を置こう")
-    : (pts.length >= 3 ? "白い点をドラッグして形を整えられます" : `地図をクリックして頂点を置こう（あと ${3 - pts.length} 点）`);
+    : (pts.length >= 3 ? "白い点をドラッグして形を整えられます" : `地図をクリックして頂点を置こう（あと ${3 - pts.length} 点）`))
+    .replace("クリック", tapWord());
   $("btn-save-area").disabled = !ok;
+  $("btn-ed-next").disabled = !ok;
   $("btn-undo").disabled = ed.kind === "exclude" ? !ed.excludes.length
     : ed.tool === "circle" ? !ed.circles.length : !(ed.polygon && ed.polygon.getPath().getLength());
   // 図形が動いたり大きさが変わったりしたら、一覧の表示と、つなげた形も直す
@@ -2777,7 +2786,7 @@ function placeGuess(latLng) {
   if (isRegionMode(g)) {
     picked = regionAt(g.guessMode, latLng.lat(), latLng.lng());
     if (!picked) {
-      $("btn-guess").textContent = `${GUESS_MODES[g.guessMode].noun}の上をクリックしてください`;
+      $("btn-guess").textContent = `${GUESS_MODES[g.guessMode].noun}の上を${tapWord()}してください`;
       return;
     }
     // 選んだ区画を塗って、どこを選んだかひと目でわかるようにする
@@ -3183,6 +3192,11 @@ function fitMinZoom() {
 
 // ---------------------------------------------------------------- スマホの幅
 
+// 案内の文で使う言葉（スマホでは「クリック」ではなく「タップ」）
+function tapWord() {
+  return window.matchMedia("(max-width: 720px)").matches ? "タップ" : "クリック";
+}
+
 // スマホの幅（CSS の @media (max-width: 720px) と同じ）
 const PHONE_QUERY = window.matchMedia("(max-width: 720px)");
 function isPhoneLayout() {
@@ -3409,6 +3423,8 @@ function bindStaticUi() {
   });
   $("btn-start").addEventListener("click", startGame);
   $("btn-save-area").addEventListener("click", saveEditor);
+  $("btn-ed-next").addEventListener("click", () => setEditorStep(true));
+  $("btn-ed-prev").addEventListener("click", () => setEditorStep(false));
   $("btn-cancel-area-top").addEventListener("click", closeEditor);
   $("area-category").innerHTML = CATEGORIES.filter((c) => c.id !== "all")
     .map((c) => `<option value="${c.id}">${c.id === "custom" ? "自作のみ" : c.name}</option>`).join("");

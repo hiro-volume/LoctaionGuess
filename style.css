@@ -2272,3 +2272,73 @@ body:has(#settings-sheet:not([hidden])) #topbar { display: none; }
     font-size: 13px; font-weight: 900; line-height: 1; border: 2px solid #111828;
   }
 }
+
+/* ================================================================ 範囲エディタ: スマホの幅 */
+.ed-next, .ed-prev, .ed-details-title { display: none; }
+@media (max-width: 720px) {
+  /* iPhone は 16px より小さい入力欄を押すと画面を拡大してしまう */
+  input:not([type=range]), select, textarea { font-size: 16px; }
+
+  /* 地図を上に大きく、道具を下にまとめる */
+  .screen-editor #stage { order: 1; flex: 1; min-height: 0; }
+  .screen-editor #panel {
+    order: 2; width: 100%; max-height: none; flex: none; padding: 10px 12px 12px; overflow-y: visible;
+    border-bottom: 0; border-top: 1px solid var(--line); animation: none;
+  }
+  .screen-editor #editor-panel .eyebrow, .screen-editor #editor-title, .screen-editor #editor-help { display: none; }
+
+  .screen-editor #btn-cancel-area-top {
+    position: fixed; top: 10px; left: 10px; z-index: 6; margin: 0;
+    background: rgba(11,17,32,.85); border: 1px solid rgba(255,255,255,.18); color: #fff;
+  }
+  .screen-editor .editor-hint {
+    top: 10px; left: 62px; right: 10px; transform: none; text-align: center; white-space: normal;
+    font-size: 12px; padding: 7px 12px; border-radius: 14px; animation: none;
+  }
+
+  /* 道具 */
+  .screen-editor .seg { gap: 6px; }
+  .screen-editor .seg + .seg { margin-top: 6px; }
+  .screen-editor .seg .tab { justify-content: center; gap: 6px; padding: 8px 6px; border-radius: 10px; }
+  .screen-editor .seg .tab small { display: none; }
+  .screen-editor .seg .tab b { font-size: 13px; }
+  .screen-editor .seg .tab svg { width: 16px; height: 16px; }
+  .screen-editor #radius-row { margin: 8px 0 0; gap: 4px; }
+  .screen-editor #radius { width: 100%; }
+  .screen-editor input[type=range]::-webkit-slider-thumb { width: 24px; height: 24px; }
+  .screen-editor .status-card { padding: 7px 8px; margin: 8px 0 0; gap: 8px; }
+  .screen-editor .status-icon { width: 24px; height: 24px; font-size: 13px; }
+  .screen-editor .editor-status { font-size: 13px; }
+  .screen-editor .editor-size { font-size: 11px; white-space: nowrap; }
+  .screen-editor #btn-undo { width: 38px; height: 38px; }
+
+  /* 置いた図形の一覧は、横に流す */
+  .screen-editor .shape-list { flex-direction: row; overflow-x: auto; overflow-y: hidden; max-height: none; margin-top: 6px; -webkit-overflow-scrolling: touch; }
+  .screen-editor .shape-list { min-height: 42px; }
+  .screen-editor .shape-list li.empty { align-items: center; }
+  .screen-editor .shape-list li { flex: none; }
+  .screen-editor .shape-list .sl-pick { flex-direction: column; align-items: flex-start; gap: 0; padding: 4px 10px; font-size: 12px; }
+  .screen-editor .shape-list .sl-pick small { font-size: 10px; }
+  .screen-editor .shape-list .sl-del { font-size: 0; gap: 0; padding: 0 10px; }
+
+  .screen-editor .ed-next { display: block; width: 100%; height: 46px; margin-top: 8px; border-radius: 12px; font-size: 15px; }
+  .screen-editor #ed-details { display: none; }
+
+  /* 2段階目: 名前などの入力は、画面いっぱいに */
+  .screen-editor #panel.ed-info {
+    position: absolute; inset: 0; z-index: 30; overflow-y: auto; border-top: 0; padding: 12px 16px 16px;
+    background: var(--panel);
+  }
+  #panel.ed-info #tool-tabs, #panel.ed-info #kind-tabs, #panel.ed-info #radius-row,
+  #panel.ed-info #editor-status-card, #panel.ed-info #shape-list, #panel.ed-info #btn-ed-next,
+  #panel.ed-info #btn-cancel-area-top { display: none !important; }
+  #panel.ed-info #ed-details { display: block; }
+  .ed-prev {
+    display: inline-flex; align-items: center; gap: 4px; height: 38px; padding: 0 14px 0 8px; border-radius: 999px; cursor: pointer;
+    background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.2); font: inherit; font-weight: 700; font-size: 14px;
+  }
+  .ed-details-title { display: block; margin: 14px 0 4px; font-size: 22px; font-weight: 900; }
+  #panel.ed-info #btn-cancel-area { display: none; }
+  #panel.ed-info .buttons { position: sticky; bottom: -16px; margin: 16px -16px -16px; padding: 12px 16px; background: var(--panel); border-top: 1px solid var(--line); }
+  #panel.ed-info #btn-save-area { width: 100%; height: 50px; }
+}
