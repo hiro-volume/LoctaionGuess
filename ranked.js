@@ -63,22 +63,96 @@ function makeNpc(rp) {
   };
 }
 
-// NPC の答え: まず取れそうな点を決めて、その点になる距離だけ正解からずらす
-function makeNpcGuess(g) {
-  const { npc } = g.ranked;
-  const sd = npc.rp >= 1600 ? 320 : npc.rp >= 1200 ? 500 : 800;
-  const target = Math.max(150, Math.min(4990, npcMeanScore(npc.rp) + randomNormal() * sd));
-  const decay = areaSizeMeters(g.area) * 0.07;
-  const distance = -Math.log(target / MAX_SCORE) * decay;
-  const bearing = rand() * 2 * Math.PI;
-  const lat = Math.max(-85, Math.min(85, g.answer.lat + ((distance * Math.cos(bearing)) / 111320)));
-  const cos = Math.max(0.05, Math.cos((g.answer.lat * Math.PI) / 180));
-  let lng = g.answer.lng + ((distance * Math.sin(bearing)) / (111320 * cos));
+// 正解から bearing の向きに distance メートル離れた点
+function offsetPoint(from, distance, bearing) {
+  const lat = Math.max(-85, Math.min(85, from.lat + ((distance * Math.cos(bearing)) / 111320)));
+  const cos = Math.max(0.05, Math.cos((from.lat * Math.PI) / 180));
+  let lng = from.lng + ((distance * Math.sin(bearing)) / (111320 * cos));
   if (lng > 180) lng -= 360;
   if (lng < -180) lng += 360;
-  const guess = { lat, lng };
-  const real = distanceMeters(g.answer, guess);
-  return { guess, distance: real, score: scoreFor(real, g.area) };
+  return { lat, lng };
+}
+
+// 範囲の中か（全世界は、どこかの国の上なら）
+function npcPointOk(area, p) {
+  return area.type === "world" ? !!countryNear(p.lat, p.lng) : areaContains(area, p.lat, p.lng);
+}
+
+// 近くの道（Google が撮影したストリートビューのある場所）に寄せる。無料の情報 API だけを使う
+async function snapToRoad(p, radius) {
+  const url = "https://maps.googleapis.com/maps/api/streetview/metadata" +
+    `?location=${p.lat},${p.lng}&radius=${Math.round(radius)}&source=outdoor&key=${encodeURIComponent(CONFIG.apiKey)}`;
+  const res = await fetch(url).then((r) => r.json()).catch(() => null);
+  addUsage("metadata");
+  if (!res || res.status !== "OK" || !String(res.copyright || "").includes("Google")) return null;
+  return { lat: res.location.lat, lng: res.location.lng };
+}
+
+// NPC が近くを狙うときは、道に寄せずにその場に刺す（船の上や建物の中の問題でも、正解のそばに刺せるように）
+const NPC_NO_SNAP_METERS = 150;
+
+// NPC の答え: まず取れそうな点を決めて、その点になる距離だけ正解から離れた「範囲の中の道の上」に刺す
+async function makeNpcGuess(g) {
+  const { npc } = g.ranked;
+  const area = g.area;
+  const answer = g.answer;
+  const sd = npc.rp >= 1600 ? 320 : npc.rp >= 1200 ? 500 : 800;
+  const target = Math.max(150, Math.min(4990, npcMeanScore(npc.rp) + randomNormal() * sd));
+  const want = -Math.log(target / MAX_SCORE) * areaSizeMeters(area) * 0.07;
+  const result = (guess) => {
+    const real = distanceMeters(answer, guess);
+    return { guess, distance: real, score: scoreFor(real, area) };
+  };
+  if (want < NPC_NO_SNAP_METERS) return result(offsetPoint(answer, want, rand() * 2 * Math.PI));
+
+  // 範囲の中に入る点を先に選んでから、まとめて道を探す。ちょうどの距離で範囲に入らないときは
+  // （海沿いなど）距離を少し変えて探し、それでもだめなら範囲の中の点から距離がいちばん近いものを使う
+  const pool = [];
+  for (let i = 0; i < 120 && pool.length < 12; i++) {
+    const d = i < 40 ? want : want * (0.55 + rand() * 1.0);
+    const p = offsetPoint(answer, d, rand() * 2 * Math.PI);
+    if (npcPointOk(area, p)) pool.push(p);
+  }
+  if (!pool.length && area.type !== "world") {
+    for (let i = 0; i < 40; i++) {
+      try { const p = randomPointIn(area); if (p) pool.push(p); } catch { /* 範囲が特殊なときは飛ばす */ }
+    }
+  }
+  const gap = (p) => Math.abs(distanceMeters(answer, p) - want);
+  const raw = pool.sort((a, b) => gap(a) - gap(b)).slice(0, 6);
+  const radius = Math.max(80, Math.min(3000, want * 0.15));
+  let best = null;
+  for (let i = 0; i < raw.length; i += 3) {
+    const found = (await Promise.all(raw.slice(i, i + 3).map((p) => snapToRoad(p, radius))))
+      .filter((p) => p && npcPointOk(area, p));
+    found.forEach((p) => {
+      const miss = Math.abs(distanceMeters(answer, p) - want) / want;
+      if (!best || miss < best.miss) best = { p, miss };
+    });
+    // 狙った距離とほぼ同じ道が見つかったら、そこに決める
+    if (best && best.miss < 0.25) break;
+  }
+  if (best) return result(best.p);
+  // 道が見つからないときは、範囲の中の点にそのまま刺す（それもなければ、狙った距離の点）
+  return result(raw[0] || offsetPoint(answer, want, rand() * 2 * Math.PI));
+}
+
+// ラウンドが始まったら、NPC の答えを先に探しておく（探すのに数秒かかることがあるため）。遅すぎるときは道に寄せない答えを使う
+function planNpcGuess(g) {
+  const r = g.ranked;
+  const quick = () => {
+    const { npc } = r;
+    const target = Math.max(150, Math.min(4990, npcMeanScore(npc.rp)));
+    const want = -Math.log(target / MAX_SCORE) * areaSizeMeters(g.area) * 0.07;
+    const p = offsetPoint(g.answer, want, rand() * 2 * Math.PI);
+    const real = distanceMeters(g.answer, p);
+    return { guess: p, distance: real, score: scoreFor(real, g.area) };
+  };
+  r.npcPlan = Promise.race([
+    makeNpcGuess(g).catch(() => quick()),
+    new Promise((resolve) => setTimeout(() => resolve(quick()), 8000)),
+  ]);
+  return r.npcPlan;
 }
 
 // ---- ランクの保存と表示
@@ -434,6 +508,7 @@ function rankedRoundReset(g) {
   const r = g.ranked;
   clearTimeout(r.npcTimer);
   r.npcPick = null;
+  r.npcPlan = null;
   r.myPick = null;
   r.done = false;
   g.submitted = false;
@@ -443,6 +518,7 @@ function rankedRoundReset(g) {
 
 // 3・2・1 が終わって、制限時間が動き出したとき
 function rankedRoundStart(g) {
+  planNpcGuess(g);
   const tier = rankOf(g.ranked.npc.rp).tier.id;
   const [a, b] = NPC_PICK_DELAY[tier];
   scheduleNpcPick(g, randomBetween(a, b));
@@ -470,10 +546,12 @@ function shortenRankedTimer() {
   if (left > PICK_TIME) startTimer(PICK_TIME);
 }
 
-function npcPicks(g) {
+async function npcPicks(g) {
   const r = g.ranked;
   if (state.game !== g || r.done || r.npcPick || !g.answer || app.className !== "screen-game") return;
-  r.npcPick = makeNpcGuess(g);
+  const pick = await (r.npcPlan || planNpcGuess(g));
+  if (state.game !== g || r.done || r.npcPick || app.className !== "screen-game") return;
+  r.npcPick = pick;
   if (r.myPick) return finishRankedRound(g);
   shortenRankedTimer();
   rankedNote(`⚡ ${r.npc.name} がピックしました！ 残り ${PICK_TIME} 秒`);
@@ -490,7 +568,11 @@ function rankedSubmit(timedOut) {
   g.submitted = true;
   $("btn-guess").disabled = true;
   $("btn-guess").textContent = "相手を待っています…";
-  if (timedOut && !r.npcPick) r.npcPick = makeNpcGuess(g);
+  // 時間切れで NPC がまだなら、その場でピックさせて終える
+  if (timedOut && !r.npcPick) {
+    clearTimeout(r.npcTimer);
+    return npcPicks(g);
+  }
   if (r.npcPick) return finishRankedRound(g);
   shortenRankedTimer();
   rankedNote(`ピックしました。${r.npc.name} を待っています…`);
