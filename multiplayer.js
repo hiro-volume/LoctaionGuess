@@ -564,7 +564,7 @@ function startMultiGame(area, settings) {
   mp.outRound = new Map();
   broadcastLobby();
   // 範囲のデータごと送る（自作の範囲は参加者のブラウザにないため）
-  broadcast({ type: "start", area: area.custom && area.iso ? { ...area, rings: undefined } : area, settings });
+  broadcast({ type: "start", area: area.custom && areaIsos(area).length ? { ...area, rings: undefined } : area, settings });
   prepareMultiGame(area, settings);
   hostNextRound();
 }
