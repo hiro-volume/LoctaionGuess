@@ -64,7 +64,7 @@ function makeNpc(rp) {
 }
 
 // 正解から bearing の向きに distance メートル離れた点
-function offsetPoint(from, distance, bearing) {
+function npcOffsetPoint(from, distance, bearing) {
   const lat = Math.max(-85, Math.min(85, from.lat + ((distance * Math.cos(bearing)) / 111320)));
   const cos = Math.max(0.05, Math.cos((from.lat * Math.PI) / 180));
   let lng = from.lng + ((distance * Math.sin(bearing)) / (111320 * cos));
@@ -103,14 +103,14 @@ async function makeNpcGuess(g) {
     const real = distanceMeters(answer, guess);
     return { guess, distance: real, score: scoreFor(real, area) };
   };
-  if (want < NPC_NO_SNAP_METERS) return result(offsetPoint(answer, want, rand() * 2 * Math.PI));
+  if (want < NPC_NO_SNAP_METERS) return result(npcOffsetPoint(answer, want, rand() * 2 * Math.PI));
 
   // 範囲の中に入る点を先に選んでから、まとめて道を探す。ちょうどの距離で範囲に入らないときは
   // （海沿いなど）距離を少し変えて探し、それでもだめなら範囲の中の点から距離がいちばん近いものを使う
   const pool = [];
   for (let i = 0; i < 120 && pool.length < 12; i++) {
     const d = i < 40 ? want : want * (0.55 + rand() * 1.0);
-    const p = offsetPoint(answer, d, rand() * 2 * Math.PI);
+    const p = npcOffsetPoint(answer, d, rand() * 2 * Math.PI);
     if (npcPointOk(area, p)) pool.push(p);
   }
   if (!pool.length && area.type !== "world") {
@@ -118,7 +118,12 @@ async function makeNpcGuess(g) {
       try { const p = randomPointIn(area); if (p) pool.push(p); } catch { /* 範囲が特殊なときは飛ばす */ }
     }
   }
-  const gap = (p) => Math.abs(distanceMeters(answer, p) - want);
+  // 狙った距離との差が小さいもの（5% 以内）は同じ扱いにして、くじ引きの順のまま使う
+  // （細かい差で並べると、計算の誤差の小さい向きばかり選ばれて、いつも同じ方角になってしまうため）
+  const gap = (p) => {
+    const d = Math.abs(distanceMeters(answer, p) - want);
+    return d < want * 0.05 ? 0 : d;
+  };
   const raw = pool.sort((a, b) => gap(a) - gap(b)).slice(0, 6);
   const radius = Math.max(80, Math.min(3000, want * 0.15));
   let best = null;
@@ -127,14 +132,14 @@ async function makeNpcGuess(g) {
       .filter((p) => p && npcPointOk(area, p));
     found.forEach((p) => {
       const miss = Math.abs(distanceMeters(answer, p) - want) / want;
-      if (!best || miss < best.miss) best = { p, miss };
+      if (!best || (miss < best.miss && !(best.miss < 0.25))) best = { p, miss };
     });
     // 狙った距離とほぼ同じ道が見つかったら、そこに決める
     if (best && best.miss < 0.25) break;
   }
   if (best) return result(best.p);
   // 道が見つからないときは、範囲の中の点にそのまま刺す（それもなければ、狙った距離の点）
-  return result(raw[0] || offsetPoint(answer, want, rand() * 2 * Math.PI));
+  return result(raw[0] || npcOffsetPoint(answer, want, rand() * 2 * Math.PI));
 }
 
 // ラウンドが始まったら、NPC の答えを先に探しておく（探すのに数秒かかることがあるため）。遅すぎるときは道に寄せない答えを使う
@@ -144,7 +149,7 @@ function planNpcGuess(g) {
     const { npc } = r;
     const target = Math.max(150, Math.min(4990, npcMeanScore(npc.rp)));
     const want = -Math.log(target / MAX_SCORE) * areaSizeMeters(g.area) * 0.07;
-    const p = offsetPoint(g.answer, want, rand() * 2 * Math.PI);
+    const p = npcOffsetPoint(g.answer, want, rand() * 2 * Math.PI);
     const real = distanceMeters(g.answer, p);
     return { guess: p, distance: real, score: scoreFor(real, g.area) };
   };
