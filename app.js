@@ -3,7 +3,7 @@
 const CONFIG = window.LG_CONFIG;
 // アプリのバージョン（変更を入れるたびに上げる。数字は、これまでの変更（コミット）の数）。
 // マルチプレイでは、ホストと参加者のバージョンが同じでないと入室できない
-const APP_VERSION = "1.104";
+const APP_VERSION = "1.105";
 // 古い config.js でも動くよう、あとから増えた上限には既定値を入れておく
 CONFIG.limits = { staticMapsPerMonth: 8000, ...CONFIG.limits };
 const PRESETS = window.LG_PRESETS;
@@ -113,8 +113,11 @@ function areaIsos(area) {
   return (area && (area.isos || (area.iso ? [area.iso] : []))) || [];
 }
 
+// 円・多角形・国を組み合わせた範囲（type "mix"）は、多角形を polys、国を isos に持つ。rings は使うときに作る
 function hydrateArea(area) {
-  if (!area || !area.custom || !areaIsos(area).length || (area.rings && area.rings.length)) return area;
+  if (!area || !area.custom || (area.rings && area.rings.length)) return area;
+  if (area.type === "mix") return { ...area, rings: [...(area.polys || []), ...areaIsos(area).flatMap(countryAreaRings)] };
+  if (!areaIsos(area).length) return area;
   return { ...area, type: "polygons", rings: areaIsos(area).flatMap(countryAreaRings) };
 }
 
@@ -138,7 +141,13 @@ function findArea(id) {
 function areaCircles(area) {
   if (area.type === "circle") return [{ center: area.center, radius: area.radius }];
   if (area.type === "circles") return area.circles;
+  if (area.type === "mix") return area.circles && area.circles.length ? area.circles : null;
   return null;
+}
+
+// 多角形（国の形を含む）の輪のリスト。円だけの範囲は空
+function areaRings(area) {
+  return area.type === "polygons" || area.type === "mix" ? area.rings || [] : [];
 }
 
 // 180 度の線をまたぐ範囲（ロシアなど）は、西半球の部分を +360 度して、ひと続きの範囲として扱う
@@ -174,9 +183,9 @@ function areaBounds(area) {
       b.south = Math.min(b.south, center.lat - dLat); b.north = Math.max(b.north, center.lat + dLat);
       b.west = Math.min(b.west, center.lng - dLng); b.east = Math.max(b.east, center.lng + dLng);
     }
-    return b;
+    if (area.type !== "mix") return b;
   }
-  for (const ring of area.rings) {
+  for (const ring of areaRings(area)) {
     for (const [lat, lng] of ring) {
       b.south = Math.min(b.south, lat); b.north = Math.max(b.north, lat);
       b.west = Math.min(b.west, lng); b.east = Math.max(b.east, lng);
@@ -203,8 +212,9 @@ function areaContains(area, lat, lng) {
   // 除外する範囲（円）の中は出題しない
   if (area.exclude && area.exclude.some((c) => distanceMeters(c.center, { lat, lng }) <= c.radius)) return false;
   const circles = areaCircles(area);
-  if (circles) return circles.some((c) => distanceMeters(c.center, { lat, lng }) <= c.radius);
-  if (area.rings.some((ring) => pointInRing(lat, lng, ring))) return true;
+  if (circles && circles.some((c) => distanceMeters(c.center, { lat, lng }) <= c.radius)) return true;
+  if (circles && area.type !== "mix") return false;
+  if (areaRings(area).some((ring) => pointInRing(lat, lng, ring))) return true;
   // 国の範囲は簡略化した国境なので、海沿いの町がはみ出すことがある。その国の中なら入れる
   const isos = areaIsos(area);
   return isos.length > 0 && isos.includes(countryNear(lat, lng));
@@ -252,8 +262,17 @@ function edgeness(area, lat, lng) {
 
 function randomPointIn(area) {
   if (area.type === "world") return randomWorldPoint();
-  // 複数の国を選んだ範囲は、先に国を選んでからその国の中の点を選ぶ（小さな国も出るように、広さの平方根で重みをつける）
   const isos = areaIsos(area);
+  // 円・多角形・国を組み合わせた範囲は、まず「円」「多角形」「国」のどれから出すかを同じ確率で選ぶ
+  if (area.type === "mix") {
+    const groups = [];
+    if (area.circles && area.circles.length) groups.push({ type: "circles", circles: area.circles, custom: true, exclude: area.exclude });
+    (area.polys || []).forEach((ring) => groups.push({ type: "polygons", rings: [ring], custom: true, exclude: area.exclude }));
+    if (isos.length) groups.push({ type: "polygons", rings: isos.flatMap(countryAreaRings), isos, iso: isos.length === 1 ? isos[0] : undefined, custom: true, exclude: area.exclude });
+    if (!groups.length) return null;
+    return randomPointIn(groups[Math.floor(rand() * groups.length)]);
+  }
+  // 複数の国を選んだ範囲は、先に国を選んでからその国の中の点を選ぶ（小さな国も出るように、広さの平方根で重みをつける）
   if (area.custom && isos.length > 1) {
     const parts = isos.map((iso) => {
       const part = { type: "polygons", rings: countryAreaRings(iso), iso, custom: true, exclude: area.exclude };
@@ -501,12 +520,12 @@ function drawArea(area, fit = true) {
     fillColor: AREA_LINE_COLOR, fillOpacity: 0.08, clickable: false,
   };
   const circles = areaCircles(area);
-  if (circles) {
-    state.areaOverlays = unionOverlays(circles, style);
-  } else {
-    state.areaOverlays = [new google.maps.Polygon({
-      ...style, paths: area.rings.map((ring) => ring.map(([lat, lng]) => ({ lat, lng }))),
-    })];
+  const rings = areaRings(area);
+  state.areaOverlays = circles ? unionOverlays(circles, style) : [];
+  if (rings.length) {
+    state.areaOverlays.push(new google.maps.Polygon({
+      ...style, paths: rings.map((ring) => ring.map(([lat, lng]) => ({ lat, lng }))),
+    }));
   }
   (area.exclude || []).forEach((c) => state.areaOverlays.push(new google.maps.Circle({
     ...style, strokeColor: EXCLUDE_COLOR, fillColor: EXCLUDE_COLOR, fillOpacity: 0.22, center: c.center, radius: c.radius,
@@ -845,6 +864,10 @@ function areaSummary(area) {
   const m = areaSizeMeters(area) / Math.SQRT2;
   const size = m < 1000 ? `約 ${Math.round(m / 10) * 10} m 四方` : `約 ${Math.round(m / 1000)} km 四方`;
   if (area.description) return `${size} ・ ${area.description}`;
+  if (area.custom && area.type === "mix") {
+    const ex = area.exclude && area.exclude.length ? ` ・ 除外 ${area.exclude.length}` : "";
+    return `${size} ・ ${mixPartsLabel(area)}${ex}`;
+  }
   if (area.custom && areaIsos(area).length) {
     const ex = area.exclude && area.exclude.length ? ` ・ 除外 ${area.exclude.length}` : "";
     return `${size} ・ ${countryListLabel(areaIsos(area))}（国まるごと）${ex}`;
@@ -859,6 +882,15 @@ function areaPlaceName(area) {
   const id = countryNear((b.south + b.north) / 2, (b.west + b.east) / 2);
   const c = id && WORLD.find((x) => x.id === id);
   return c ? `${c.name}付近` : "海の上";
+}
+
+// 組み合わせた範囲の中身（「日本 + 円 2 個 + 多角形」のように）
+function mixPartsLabel(area) {
+  const parts = [];
+  if (areaIsos(area).length) parts.push(countryListLabel(areaIsos(area), 2));
+  if (area.circles && area.circles.length) parts.push(`円 ${area.circles.length} 個`);
+  if (area.polys && area.polys.length) parts.push(area.polys.length > 1 ? `多角形 ${area.polys.length} 個` : "多角形");
+  return parts.join(" + ");
 }
 
 function areaShapeKind(area) {
@@ -916,18 +948,18 @@ function staticThumb(area) {
     const p = mercPx(lat, lngOf(lng), z);
     return [p.x - c.x + THUMB / 2, p.y - c.y + THUMB / 2];
   };
-  const circles = areaCircles(area);
-  const shapes = circles
-    ? circles.map((ci) => {
-      const [x, y] = px(ci.center.lat, ci.center.lng);
-      const metersPerPx = (40075016.686 * Math.cos((ci.center.lat * Math.PI) / 180)) / (256 * 2 ** z);
-      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(ci.radius / metersPerPx).toFixed(1)}"/>`;
-    }).join("")
-    : area.rings.map((ring) => `<polygon points="${ring.map(([lat, lng]) => px(lat, lng).map((v) => v.toFixed(1)).join(",")).join(" ")}"/>`).join("");
+  const circles = areaCircles(area) || [];
+  const circleShapes = circles.map((ci) => {
+    const [x, y] = px(ci.center.lat, ci.center.lng);
+    const metersPerPx = (40075016.686 * Math.cos((ci.center.lat * Math.PI) / 180)) / (256 * 2 ** z);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(ci.radius / metersPerPx).toFixed(1)}"/>`;
+  }).join("");
+  const ringShapes = areaRings(area).map((ring) => `<polygon points="${ring.map(([lat, lng]) => px(lat, lng).map((v) => v.toFixed(1)).join(",")).join(" ")}"/>`).join("");
+  const shapes = circleShapes + ringShapes;
   // 円は、つなげた形の外側のふちだけを線にする
-  const outline = circles
+  const outline = (circles.length
     ? circleUnionArcs(circles, 90).map((arc) => `<polyline points="${arc.map((p) => px(p.lat, p.lng).map((v) => v.toFixed(1)).join(",")).join(" ")}"/>`).join("")
-    : shapes;
+    : "") + ringShapes;
   const excludes = (area.exclude || []).map((ci) => {
     const [x, y] = px(ci.center.lat, ci.center.lng);
     const metersPerPx = (40075016.686 * Math.cos((ci.center.lat * Math.PI) / 180)) / (256 * 2 ** z);
@@ -966,7 +998,7 @@ function areaShapeSvg(area) {
   const oy = (100 - h * scale) / 2;
   const xy = (lat, lng) => [ox + (lng - b.west) * k * scale, oy + (b.north - lat) * scale];
   const circles = areaCircles(area);
-  let shapes;
+  let shapes = "";
   if (circles) {
     // 塗りはまとめて半透明にし（重なっても濃くならない）、線はつなげた形の外側だけ
     const fills = circles.map((c) => {
@@ -976,9 +1008,8 @@ function areaShapeSvg(area) {
     const lines = circleUnionArcs(circles, 90)
       .map((arc) => `<polyline class="u-line" points="${arc.map((p) => xy(p.lat, p.lng).join(",")).join(" ")}"/>`).join("");
     shapes = `<g class="u-fill">${fills}</g>${lines}`;
-  } else {
-    shapes = area.rings.map((ring) => `<polygon points="${ring.map(([lat, lng]) => xy(lat, lng).join(",")).join(" ")}"/>`).join("");
   }
+  shapes += areaRings(area).map((ring) => `<polygon points="${ring.map(([lat, lng]) => xy(lat, lng).join(",")).join(" ")}"/>`).join("");
   const excludes = (area.exclude || []).map((c) => {
     const [x, y] = xy(c.center.lat, c.center.lng);
     return `<circle class="ex" cx="${x}" cy="${y}" r="${(c.radius / 111320) * scale}"/>`;
@@ -2664,7 +2695,7 @@ function openEditor(editId) {
   renderAreaForm("area");
   clearOverlay();
   state.map.setOptions({ draggableCursor: "crosshair" });
-  setTool(editing && areaIsos(editing).length ? "country" : editing && editing.type === "polygons" ? "polygon" : "circle");
+  setTool(editing && areaIsos(editing).length ? "country" : editing && (editing.type === "polygons" || editing.polys) ? "polygon" : "circle");
   setKind("add");
   if (editing) loadEditorShapes(editing);
 }
@@ -2695,15 +2726,14 @@ function addExcludeCircle(center, radius) {
 // 保存してある範囲の図形を、エディタで動かせる図形として置き直す
 function loadEditorShapes(area) {
   const ed = state.editor;
-  const circles = areaCircles(area);
-  if (areaIsos(area).length) {
-    areaIsos(area).forEach((iso) => addEditorCountry(iso));
-    fillCountryPick();
-  } else if (circles) {
-    circles.forEach((c) => addEditorCircle(new google.maps.LatLng(c.center.lat, c.center.lng), c.radius));
-  } else {
+  // 円・多角形・国は、組み合わせてあればすべて置き直す
+  areaIsos(area).forEach((iso) => addEditorCountry(iso));
+  fillCountryPick();
+  (areaCircles(area) || []).forEach((c) => addEditorCircle(new google.maps.LatLng(c.center.lat, c.center.lng), c.radius));
+  const ring = area.type === "mix" ? (area.polys || [])[0] : !areaIsos(area).length && area.type === "polygons" ? area.rings[0] : null;
+  if (ring) {
     const path = ensureEditorPolygon().getPath();
-    area.rings[0].forEach(([lat, lng]) => path.push(new google.maps.LatLng(lat, lng)));
+    ring.forEach(([lat, lng]) => path.push(new google.maps.LatLng(lat, lng)));
     ed.selected = ed.polygon;
   }
   (area.exclude || []).forEach((c) => addExcludeCircle(new google.maps.LatLng(c.center.lat, c.center.lng), c.radius));
@@ -2735,9 +2765,9 @@ function setEditorStep(details) {
   $("panel").scrollTop = 0;
 }
 
+// 道具を切り替えても、描いた図形は残す（円・多角形・国を組み合わせられる）
 function setTool(tool) {
   const ed = state.editor;
-  clearEditorShapes(false);
   ed.tool = tool;
   document.querySelectorAll("#tool-tabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.tool === tool));
   $("radius-row").hidden = tool !== "circle" && ed.kind !== "exclude";
@@ -2955,14 +2985,7 @@ function polygonSelfIntersects(latLngs) {
 // いま描いている範囲の広さ
 function editorSizeText() {
   const ed = state.editor;
-  if (ed.tool === "country") {
-    const isos = ed.countries.map((c) => c.iso);
-    return areaSummary({ type: "polygons", rings: isos.flatMap(countryAreaRings), isos, custom: true });
-  }
-  const area = ed.tool === "circle"
-    ? { type: "circles", circles: ed.circles.map((c) => ({ center: { lat: c.getCenter().lat(), lng: c.getCenter().lng() }, radius: c.getRadius() })) }
-    : { type: "polygons", rings: [ed.polygon.getPath().getArray().map((p) => [p.lat(), p.lng()])] };
-  return areaSummary({ ...area, custom: true });
+  return areaSummary(hydrateArea({ ...editorArea(), custom: true }));
 }
 
 // 図形の数や交差の有無を表示して、保存できる状態かを見せる
@@ -2972,25 +2995,27 @@ function updateEditorStatus() {
   let text = "";
   let ok = false;
   const pts = ed.polygon ? ed.polygon.getPath().getArray() : [];
-  if (ed.tool === "country") {
-    ok = ed.countries.length > 0;
-    text = ok ? `国: ${ed.countries.length} か国` : "国: まだ選んでいません";
-  } else if (ed.tool === "circle") {
-    ok = ed.circles.length > 0;
-    text = `円: ${ed.circles.length} 個`;
-  } else {
-    const crossed = polygonSelfIntersects(pts);
-    if (ed.polygon) ed.polygon.setOptions({ strokeColor: crossed ? EDIT_ERROR_COLOR : EDIT_COLOR, fillColor: crossed ? EDIT_ERROR_COLOR : EDIT_COLOR });
-    ok = pts.length >= 3 && !crossed;
-    text = crossed ? "⚠ 線が交差しています。白い点をドラッグして直してください" : `頂点: ${pts.length} 個`;
-  }
+  // 円・多角形・国のうち、描いてあるものをすべて数える
+  const crossed = polygonSelfIntersects(pts);
+  if (ed.polygon) ed.polygon.setOptions({ strokeColor: crossed ? EDIT_ERROR_COLOR : EDIT_COLOR, fillColor: crossed ? EDIT_ERROR_COLOR : EDIT_COLOR });
+  const polyOk = pts.length >= 3 && !crossed;
+  const polyBad = pts.length > 0 && !polyOk;
+  const parts = [];
+  if (ed.countries.length) parts.push(`国: ${ed.countries.length} か国`);
+  if (ed.circles.length) parts.push(`円: ${ed.circles.length} 個`);
+  if (pts.length) parts.push(`頂点: ${pts.length} 個`);
+  ok = (ed.countries.length > 0 || ed.circles.length > 0 || polyOk) && !polyBad;
+  text = crossed ? "⚠ 線が交差しています。白い点をドラッグして直してください"
+    : parts.join(" ・ ") || (ed.tool === "country" ? "国: まだ選んでいません" : ed.tool === "circle" ? "円: 0 個" : "頂点: 0 個");
   if (ed.excludes.length) text += ` ・ 除外: ${ed.excludes.length} 個`;
   const error = text.startsWith("⚠");
   $("editor-status").textContent = error ? text.slice(2) : text;
   $("editor-status-card").classList.toggle("error", error);
   $("editor-status-card").classList.toggle("ready", ok);
   $("editor-status-icon").textContent = error ? "!" : ok ? "✓" : "…";
-  $("editor-size").textContent = ok ? editorSizeText() : ed.tool === "country" ? "地図かリストから国を選んでください" : ed.tool === "circle" ? "まだ円がありません" : "頂点が3つ以上必要です";
+  $("editor-size").textContent = ok ? editorSizeText()
+    : polyBad ? "多角形は頂点が3つ以上必要です（いらなければ一覧から削除）"
+    : ed.tool === "country" ? "地図かリストから国を選んでください" : ed.tool === "circle" ? "まだ円がありません" : "頂点が3つ以上必要です";
   $("editor-hint").textContent = (ed.kind === "exclude"
     ? "地図をクリックして、出題しない場所に赤い円を置こう"
     : ed.tool === "country"
@@ -3011,27 +3036,32 @@ function updateEditorStatus() {
   refreshEditorUnion();
 }
 
+// エディタで描いた範囲を、保存する形にする（国の形は保存しない。読み込むときに国コードから作る）
+// 1種類だけなら今までと同じ形、円・多角形・国を組み合わせたときは type "mix"
+function editorArea() {
+  const ed = state.editor;
+  const circles = ed.circles.map((c) => ({ center: { lat: c.getCenter().lat(), lng: c.getCenter().lng() }, radius: Math.round(c.getRadius()) }));
+  const pts = ed.polygon ? ed.polygon.getPath().getArray() : [];
+  const ring = pts.length >= 3 ? pts.map((p) => [p.lat(), p.lng()]) : null;
+  const isos = ed.countries.map((c) => c.iso);
+  const kinds = [circles.length > 0, !!ring, isos.length > 0].filter(Boolean).length;
+  if (!kinds) return null;
+  if (kinds > 1) {
+    return { type: "mix", ...(circles.length ? { circles } : {}), ...(ring ? { polys: [ring] } : {}), ...(isos.length ? { isos } : {}) };
+  }
+  if (isos.length) return isos.length === 1 ? { type: "polygons", iso: isos[0], isos } : { type: "polygons", isos };
+  if (circles.length) return { type: "circles", circles };
+  return { type: "polygons", rings: [ring] };
+}
+
 function saveEditor() {
   const ed = state.editor;
   const name = $("area-name").value.trim() || "自作の範囲";
-  let area;
-  if (ed.tool === "country") {
-    if (!ed.countries.length) return showMessage("国を選んでください。");
-    // 国の形は保存しない（読み込むときに国コードから作る）。1か国だけのときは iso も残す
-    const isos = ed.countries.map((c) => c.iso);
-    area = isos.length === 1 ? { type: "polygons", iso: isos[0], isos } : { type: "polygons", isos };
-  } else if (ed.tool === "circle") {
-    if (!ed.circles.length) return showMessage("地図をクリックして円を置いてください。");
-    area = {
-      type: "circles",
-      circles: ed.circles.map((c) => ({ center: { lat: c.getCenter().lat(), lng: c.getCenter().lng() }, radius: Math.round(c.getRadius()) })),
-    };
-  } else {
-    const pts = ed.polygon ? ed.polygon.getPath().getArray() : [];
-    if (pts.length < 3) return showMessage("頂点を3つ以上置いてください。");
-    if (polygonSelfIntersects(pts)) return showMessage("線が交差しているので保存できません。白い点をドラッグして直してください。");
-    area = { type: "polygons", rings: [pts.map((p) => [p.lat(), p.lng()])] };
-  }
+  const pts = ed.polygon ? ed.polygon.getPath().getArray() : [];
+  if (pts.length && pts.length < 3) return showMessage("多角形は頂点を3つ以上置いてください（いらなければ一覧から削除してください）。");
+  if (polygonSelfIntersects(pts)) return showMessage("線が交差しているので保存できません。白い点をドラッグして直してください。");
+  let area = editorArea();
+  if (!area) return showMessage("円・多角形・国のどれかで、出題する範囲を描いてください。");
   if (ed.excludes.length) {
     area.exclude = ed.excludes.map((c) => ({ center: { lat: c.getCenter().lat(), lng: c.getCenter().lng() }, radius: Math.round(c.getRadius()) }));
   }
@@ -3060,7 +3090,7 @@ function saveEditor() {
 function editorShapes() {
   const ed = state.editor;
   if (!ed) return [];
-  const main = ed.tool === "country" ? ed.countries.map((c) => c.shape) : ed.tool === "circle" ? ed.circles : ed.polygon ? [ed.polygon] : [];
+  const main = [...ed.countries.map((c) => c.shape), ...ed.circles, ...(ed.polygon ? [ed.polygon] : [])];
   return [...main, ...ed.excludes];
 }
 
@@ -3070,7 +3100,7 @@ function renderShapeList() {
   const shapes = editorShapes();
   $("shape-list").innerHTML = shapes.map((s, i) => {
     const circle = s instanceof google.maps.Circle;
-    const label = s.isExclude ? `⛔ 除外 ${ed.excludes.indexOf(s) + 1}` : s.isCountry ? `🌐 ${countryLabel(s.iso)}` : circle ? `円 ${i + 1}` : "多角形";
+    const label = s.isExclude ? `⛔ 除外 ${ed.excludes.indexOf(s) + 1}` : s.isCountry ? `🌐 ${countryLabel(s.iso)}` : circle ? `円 ${ed.circles.indexOf(s) + 1}` : "多角形";
     const sub = s.isCountry ? "国まるごと" : circle ? `半径 ${formatDistance(s.getRadius())}` : `頂点 ${s.getPath().getLength()} 個`;
     return `<li class="${s === ed.selected ? "sel" : ""}${s.isExclude ? " ex" : ""}">
       <button class="sl-pick" data-i="${i}" title="この図形を選ぶ"><b>${label}</b><small>${sub}</small></button>
@@ -3114,7 +3144,7 @@ function selectShape(shape) {
 function highlightSelected() {
   const ed = state.editor;
   if (!ed) return;
-  if (ed.tool === "circle") {
+  {
     // 円そのものは線も塗りも消して、つなげた形（refreshEditorUnion）で見せる。選んでいる円だけ白い線で示す
     ed.circles.forEach((c) => c.setOptions(c === ed.selected
       ? { strokeWeight: 3, strokeColor: "#ffffff", strokeOpacity: 1, fillOpacity: 0, zIndex: 2 }
@@ -3131,7 +3161,7 @@ function refreshEditorUnion() {
   if (!ed) return;
   (ed.union || []).forEach((o) => o.setMap(null));
   ed.union = [];
-  if (ed.tool !== "circle" || !ed.circles.length) return;
+  if (!ed.circles.length) return;
   const circles = ed.circles.map((c) => ({ center: { lat: c.getCenter().lat(), lng: c.getCenter().lng() }, radius: c.getRadius() }));
   ed.union = unionOverlays(circles, { map: state.map, strokeColor: EDIT_COLOR, fillColor: EDIT_COLOR, fillOpacity: 0.15, strokeWeight: 2.5 });
 }

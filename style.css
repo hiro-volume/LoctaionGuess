@@ -2864,5 +2864,11 @@ html.no-anim .cs-flash { display: none; }
 /* 範囲エディタ: 円・多角形・国の3つ */
 #tool-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 #tool-tabs .tab { padding: 10px 8px; gap: 6px; }
-#tool-tabs .tab small { white-space: nowrap; }
+#tool-tabs .tab span { min-width: 0; }
+#tool-tabs .tab b, #tool-tabs .tab small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* PC では3つ並ぶと幅が足りないので、アイコンを文字の上に置く */
+@media (min-width: 721px) {
+  #tool-tabs .tab { flex-direction: column; justify-content: center; text-align: center; gap: 4px; padding: 10px 6px; }
+  #tool-tabs .tab span { align-items: center; max-width: 100%; }
+}
 #country-row select { width: 100%; }
