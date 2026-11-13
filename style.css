@@ -2860,3 +2860,9 @@ html.no-anim .cs-flash { display: none; }
 
 /* コンペティティブを選んでいるときは、マップのランキングは出さない */
 #settings-sheet.ranked-mode #ranking, #settings-sheet.ranked-mode #btn-to-ranking { display: none !important; }
+
+/* 範囲エディタ: 円・多角形・国の3つ */
+#tool-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#tool-tabs .tab { padding: 10px 8px; gap: 6px; }
+#tool-tabs .tab small { white-space: nowrap; }
+#country-row select { width: 100%; }
